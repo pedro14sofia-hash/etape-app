@@ -85,7 +85,7 @@ export function createRenderer(canvas) {
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = toPx(c.lat, c.lon); const im = icon('hotel', 30); if (ready(im)) ctx.drawImage(im, q[0] - 15, q[1] - 26, 30, 30); }
       if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = toPx(p[0], p[1]); bike(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
-    if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 12) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } bike(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
+    if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 40) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } bike(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
     // escala
     const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
     const sx = S.mode === 'resumo' ? 156 : 12;
@@ -130,13 +130,12 @@ export function createRenderer(canvas) {
     if ((z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + 10, q[1], 'left', '600 11px "Archivo Narrow", Archivo, sans-serif');
   }
   function bike(q, rot) {
-    ctx.save(); ctx.translate(q[0], q[1]);
-    ctx.beginPath(); ctx.arc(0, 0, 30, 0, 7); ctx.fillStyle = theme.acc; ctx.fill();
-    ctx.save(); ctx.rotate(rot); ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(9, -22); ctx.lineTo(-9, -22); ctx.closePath(); ctx.fillStyle = theme.bike; ctx.fill(); ctx.restore();
-    ctx.beginPath(); ctx.arc(0, 0, 21, 0, 7); ctx.fillStyle = theme.puck; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = theme.ribbonCasing; ctx.stroke();
-    const im = icon('mybike', 40);
-    if (ready(im)) ctx.drawImage(im, -20, -22, 40, 40);
-    else { ctx.strokeStyle = theme.bike; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(-8, 4, 6, 0, 7); ctx.moveTo(14, 4); ctx.arc(8, 4, 6, 0, 7); ctx.stroke(); }
+    // como no Waze: a bike vista de cima, girada para o rumo, sem disco; só uma sombra suave embaixo
+    ctx.save(); ctx.translate(q[0], q[1]); ctx.rotate(rot);
+    ctx.beginPath(); ctx.ellipse(3, 6, 16, 30, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fill();
+    const im = icon('bikeTop', 72);
+    if (ready(im)) ctx.drawImage(im, -36, -40, 72, 72);
+    else { ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(10, 12); ctx.lineTo(0, 6); ctx.lineTo(-10, 12); ctx.closePath(); ctx.fillStyle = theme.puck; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme.bike; ctx.stroke(); }
     ctx.restore();
   }
   function rr(x, y, w, h, r) { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }

@@ -61,6 +61,17 @@ export const ICONS = {
     <circle cx="33" cy="41" r="4" fill="#C9C9C9" stroke="${INK}" stroke-width="1.4"/><path d="M33 41l4 4" stroke="${INK}" stroke-width="2.4"/><circle cx="37.5" cy="45.5" r="1.6" fill="${INK}"/>
     <path d="M18 39L33 41" stroke="#8A8F96" stroke-width="1"/>
   </g>`,
+  // a Cannondale vista de cima, como no Waze: roda da frente em cima, guidão, quadro branco, selim verde, roda de trás
+  bikeTop: `<g stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="34" cy="36" rx="10" ry="24" fill="rgba(0,0,0,.22)"/>
+    <rect x="29" y="4" width="6" height="22" rx="3" fill="${INK}"/><rect x="31" y="6" width="2" height="18" rx="1" fill="#8A8F96"/>
+    <rect x="29" y="40" width="6" height="22" rx="3" fill="${INK}"/><rect x="31" y="42" width="2" height="18" rx="1" fill="#8A8F96"/>
+    <path d="M32 22v22" stroke="${PAPER}" stroke-width="6"/><path d="M32 22v22" stroke="${INK}" stroke-width="1.2" opacity=".35"/>
+    <path d="M32 26v9" stroke="${VERT}" stroke-width="2"/>
+    <path d="M16 20h32" stroke="${INK}" stroke-width="5"/><path d="M16 20v6M48 20v6" stroke="${INK}" stroke-width="5"/><path d="M18 20h28" stroke="#3C4045" stroke-width="1.5"/>
+    <ellipse cx="32" cy="38" rx="6" ry="4.5" fill="#C9C9C9" stroke="${INK}" stroke-width="1.5"/>
+    <path d="M32 42c-5 0-7 2-7 6h14c0-4-2-6-7-6z" fill="${PAPER}" stroke="${INK}" stroke-width="1.8"/><path d="M27 46h10" stroke="${VERT}" stroke-width="2"/>
+  </g>`,
   // sos
   sos: base(ROUGE) + g(`<circle cx="32" cy="30" r="14" fill="${PAPER}"/><path d="M32 22v10l6 4" fill="none" stroke-width="3"/>`),
 };
