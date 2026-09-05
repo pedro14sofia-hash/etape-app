@@ -42,16 +42,16 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .cue .arr svg{width:34px;height:34px;display:block}
 .mini-btn{border:1.5px solid currentColor;border-radius:4px;padding:6px 10px;font-family:var(--fd);font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase}
 #attr{position:absolute;right:10px;font-size:9px;color:var(--attr-ink);background:var(--attr);padding:1px 4px;border-radius:2px;z-index:4;pointer-events:none}
-/* velocímetro estilo TV do Tour (modo resumo) */
-#speedo{position:absolute;left:10px;z-index:4;background:#17191C;color:#FFE566;border-radius:6px;padding:8px 12px 8px;min-width:132px;box-shadow:0 4px 14px rgba(0,0,0,.35);border:1.5px solid #FFD100}
+/* velocímetro estilo TV do Tour (modo resumo): sem fundo, dígitos com halo sobre o mapa */
+#speedo{position:absolute;left:10px;z-index:4;color:#FFD100;padding:0;min-width:132px;pointer-events:none}
 #speedo .sp{display:flex;align-items:baseline;gap:6px}
-#speedo .sp b{font-family:var(--fd);font-weight:900;font-size:3.4rem;line-height:.85;font-variant-numeric:tabular-nums;letter-spacing:.01em}
-#speedo .sp span{font-family:var(--fd);font-weight:700;font-size:1rem;letter-spacing:.08em;text-transform:uppercase;opacity:.85}
-#speedo .spbar{position:relative;height:7px;background:#3A3D44;margin-top:7px;border-radius:2px;overflow:hidden}
+#speedo .sp b{font-family:var(--fd);font-weight:900;font-size:3.8rem;line-height:.85;font-variant-numeric:tabular-nums;letter-spacing:.01em;color:#FFD100;text-shadow:0 0 2px #17191C,0 0 4px #17191C,0 0 8px #17191C,2px 2px 0 #17191C,-1px -1px 0 #17191C}
+#speedo .sp span{font-family:var(--fd);font-weight:800;font-size:1.05rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);text-shadow:0 0 3px var(--map),0 0 5px var(--map),0 0 8px var(--map)}
+#speedo .spbar{position:relative;height:7px;background:rgba(23,25,28,.55);margin-top:7px;border-radius:2px;overflow:hidden;border:1px solid rgba(23,25,28,.7)}
 #speedo .spbar i{position:absolute;left:0;top:0;bottom:0;background:#FFD100;width:0;transition:width .4s}
 #speedo .spbar em{position:absolute;top:0;bottom:0;width:1.5px;background:#17191C;left:25%}#speedo .spbar em:nth-child(3){left:50%}#speedo .spbar em:nth-child(4){left:75%}
-#speedo .spx{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-family:var(--fb);font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#B9BCC2}
-#speedo .spx .g{font-family:var(--fd);font-weight:900;font-size:1.15rem;letter-spacing:0;color:#FFE566;padding:1px 7px;border-radius:3px;background:#2A2D33}
+#speedo .spx{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-family:var(--fb);font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);text-shadow:0 0 3px var(--map),0 0 5px var(--map),0 0 8px var(--map)}
+#speedo .spx .g{font-family:var(--fd);font-weight:900;font-size:1.15rem;letter-spacing:0;color:#FFE566;padding:1px 7px;border-radius:3px;background:#17191C;text-shadow:none}
 #speedo .spx .g.up{background:#D71920;color:#fff}#speedo .spx .g.down{background:#2F8F46;color:#fff}
 /* painel */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:5;background:var(--bg);border-top:2px solid var(--casing);color:var(--ink);padding-bottom:env(safe-area-inset-bottom)}
