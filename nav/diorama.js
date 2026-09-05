@@ -10,7 +10,7 @@ import { mercX, mercY } from './geo.js';
 import { flagAt, stageFlags } from './render.js';
 
 const EXAG = 1.7;            // exagero vertical
-const PAPER = '#F7F5EE', INK = '#17191C';
+const PAPER = '#FFFFFF', INK = '#000000';
 let renderer = null, scene, camera, canvas, raf = 0, W = 0, H = 0, dpr = 1;
 let world = null;            // { box, cols, rows, hmin, sx, sz, toXZ(lat,lon), heightAt(lat,lon), terrain, ribbon, marker, texBase, texSat }
 let cam = { az: -0.65, el: 0.62, dist: 1, target: new THREE.Vector3(), auto: true }, drag = null, pinch = 0, lastTouch = 0, S2 = null;
@@ -66,7 +66,7 @@ export async function build(cv, stage, paradas, key, opts = {}) {
   const terrainMat = new THREE.MeshLambertMaterial({ map: texBase });
   const terrain = new THREE.Mesh(geo, terrainMat); scene.add(terrain);
   // paredes do bloco (maquete) e base
-  const wallMat = new THREE.MeshLambertMaterial({ color: 0x17191c }); const walls = new THREE.Group();
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x000000 }); const walls = new THREE.Group();
   const edge = (pick, n) => { const out = []; for (let t = 0; t <= n; t++) out.push(pick(t)); return out; };
   const top = edge(i => [-sx / 2 + sx * i / cols, (hgt[i] - base) * vsc, -sz / 2], cols), bot = edge(i => [-sx / 2 + sx * i / cols, (hgt[rows * (cols + 1) + i] - base) * vsc, sz / 2], cols);
   const lef = edge(j => [-sx / 2, (hgt[j * (cols + 1)] - base) * vsc, -sz / 2 + sz * j / rows], rows), rig = edge(j => [sx / 2, (hgt[j * (cols + 1) + cols] - base) * vsc, -sz / 2 + sz * j / rows], rows);
@@ -79,8 +79,8 @@ export async function build(cv, stage, paradas, key, opts = {}) {
   const path = []; for (let i = 0; i < pts.length; i += Math.max(1, Math.floor(pts.length / 1400))) path.push(pts[i]); if (path[path.length - 1] !== pts[pts.length - 1]) path.push(pts[pts.length - 1]);
   const line = path.map(p => { const [x, z] = toXZ(p[0], p[1]); return new THREE.Vector3(x, heightAt(p[0], p[1]) + lift, z); });
   const ribbon = new THREE.Group();
-  ribbon.add(new THREE.Mesh(strip(line, rw * 1.7, -0.0006), new THREE.MeshBasicMaterial({ color: 0x17191c })));
-  ribbon.add(new THREE.Mesh(strip(line, rw, 0), new THREE.MeshBasicMaterial({ color: 0xffd100 })));
+  ribbon.add(new THREE.Mesh(strip(line, rw * 1.7, -0.0006), new THREE.MeshBasicMaterial({ color: 0x000000 })));
+  ribbon.add(new THREE.Mesh(strip(line, rw, 0), new THREE.MeshBasicMaterial({ color: 0xffff00 })));
   scene.add(ribbon);
   // trecho já feito (tracejado escuro) é atualizado por setProgress
 
@@ -94,7 +94,7 @@ export async function build(cv, stage, paradas, key, opts = {}) {
   }
   const named = [];
   for (const c of stage.cps) if (c.col || c.hotel || c.idx === 0 || c.dist >= stage.total - 500) named.push(c);
-  const seen = new Set(), placed = [], poleMat = new THREE.LineBasicMaterial({ color: 0x17191c, transparent: true, opacity: 0.55 });
+  const seen = new Set(), placed = [], poleMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 });
   for (const c of named) {
     if (seen.has(c.name)) continue; seen.add(c.name);
     const [x, z] = toXZ(c.lat, c.lon), y0 = heightAt(c.lat, c.lon) + lift;
@@ -105,8 +105,8 @@ export async function build(cv, stage, paradas, key, opts = {}) {
   }
   // ciclista
   const marker = new THREE.Group();
-  const dot = new THREE.Mesh(new THREE.SphereGeometry(rw * 1.8, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffd100 })); marker.add(dot);
-  const halo = new THREE.Mesh(new THREE.RingGeometry(rw * 2.4, rw * 3.4, 24), new THREE.MeshBasicMaterial({ color: 0x17191c, side: THREE.DoubleSide })); halo.rotateX(-Math.PI / 2); marker.add(halo);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(rw * 1.8, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffff00 })); marker.add(dot);
+  const halo = new THREE.Mesh(new THREE.RingGeometry(rw * 2.4, rw * 3.4, 24), new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide })); halo.rotateX(-Math.PI / 2); marker.add(halo);
   marker.visible = false; scene.add(marker);
 
   world = { box, cols, rows, hmin, hmax, base, vsc, sx, sz, big, toXZ, heightAt, terrain, terrainMat, ribbon, marker, texBase, texSat: null, stage, lift, key, done: null };
@@ -190,7 +190,7 @@ function flagSprite(kind, text, x, y, z, hgt) {
 function textSprite(txt, x, y, z, col, big) {
   const c = document.createElement('canvas'); const g = c.getContext('2d'); const font = '800 34px "Barlow Condensed", "Arial Narrow", sans-serif';
   g.font = font; const w = Math.ceil(g.measureText(txt).width) + 26; c.width = w; c.height = 48; g.font = font; g.textBaseline = 'middle';
-  g.fillStyle = col ? '#D71920' : INK; roundRect(g, 0, 4, w, 40, 4); g.fill(); g.fillStyle = col ? '#FFFFFF' : '#FFE566'; g.fillText(txt, 13, 26);
+  g.fillStyle = col ? '#E10D0D' : INK; roundRect(g, 0, 4, w, 40, 4); g.fill(); g.fillStyle = col ? '#FFFFFF' : '#FFFF00'; g.fillText(txt, 13, 26);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); const h = Math.max(0.022, 1.55 / big);
   sp.scale.set(h * w / 48, h, 1); sp.position.set(x, y, z); sp.center.set(0.5, 0); sp.renderOrder = 6; return sp;

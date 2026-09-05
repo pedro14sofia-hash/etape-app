@@ -195,11 +195,25 @@ function onFix(raw) {
 }
 function handleEvent(ev) {
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
-  if (ev.kind === 'sight') { ev.right = '<button class="mini-btn" data-done="' + ev.parada.id + '">feito</button>'; }
+  const POIS = '<svg class="flag" viewBox="0 0 36 26"><rect width="36" height="26" fill="#fff" stroke="#000"/><g fill="#E10D0D"><circle cx="7" cy="6" r="3.2"/><circle cx="20" cy="6" r="3.2"/><circle cx="33" cy="6" r="3.2"/><circle cx="13.5" cy="15" r="3.2"/><circle cx="26.5" cy="15" r="3.2"/><circle cx="7" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="33" cy="24" r="3.2"/></g></svg>';
+  const FLAMME = '<svg class="flag" viewBox="0 0 36 26"><rect x="3" y="1" width="3" height="24" fill="#fff"/><path d="M6 2h26l-6 7 6 7H6z" fill="#fff"/><text x="17" y="14" font-family="Barlow Condensed" font-weight="900" font-size="12" fill="#E10D0D" text-anchor="middle">1</text></svg>';
+  const MUSETTE = '<svg class="flag" viewBox="0 0 36 26"><path d="M1 25L6 1h29l-5 24z" fill="#B9BCC2" stroke="#000"/><path d="M15 8h7l3 12H12z" fill="#fff"/></svg>';
+  if (ev.kind === 'sight') { ev.right = '<button class="mini-btn vert" data-done="' + ev.parada.id + '">Feito</button>'; }
+  if (ev.kind === 'climbStart' && ev.cat) ev.right = '<span class="plate' + (ev.cat === 'HC' ? ' hc' : '') + '">' + ev.cat + '</span>';
+  if (ev.kind === 'summit') ev.right = POIS;
+  if (ev.kind === 'flamme') ev.right = FLAMME;
+  if (ev.kind === 'shopWindow') ev.right = MUSETTE;
+  if (ev.kind === 'offRoute' && ev.off != null) ev.right = '<span class="pill">' + (ev.off > 5000 ? Math.round(ev.off / 1000) + ' km' : Math.round(ev.off) + ' m') + '</span>';
+  if (ev.kind === 'backOnRoute') ev.right = '<span class="pill vert">✓</span>';
+  if (ev.kind === 'refill') ev.right = '<span class="pill bleu">' + Math.round(S.waterAhead || 0) + ' m</span>';
+  if (ev.kind === 'checkpoint' && ev.cp) ev.right = '<span class="pill">' + ev.cp.kmLabel + '</span>';
+  if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
+  if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
   if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
   if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.txt.includes('retorno') ? 'retorno' : ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
   voice.announce(ev);
+  const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
   const fb = $('cue').querySelector('[data-finish]'); if (fb) fb.onclick = e => { e.stopPropagation(); voice.clearBanner(); finishStage(true); };
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
 }
@@ -219,7 +233,7 @@ function glide(ts) {
   const dt = Math.min(0.1, lastGlide ? (ts - lastGlide) / 1000 : 0.033); lastGlide = ts;
   let lat, lon, head, dist = T.dist;
   const lost = age > 4;
-  if (lost && !(T.on && T.v > 2 && age < 45)) { if (lost && S.gpsMsg === 'GPS ligado' && gps.running() && T.v > 0.5) { S.gpsMsg = 'GPS perdido · estimando'; refresh(); } if (age > 45) return; }
+  if (lost && !(T.on && T.v > 2 && age < 45)) { if (lost && S.gpsMsg === 'GPS ligado' && gps.running() && T.v > 0.5) { S.gpsMsg = 'GPS perdido · estimando'; refresh(); voice.banner('GPS perdido', 2, 'estimando pela rota', '<span class="pill">~</span>', 0, 'gps'); } if (age > 45) return; }
   const ahead = T.v < 0.5 ? 0 : T.v * Math.min(lost ? 45 : 1.5, age);
   if (T.on) { dist = Math.min(S.stage.total, T.dist + ahead); const p = track.pointAt(S.stage, dist); lat = p[0]; lon = p[1]; head = track.bearingAt(S.stage, Math.min(S.stage.total, dist + 15)) * Math.PI / 180; }
   else { lat = T.lat + ahead * Math.cos(T.head) / 111320; lon = T.lon + ahead * Math.sin(T.head) / (111320 * Math.cos(T.lat * Math.PI / 180)); head = T.head; const ch = T.v < 1.2 ? compass.heading() : null; if (ch != null) head = ch * Math.PI / 180; }
@@ -241,7 +255,7 @@ function perfHud(ts, ms) {
   if (!/[?&]debug=1/.test(location.search)) return;
   PERF.n++; PERF.ms += ms;
   if (ts - PERF.last < 500) return; PERF.last = ts;
-  if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFE566;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
+  if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFFF00;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
   const st = R.stats(), mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '';
   PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem;
   PERF.n = 0; PERF.ms = 0;

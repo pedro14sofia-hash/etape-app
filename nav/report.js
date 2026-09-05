@@ -33,10 +33,10 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
 }
 
 // maillots por tipo de etapa (mesmo desenho do guia)
-const MAILLOT = { pois: ['#FFFFFF', 'url(#pd)'], jaune: ['#FFD100', '#FFD100'], vert: ['#2F8F46', '#2F8F46'], blanc: ['#FFFFFF', '#FFFFFF'] };
+const MAILLOT = { pois: ['#FFFFFF', 'url(#pd)'], jaune: ['#FFFF00', '#FFFF00'], vert: ['#1DAE50', '#1DAE50'], blanc: ['#FFFFFF', '#FFFFFF'] };
 function maillotSvg(kind, size = 40) {
   const body = kind === 'pois' ? 'url(#pdots)' : (MAILLOT[kind] || MAILLOT.blanc)[0];
-  return `<svg viewBox="0 0 40 32" width="${size}" height="${size * .8}"><defs><pattern id="pdots" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><circle cx="3" cy="3" r="1.6" fill="#D71920"/></pattern></defs><path d="M8 3 L14 1 L20 3 L26 1 L32 3 L37 9 L31 13 L30 30 L10 30 L9 13 L3 9 Z" fill="${body}" stroke="#17191C" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 1 Q20 7 26 1" fill="none" stroke="#17191C" stroke-width="1.6"/></svg>`;
+  return `<svg viewBox="0 0 40 32" width="${size}" height="${size * .8}"><defs><pattern id="pdots" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><circle cx="3" cy="3" r="1.6" fill="#E10D0D"/></pattern></defs><path d="M8 3 L14 1 L20 3 L26 1 L32 3 L37 9 L31 13 L30 30 L10 30 L9 13 L3 9 Z" fill="${body}" stroke="#000000" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 1 Q20 7 26 1" fill="none" stroke="#000000" stroke-width="1.6"/></svg>`;
 }
 // classificações da viagem a partir de todos os relatórios salvos: geral (tempo), montanha (subida), pontos (média), jovem (etapas feitas)
 export function standings(all) {

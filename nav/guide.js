@@ -19,8 +19,8 @@ export function tick(S, fix, now) {
   const dist = S.proj.dist;
   // fora de rota
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
-      if (km > 5) ev.push({ kind: 'offRoute', level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
-      else ev.push({ kind: 'offRoute', level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } }
+      if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
+      else ev.push({ kind: 'offRoute', off: pr.off, level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } }
   else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
   if (pr.off > 120 && !S.offSince) S.offSince = now;
   if (S.off) { S.offDist = pr.off; return ev; }
@@ -42,7 +42,7 @@ export function tick(S, fix, now) {
   }
   // subidas
   const cl = climbAt(st, dist);
-  if (cl && S.climbId !== cl.id) { S.climbId = cl.id; ev.push({ kind: 'climbStart', level: 3, text: 'Subida · ' + cl.name, sub: (cl.len / 1000).toFixed(1).replace('.', ',') + ' km a ' + cl.pct.toFixed(1).replace('.', ',') + ' % · cat. ' + cl.cat, speak: 'Começa a subida de ' + cl.name + ', ' + Math.round(cl.len / 1000) + ' quilômetros.' }); }
+  if (cl && S.climbId !== cl.id) { S.climbId = cl.id; ev.push({ kind: 'climbStart', cat: cl.cat, level: 3, text: 'Subida · ' + cl.name, sub: (cl.len / 1000).toFixed(1).replace('.', ',') + ' km a ' + cl.pct.toFixed(1).replace('.', ',') + ' % · cat. ' + cl.cat, speak: 'Começa a subida de ' + cl.name + ', ' + Math.round(cl.len / 1000) + ' quilômetros.' }); }
   if (!cl && S.climbId) { const done = st.climbs.find(c => c.id === S.climbId); S.climbId = null; if (done && dist >= done.to - 150) ev.push({ kind: 'summit', level: 3, text: 'Topo · ' + done.name, sub: Math.round(done.topEle) + ' m', speak: 'Topo. ' + done.name + '.' }); }
   // terreno
   const sf = surfaceAt(st, dist);

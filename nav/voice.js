@@ -15,12 +15,12 @@ export function say(text, level = 3) {
   } catch (e) { }
 }
 // faixa: nível 1 fica até `hold` ms (ou até clear); 2 some em 8 s; 3 em 5 s
-export function banner(text, level = 3, sub = '', right = '', hold = 0) {
+export function banner(text, level = 3, sub = '', right = '', hold = 0, kind = '') {
   const el = $('cue'); if (!el) return;
   const now = Date.now();
   if (level > 1 && holdUntil > now) return;          // não cobre um nível 1 ativo
-  el.className = 'cue l' + level + ' show';
-  el.innerHTML = '<div class="ct"><b>' + esc(text) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (right ? '<div class="r">' + right + '</div>' : '');
+  el.className = 'cue l' + level + (kind ? ' k-' + kind : '') + ' show';
+  el.innerHTML = '<div class="bar"></div><div class="ct"><b>' + esc(text) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (right ? '<div class="r">' + right + '</div>' : '');
   clearTimeout(bannerTimer);
   const ms = level === 1 ? (hold || 12000) : level === 2 ? 8000 : 5000;
   holdUntil = level === 1 ? now + ms : 0;
@@ -35,7 +35,7 @@ export function vibrate(level) {
 }
 // atalho: evento completo (faixa + voz + vibração)
 export function announce(ev) {
-  banner(ev.text, ev.level, ev.sub || '', ev.right || '', ev.hold || 0);
+  banner(ev.text, ev.level, ev.sub || '', ev.right || '', ev.hold || 0, ev.kind || '');
   vibrate(ev.level);
   if (ev.voice !== false) say(ev.speak || ev.text, ev.level);
 }

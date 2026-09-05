@@ -10,39 +10,39 @@ import * as sat from './sat.js';
 import * as dem from './dem.js';
 
 export const THEMES = {
-  day: { map: '#F4EFE1', forest: '#D9E5C6', res: '#EAE5D8', water: '#A9CDE6', waterLine: '#7FB2D6', waterTxt: '#3E7FAF', rail: '#6C7176',
-    r1: '#E63329', r2: '#E63329', r3: '#E8473D', r4: '#F1E2A8', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B8946A', r8: '#3A9A5A', r9: '#9A9A9A', casing: '#17191C', casingMinor: '#A8A498',
-    ribbon: '#FFD100', ribbonCasing: '#17191C', done: '#17191C', other: '#C9C3B4', gravel: '#6B4423', label: '#17191C', halo: '#F4EFE1', borne: '#FFFFFF', forestTxt: '#4A6B3A', contour: '#C9A97A',
-    puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.18)', scale: '#17191C', poiBg: '#FFFFFF', sky0: '#CFE3F2', sky1: '#F4EFE1', fog: 'rgba(244,239,225,.85)' },
-  night: { map: '#1A1C21', forest: '#20271F', res: '#22252A', water: '#213A4C', waterLine: '#2E5A73', waterTxt: '#7FB2D6', rail: '#6C7176',
-    r1: '#C8322A', r2: '#C8322A', r3: '#B8362E', r4: '#A08E3C', r5: '#5A5F68', r6: '#4B5058', r7: '#7A6242', r8: '#3A7A4A', r9: '#4B5058', casing: '#0A0B0D', casingMinor: '#0A0B0D',
-    ribbon: '#FFD100', ribbonCasing: '#F1EEE6', done: '#B9BCC2', other: '#3A3E45', gravel: '#D9A066', label: '#FFE566', halo: '#1A1C21', borne: '#F1EEE6', forestTxt: '#7FA070', contour: '#4A4033',
-    puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.16)', scale: '#FFE566', poiBg: '#1D1F23', sky0: '#0B0D14', sky1: '#1A1C21', fog: 'rgba(26,28,33,.85)' }
+  day: { map: '#F0F0F0', forest: '#E1E6DA', res: '#E6E6E6', water: '#BFD8F0', waterLine: '#3969B7', waterTxt: '#3969B7', rail: '#777777',
+    r1: '#FFFFFF', r2: '#FFFFFF', r3: '#FFFFFF', r4: '#FFFFFF', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B08968', r8: '#1DAE50', r9: '#9A9A9A', casing: '#555555', casingMinor: '#C4C4C4',
+    ribbon: '#FFFF00', ribbonCasing: '#000000', done: '#000000', other: '#BDBDBD', gravel: '#6B4423', label: '#000000', halo: '#F0F0F0', borne: '#FFFFFF', forestTxt: '#3D7A34', contour: '#CCCCCC',
+    puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.2)', scale: '#000000', poiBg: '#FFFFFF', sky0: '#A9CFF0', sky1: '#F0F0F0', fog: 'rgba(240,240,240,.85)' },
+  night: { map: '#151515', forest: '#1E241C', res: '#1A1A1A', water: '#1D3A5E', waterLine: '#3969B7', waterTxt: '#6FA3E0', rail: '#666666',
+    r1: '#3A3A3A', r2: '#3A3A3A', r3: '#383838', r4: '#333333', r5: '#2E2E2E', r6: '#2A2A2A', r7: '#4A3A2A', r8: '#1F5A33', r9: '#333333', casing: '#000000', casingMinor: '#000000',
+    ribbon: '#FFFF00', ribbonCasing: '#FFFFFF', done: '#BBBBBB', other: '#333333', gravel: '#D9A066', label: '#FFFF00', halo: '#151515', borne: '#FFFFFF', forestTxt: '#7FA070', contour: '#333333',
+    puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.16)', scale: '#FFFF00', poiBg: '#0A0A0A', sky0: '#05070C', sky1: '#151515', fog: 'rgba(21,21,21,.85)' }
 };
 const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
-const POI = { water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#2F8F46', 'dia'], pharmacy: ['#2F8F46', 'plus'], hospital: ['#D71920', 'H'], pass: ['#17191C', 'pass'], peak: ['#17191C', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
+const POI = { water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
 const CAMS = { tp: { yh: 0.30, yr: 0.76, dc: 70, hc: 34, far: 2600, rider: true, riderScale: 1.35 }, fp: { yh: 0.40, yr: 1.06, dc: 22, hc: 7.5, far: 1800, rider: false, riderScale: 1 } };
 
 // bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
-export const FLAG = { start: '#FFFFFF', cat: '#E4032E', sprint: '#2F8F46', feed: '#8A8F96', sight: '#2F8F46', flamme: '#E4032E', finish: '#FFFFFF' };
+export const FLAG = { start: '#FFFFFF', cat: '#E10D0D', sprint: '#1DAE50', feed: '#8A8F96', sight: '#1DAE50', flamme: '#E10D0D', finish: '#FFFFFF' };
 export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
-  const col = FLAG[kind] || '#E4032E', fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
+  const col = FLAG[kind] || '#E10D0D', fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
   ctx.save(); ctx.lineCap = 'butt';
   ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = pw + 1.4; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
   ctx.strokeStyle = kind === 'feed' ? '#8A8F96' : col; ctx.lineWidth = pw; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
-  const fx = x, fy = yTop - fh; ctx.fillStyle = col; ctx.strokeStyle = '#17191C'; ctx.lineWidth = 1;
+  const fx = x, fy = yTop - fh; ctx.fillStyle = col; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1;
   if (kind === 'finish') {
     const n = 4, cw = fw / n, ch = fh / 3;
-    for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) { ctx.fillStyle = (i + j) % 2 ? '#17191C' : '#FFFFFF'; ctx.fillRect(fx + i * cw, fy + j * ch, cw + .3, ch + .3); }
+    for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) { ctx.fillStyle = (i + j) % 2 ? '#000000' : '#FFFFFF'; ctx.fillRect(fx + i * cw, fy + j * ch, cw + .3, ch + .3); }
     ctx.strokeRect(fx, fy, fw, fh);
   } else if (kind === 'feed') {
-    ctx.fillStyle = '#B9BCC2'; ctx.beginPath(); ctx.moveTo(fx, fy + fh); ctx.lineTo(fx + fw * .15, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw * .85, fy + fh); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#BBBBBB'; ctx.beginPath(); ctx.moveTo(fx, fy + fh); ctx.lineTo(fx + fw * .15, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw * .85, fy + fh); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo(fx + fw * .42, fy + fh * .28); ctx.lineTo(fx + fw * .62, fy + fh * .28); ctx.lineTo(fx + fw * .7, fy + fh * .82); ctx.lineTo(fx + fw * .34, fy + fh * .82); ctx.closePath(); ctx.fill();
   } else {
     ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw, fy + fh); ctx.lineTo(fx + fw * .12, fy + fh); ctx.lineTo(fx, fy + fh * .55); ctx.closePath(); ctx.fill(); if (kind === 'start') ctx.stroke();
-    if (kind === 'start') { ctx.fillStyle = '#17191C'; ctx.beginPath(); ctx.moveTo(fx + fw * .32, fy + fh * .2); ctx.lineTo(fx + fw * .32, fy + fh * .8); ctx.lineTo(fx + fw * .78, fy + fh * .5); ctx.closePath(); ctx.fill(); }
+    if (kind === 'start') { ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.moveTo(fx + fw * .32, fy + fh * .2); ctx.lineTo(fx + fw * .32, fy + fh * .8); ctx.lineTo(fx + fw * .78, fy + fh * .5); ctx.closePath(); ctx.fill(); }
     else if (kind === 'sight') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + fw * .3, fy + fh * .3, fw * .42, fh * .42); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(fx + fw * .51, fy + fh * .51, fh * .13, 0, 7); ctx.fill(); }
     else if (text) { ctx.fillStyle = '#FFFFFF'; ctx.font = '800 ' + Math.round(11 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
   }
@@ -65,6 +65,7 @@ export function createRenderer(canvas, overlay) {
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5, mode: '2d', sat: false }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day, flat = null, fctx = null;
   document.addEventListener('etape:icons', () => { dirty = true; });
+  for (let i = 0; i < 4; i++) icon('bikeTop' + i, 84);   // quadros da pedalada prontos antes do primeiro fix
   sat.setOnLoad(() => { dirty = true; }); dem.setOnLoad(() => { dirty = true; });
   function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
   const scale = () => 256 * Math.pow(2, view.z);
@@ -402,15 +403,15 @@ export function createRenderer(canvas, overlay) {
   function borne(c, q, z) {
     const sz = sizeAt(q), w = 26 * sz, h = 30 * sz, x = q[0] - w / 2, y = q[1] - h;
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, y + 4 * sz); ctx.arc(q[0], y + 13 * sz, 13 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 10 * sz); ctx.lineTo(x, y + 10 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#D71920' : '#FFD100'; ctx.fill();
-    ctx.fillStyle = '#17191C'; ctx.font = '800 ' + Math.round(13 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 22 * sz); ctx.textAlign = 'left';
+    ctx.beginPath(); ctx.moveTo(x, y + 4 * sz); ctx.arc(q[0], y + 13 * sz, 13 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 10 * sz); ctx.lineTo(x, y + 10 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
+    ctx.fillStyle = '#000000'; ctx.font = '800 ' + Math.round(13 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 22 * sz); ctx.textAlign = 'left';
     if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 17 * sz, q[1] - 8 * sz, 'left', '600 ' + Math.round(13 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
     const im = icon(SIGHT_ICON[p.kind] || 'camera', z >= 14.5 ? 34 : 26);
     if (ready(im)) { const s = (z >= 14.5 ? 34 : 26) * sz; ctx.globalAlpha = p.done ? .45 : 1; ctx.drawImage(im, q[0] - s / 2, q[1] - s * .78, s, s); ctx.globalAlpha = 1; if (z >= 14 && sz > .55) label(p.nome.split(' · ')[0], q[0], q[1] + 12 * sz, 'center', '600 12px "Barlow Condensed", Barlow, sans-serif'); return; }
-    const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#D71920';
+    const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#E10D0D';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
   function poiIcon(p, q, z) {
@@ -432,7 +433,7 @@ export function createRenderer(canvas, overlay) {
   }
   function bike(c, r, frame) {
     c.save(); c.translate(r.x, r.y); c.rotate(r.rot); const s = 84 * (r.scale || 1);
-    const im = icon('bikeTop' + (frame || 0), 84) || icon('bikeTop', 84);
+    let im = icon('bikeTop' + (frame || 0), 84); if (!ready(im)) im = icon('bikeTop0', 84); if (!ready(im)) im = icon('bikeTop', 84);
     if (ready(im)) c.drawImage(im, -s / 2, -s * .55, s, s);
     else { c.beginPath(); c.moveTo(0, -18); c.lineTo(10, 12); c.lineTo(0, 6); c.lineTo(-10, 12); c.closePath(); c.fillStyle = theme.puck; c.fill(); c.lineWidth = 2; c.strokeStyle = theme.bike; c.stroke(); }
     c.restore();
@@ -462,8 +463,8 @@ export function drawProfile(canvas, stage, dist, theme, opts = {}) {
   lo = Math.floor((lo - 40) / 100) * 100; hi = Math.ceil((hi + 60) / 100) * 100;
   const big = !!opts.labels, top = big ? 34 : 4, bottom = big ? 16 : 2;
   const X = d => 6 + d / km * (w - 12), Y = e => h - bottom - (e - lo) / (hi - lo) * (h - top - bottom);
-  const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#3A3D44'); g.addColorStop(1, '#1D1F23'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  ctx.beginPath(); ctx.moveTo(X(0), h - bottom); for (const q of p) ctx.lineTo(X(q[0]), Y(q[1])); ctx.lineTo(X(km), h - bottom); ctx.closePath(); ctx.fillStyle = '#F2DF00'; ctx.fill();
+  const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#3A3D44'); g.addColorStop(1, '#0A0A0A'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  ctx.beginPath(); ctx.moveTo(X(0), h - bottom); for (const q of p) ctx.lineTo(X(q[0]), Y(q[1])); ctx.lineTo(X(km), h - bottom); ctx.closePath(); ctx.fillStyle = '#FFFF00'; ctx.fill();
   ctx.beginPath(); for (let i = 0; i < p.length; i++) { const q = p[i]; if (i) ctx.lineTo(X(q[0]), Y(q[1])); else ctx.moveTo(X(q[0]), Y(q[1])); } ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = big ? 3 : 1.6; ctx.lineJoin = 'round'; ctx.stroke();
   const xd = X(dist / 1000); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(6, 0, Math.max(0, xd - 6), h - bottom);
   const flags = stageFlags(stage, opts.paradas || []);
@@ -471,9 +472,9 @@ export function drawProfile(canvas, stage, dist, theme, opts = {}) {
     if (!big && f.kind !== 'cat' && f.kind !== 'finish' && f.kind !== 'start') continue;
     const x = Math.min(w - 16, Math.max(8, X(f.dist / 1000))), y = Y(elevationAt(stage, f.dist));
     if (big) flagAt(ctx, x, Math.max(20, y - 26), h - bottom, f.kind, f.text, 1);
-    else { ctx.strokeStyle = FLAG[f.kind] || '#E4032E'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, Math.max(2, y - 6)); ctx.stroke(); }
+    else { ctx.strokeStyle = FLAG[f.kind] || '#E10D0D'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, Math.max(2, y - 6)); ctx.stroke(); }
   }
-  ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), big ? 5 : 3.5, 0, 7); ctx.fillStyle = '#17191C'; ctx.fill(); ctx.lineWidth = big ? 2 : 1.2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), big ? 5 : 3.5, 0, 7); ctx.fillStyle = '#000000'; ctx.fill(); ctx.lineWidth = big ? 2 : 1.2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
   if (big) {
     ctx.font = '600 10px "Barlow Condensed", Barlow, sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#FFFFFF';
     const a = stage.cps[0], b = stage.cps[stage.cps.length - 1]; ctx.textAlign = 'left'; ctx.fillText(a.name + ' ' + Math.round(elevationAt(stage, 0)) + ' m', 8, h - 7); ctx.textAlign = 'right'; ctx.fillText(b.name + ' ' + Math.round(elevationAt(stage, stage.total)) + ' m', w - 6, h - 7);
