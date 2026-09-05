@@ -25,8 +25,10 @@ export function init() {
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
-  $('zin').onclick = () => R.setView(null, null, R.view.z + 0.7); $('zout').onclick = () => R.setView(null, null, R.view.z - 0.7);
-  $('btnFollow').onclick = () => { S.follow = true; $('btnFollow').classList.add('on'); if (S.fix) { R.centerOn(S.fix.lat, S.fix.lon); if (R.view.z < 14) R.setView(null, null, 15); } };
+  // zoom manual desliga o zoom automático por 45 s
+  $('zin').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z + 0.7); }; $('zout').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z - 0.7); };
+  $('map').addEventListener('wheel', () => { S.userZoomAt = Date.now(); }); $('map').addEventListener('pointerdown', e => { if (e.isPrimary === false) S.userZoomAt = Date.now(); });
+  $('btnFollow').onclick = () => { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; if (S.fix) { R.centerOn(S.fix.lat, S.fix.lon); if (R.view.z < 15) R.setView(null, null, 16.2); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
   $('btnSession').onclick = toggleSession; $('btnFinish').onclick = finishStage; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
@@ -95,7 +97,7 @@ function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme
 export function startNavigation(silent) {
   const ok = gps.start(onFix, e => { S.gpsMsg = 'GPS: ' + (e.message || 'erro'); refresh(); });
   if (!ok) return;
-  S.gpsMsg = 'GPS ligado'; S.follow = true; $('btnFollow').classList.add('on'); if (R.view.z < 14) R.setView(null, null, 15.5);
+  S.gpsMsg = 'GPS ligado'; S.follow = true; $('btnFollow').classList.add('on'); if (R.view.z < 16) R.setView(null, null, 16.2);
   gps.keepAwake(true);
   if (!silent) voice.announce({ level: 3, text: 'Navegação iniciada', sub: S.stage.name, speak: 'Navegação iniciada. ' + S.stage.name.replace(/^E\S+ /, '') });
 }
@@ -146,7 +148,11 @@ function onFix(raw) {
   }
   for (const ev of events) handleEvent(ev);
   S.next = guide.nextCue(S);
-  if (S.follow) { R.centerOn(fix.lat, fix.lon); R.setView(null, null, null, S.prefs.orientation === 'heading' ? -(fix.head || 0) * Math.PI / 180 : 0); }
+  if (S.follow) {
+    R.centerOn(fix.lat, fix.lon); R.setView(null, null, null, S.prefs.orientation === 'heading' ? -(fix.head || 0) * Math.PI / 180 : 0);
+    // zoom automático pela velocidade: parado/subida 16,5 · normal 16 · descida rápida 15,5; suave, e só sem zoom manual recente
+    if (now - (S.userZoomAt || 0) > 45000) { const v = fix.v || 0, target = v < 3 ? 16.5 : v < 9 ? 16 : 15.5; const z = R.view.z + (target - R.view.z) * 0.15; if (Math.abs(z - R.view.z) > 0.01) R.setView(null, null, z); }
+  }
   R.invalidate(); refresh();
 }
 function handleEvent(ev) {
@@ -165,7 +171,7 @@ function loop() { R.draw(S); requestAnimationFrame(loop); }
 function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); return; } startSim(22, S.proj.dist); }
 function startSim(kmh, from) {
   stopNavigation(); if (S.session.state === 'idle') session.start(S.session, Date.now()); else if (S.session.state === 'paused') session.resume(S.session, Date.now());
-  S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, Math.max(R.view.z, 15.5)); S.gpsMsg = 'Simulação ' + kmh + ' km/h'; $('btnSim').classList.add('on');
+  S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, Math.max(R.view.z, 16.2)); S.gpsMsg = 'Simulação ' + kmh + ' km/h'; $('btnSim').classList.add('on');
   gps.simulate(S.stage, kmh, onFix, from);
 }
 function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
