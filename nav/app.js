@@ -1,6 +1,6 @@
 // Étape Navegar · app.js
 // Composição: liga os módulos e controla o ciclo de vida.
-import { mercX, mercY } from './geo.js';
+import { mercX, mercY, haversine } from './geo.js';
 import { loadMap, loadRoutes, loadParadas, poisNear } from './data-mod.js';
 import { createRenderer } from './render.js';
 import * as track from './track.js';
@@ -15,8 +15,7 @@ import * as fuel from './fuel.js';
 import * as report from './report.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
-import * as rider3d from './rider3d.js';
-import * as diorama from './diorama.js';
+let rider3d = null, diorama = null;   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -27,7 +26,8 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]r3d=1/.test(location.search) && rider3d.init($('rider3d'))) { R.setRiderExternal(true); }
+  if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide };
+  if (/[?&]r3d=1/.test(location.search)) import('./rider3d.js').then(m => { if (m.init($('rider3d'))) { rider3d = m; R.setRiderExternal(true); size3d(); } });
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
@@ -70,13 +70,12 @@ export function init() {
   if (!S.prefs.voice) { voice.mute(); $('btnVoice').classList.remove('on'); } else $('btnVoice').classList.add('on');
   window.addEventListener('resize', () => { R.resize(); measurePanel(); });
   R.resize();
-  const size3d = () => { const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); };
-  size3d(); window.addEventListener('resize', size3d);
+  window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
   ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
-  $('dlgPreview').addEventListener('close', () => diorama.dispose());
+  $('dlgPreview').addEventListener('close', () => { if (diorama) diorama.dispose(); });
   window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); size3d(); } });
   const inFrame = window.parent && window.parent !== window;
   if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
@@ -109,7 +108,7 @@ export function selectStage(key) {
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
   S.session = session.restore(key) || session.create(key);
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
-  S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
+  S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
   if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
   // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
   S.eta = null; S.etaAt = 0; S.vsPlan = null; S.live = null; S.fuelStatus = null; S.light = null;
@@ -181,12 +180,15 @@ function onFix(raw) {
   }
   for (const ev of events) handleEvent(ev);
   S.next = guide.nextCue(S);
-  if (S.follow) {
-    R.centerOn(fix.lat, fix.lon); R.setView(null, null, null, S.prefs.orientation === 'heading' ? -(fix.head || 0) * Math.PI / 180 : 0);
-    // zoom automático pela velocidade: parado/subida 16,5 · normal 16 · descida rápida 15,5; suave, e só sem zoom manual recente
-    if (R.view.mode !== '2d') R.setView(null, null, null, -(fix.head || 0) * Math.PI / 180);
-    if (R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) { const v = fix.v || 0, target = v < 3 ? 19 : v < 9 ? 18.2 : 17.4; const z = R.view.z + (target - R.view.z) * 0.15; if (Math.abs(z - R.view.z) > 0.01) R.setView(null, null, z); }
-  }
+  // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
+  const onRoad = (S.proj.off || 0) <= 30 && !S.off, v0 = fix.v || 0;
+  if (S.gpsMsg === 'GPS perdido · estimando') { S.gpsMsg = 'GPS ligado'; }
+  const T = { lat: fix.lat, lon: fix.lon, v: v0, head: (fix.head || 0) * Math.PI / 180, dist: S.proj.dist || 0, on: onRoad, t: Date.now() };
+  const prev = S.viewTarget; S.viewTarget = T;
+  const jump = !S.pos || !prev || Date.now() - prev.t > 60000 || haversine(S.pos.lat, S.pos.lon, fix.lat, fix.lon) > 150;
+  if (jump) { const p = onRoad ? track.pointAt(S.stage, T.dist) : [fix.lat, fix.lon]; S.pos = { lat: p[0], lon: p[1], head: onRoad ? track.bearingAt(S.stage, T.dist) * Math.PI / 180 : T.head, dist: T.dist }; if (S.follow) snapView(); }
+  // zoom automático pela velocidade (2D): parado 19 · normal 18,2 · descida rápida 17,4; desliza no loop, e só sem zoom manual recente
+  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4; else S.zoomTarget = null;
   R.invalidate(); refresh();
 }
 function handleEvent(ev) {
@@ -200,13 +202,45 @@ function handleEvent(ev) {
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
 }
 function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
-let riderFrame = -1;
+function size3d() { if (!rider3d) return; const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); }
+let riderFrame = -1, lastGlide = 0;
+function headingRot() { return (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -S.pos.head : 0; }
+function snapView() { R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, null, headingRot()); R.invalidate(); }
+// Posição mostrada (S.pos) desliza até a posição prevista: na estrada, avança pela geometria do traçado à velocidade do
+// último fix (extrapolação até 1,5 s; com GPS perdido, até 45 s como o Waze num túnel); fora dela, em linha reta.
+// Rumo pela geometria da via 15 m à frente (estável), ou pelo GPS fora da rota. Constantes de tempo: posição 0,25 s,
+// rumo 0,35 s, zoom 1,2 s. ~30 qps em 2D, 20 com relevo + satélite; parado, nada é redesenhado.
+function glide(ts) {
+  const T = S.viewTarget; if (!T || !S.pos || !gps.running()) return;
+  const now = Date.now(), age = (now - T.t) / 1000;
+  const minGap = (R.view.mode !== '2d' && R.view.sat) ? 50 : 33; if (ts - lastGlide < minGap) return;
+  const dt = Math.min(0.1, lastGlide ? (ts - lastGlide) / 1000 : 0.033); lastGlide = ts;
+  let lat, lon, head, dist = T.dist;
+  const lost = age > 4;
+  if (lost && !(T.on && T.v > 2 && age < 45)) { if (lost && S.gpsMsg === 'GPS ligado' && gps.running() && T.v > 0.5) { S.gpsMsg = 'GPS perdido · estimando'; refresh(); } if (age > 45) return; }
+  const ahead = T.v < 0.5 ? 0 : T.v * Math.min(lost ? 45 : 1.5, age);
+  if (T.on) { dist = Math.min(S.stage.total, T.dist + ahead); const p = track.pointAt(S.stage, dist); lat = p[0]; lon = p[1]; head = track.bearingAt(S.stage, Math.min(S.stage.total, dist + 15)) * Math.PI / 180; }
+  else { lat = T.lat + ahead * Math.cos(T.head) / 111320; lon = T.lon + ahead * Math.sin(T.head) / (111320 * Math.cos(T.lat * Math.PI / 180)); head = T.head; }
+  const kp = 1 - Math.exp(-dt / 0.25), kh = 1 - Math.exp(-dt / 0.35), P = S.pos;
+  let dh = head - P.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+  const dlat = lat - P.lat, dlon = lon - P.lon;
+  let moved = false;
+  if (Math.abs(dlat) > 1e-8 || Math.abs(dlon) > 1e-8) { P.lat += dlat * kp; P.lon += dlon * kp; moved = true; }
+  if (Math.abs(dh) > 2e-4) { P.head += dh * kh; P.head = Math.atan2(Math.sin(P.head), Math.cos(P.head)); moved = true; }
+  P.dist = dist;
+  if (S.follow) {
+    const v = R.view; if (moved) { v.cx = mercX(P.lon); v.cy = mercY(P.lat); v.rot = headingRot(); }
+    if (S.zoomTarget != null && Math.abs(S.zoomTarget - v.z) > 0.005) { v.z += (S.zoomTarget - v.z) * (1 - Math.exp(-dt / 1.2)); moved = true; }
+  }
+  if (moved) R.invalidate();
+}
 function loop(ts) {
+  glide(ts);
   R.draw(S);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
   const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();
   const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;
-  if (rider3d.isReady()) { if (R.riderMoved()) R.drawRider(0); rider3d.render(R.riderInfo(), moving ? v : 0, ts); }
+  if (rider3d && rider3d.isReady()) { if (R.riderMoved()) R.drawRider(0); rider3d.render(R.riderInfo(), moving ? v : 0, ts); }
   else if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
   requestAnimationFrame(loop);
 }
@@ -247,10 +281,10 @@ function showPreview(key) {
     PV = { R2, S2 }; requestAnimationFrame(() => { R2.invalidate(); R2.draw(S2); });
     // maquete 3D da etapa (relevo real); sem DEM/WebGL fica o mapa plano
     const dioBox = $('pvBody').querySelector('.dio'), ctl = dioBox.querySelector('.dio-ctl');
-    const showView = v => { ctl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); $('pvDio').hidden = v === 'map'; $('pvMap').hidden = v !== 'map'; if (v === 'map') { R2.resize(); R2.invalidate(); R2.draw(S2); diorama.stop(); } else { diorama.setSat(v === 'sat'); } };
+    const showView = v => { ctl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); $('pvDio').hidden = v === 'map'; $('pvMap').hidden = v !== 'map'; if (v === 'map') { R2.resize(); R2.invalidate(); R2.draw(S2); if (diorama) diorama.stop(); } else if (diorama) { diorama.setSat(v === 'sat'); } };
     ctl.querySelectorAll('button').forEach(b => b.onclick = () => showView(b.dataset.v));
     const hint = dioBox.querySelector('.dio-hint');
-    if (dem.available()) diorama.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } });
+    if (dem.available()) import('./diorama.js').then(m => { diorama = m; return m.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } }); });
     else { showView('map'); ctl.hidden = true; }
     import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
   }
