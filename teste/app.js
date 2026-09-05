@@ -33,6 +33,7 @@ export function init() {
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => showReport(report.list()[S.stage.key]);
   document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
   $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
+  $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
   const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
   $('panel').addEventListener('pointerdown', e => { if (e.target.closest('button,select,.tabs')) return; gy = e.clientY; gx = e.clientX; });
@@ -88,7 +89,7 @@ export function selectStage(key) {
   if (S.session.state === 'running') startNavigation(true);
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
-function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; refresh(); measurePanel(); }
+function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
 export function startNavigation(silent) {
