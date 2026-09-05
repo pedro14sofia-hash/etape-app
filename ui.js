@@ -79,7 +79,7 @@ export function panel(S) {
   }
   // velocímetro estilo Tour, só no resumo
   const sp = $('speedo'); sp.hidden = S.mode !== 'resumo';
-  if (!sp.hidden && L) { $('spV').textContent = Math.round(L.v); $('spBar').style.width = Math.min(100, L.v / 80 * 100) + '%'; const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); $('spA').textContent = 'méd. ' + n1(L.avg); sp.style.bottom = (S.scaleBottom + 22) + 'px'; }
+  if (!sp.hidden && L) { $('spV').textContent = Math.round(L.v); $('spAlt').textContent = n0(L.ele); sp.style.bottom = (S.scaleBottom + 22) + 'px'; }
   $('gpsSt').textContent = S.gpsMsg || '';
   $('clock').textContent = fmtH(new Date());
 }
