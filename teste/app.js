@@ -21,7 +21,7 @@ let R, panelTimer = null;
 
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
-  R = createRenderer($('map'));
+  R = createRenderer($('map'), $('rider'));
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
@@ -173,7 +173,15 @@ function handleEvent(ev) {
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
 }
 function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
-function loop() { R.draw(S); requestAnimationFrame(loop); }
+let riderFrame = -1;
+function loop(ts) {
+  R.draw(S);
+  // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
+  const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();
+  const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;
+  if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
+  requestAnimationFrame(loop);
+}
 
 function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); return; } startSim(22, S.proj.dist); }
 function startSim(kmh, from) {

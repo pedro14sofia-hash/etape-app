@@ -19,12 +19,13 @@ const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
 const POI = { water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#2F8F46', 'dia'], pharmacy: ['#2F8F46', 'plus'], hospital: ['#D71920', 'H'], pass: ['#17191C', 'pass'], peak: ['#17191C', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 
-export function createRenderer(canvas) {
-  const ctx = canvas.getContext('2d');
+export function createRenderer(canvas, overlay) {
+  const ctx = canvas.getContext('2d'), octx = overlay ? overlay.getContext('2d') : null;
+  let rider = null, riderMoved = false;   // posição do ciclista na tela (camada própria, animada)
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5 }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day;
   document.addEventListener('etape:icons', () => { dirty = true; });
-  function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); dirty = true; }
+  function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
   const scale = () => 256 * Math.pow(2, view.z);
   function toPx(lat, lon) {
     const s = scale(), px = (mercX(lon) - view.cx) * s, py = (mercY(lat) - view.cy) * s;
@@ -83,9 +84,9 @@ export function createRenderer(canvas) {
     // posição
     if (!S.fix && S.stage.cps.length) { // sem GPS ainda: hotéis nas pontas e a bike parada no ponto de largada (ou onde parou)
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = toPx(c.lat, c.lon); const im = icon('hotel', 30); if (ready(im)) ctx.drawImage(im, q[0] - 15, q[1] - 26, 30, 30); }
-      if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = toPx(p[0], p[1]); bike(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
+      if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = toPx(p[0], p[1]); placeRider(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
-    if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 40) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } bike(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
+    if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 40) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } placeRider(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
     // escala
     const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
     const sx = S.mode === 'resumo' ? 156 : 12;
@@ -129,18 +130,22 @@ export function createRenderer(canvas) {
     }
     if ((z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + 10, q[1], 'left', '600 11px "Archivo Narrow", Archivo, sans-serif');
   }
-  function bike(q, rot) {
-    // como no Waze: a bike vista de cima, girada para o rumo, sem disco; só uma sombra suave embaixo
-    ctx.save(); ctx.translate(q[0], q[1]); ctx.rotate(rot);
-    ctx.beginPath(); ctx.ellipse(3, 6, 16, 30, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fill();
-    const im = icon('bikeTop', 84);
-    if (ready(im)) ctx.drawImage(im, -42, -46, 84, 84);
-    else { ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(10, 12); ctx.lineTo(0, 6); ctx.lineTo(-10, 12); ctx.closePath(); ctx.fillStyle = theme.puck; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme.bike; ctx.stroke(); }
-    ctx.restore();
+  function placeRider(q, rot) { if (octx) { rider = { x: q[0], y: q[1], rot }; riderMoved = true; } else bike(ctx, q, rot, 0); }
+  // camada do ciclista: só ela é redesenhada a cada quadro da pedalada
+  function drawRider(frame) {
+    if (!octx) return; octx.clearRect(0, 0, W, H); riderMoved = false;
+    if (rider) bike(octx, [rider.x, rider.y], rider.rot, frame);
+  }
+  function bike(c, q, rot, frame) {
+    c.save(); c.translate(q[0], q[1]); c.rotate(rot);
+    const im = icon('bikeTop' + (frame || 0), 84) || icon('bikeTop', 84);
+    if (ready(im)) c.drawImage(im, -42, -46, 84, 84);
+    else { c.beginPath(); c.moveTo(0, -18); c.lineTo(10, 12); c.lineTo(0, 6); c.lineTo(-10, 12); c.closePath(); c.fillStyle = theme.puck; c.fill(); c.lineWidth = 2; c.strokeStyle = theme.bike; c.stroke(); }
+    c.restore();
   }
   function rr(x, y, w, h, r) { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   return {
-    view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, size() { return { W, H }; },
+    view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, drawRider, riderMoved() { return riderMoved; }, size() { return { W, H }; },
     setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; },
     setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; dirty = true; },
     centerOn(lat, lon) { view.cx = mercX(lon); view.cy = mercY(lat); dirty = true; }
