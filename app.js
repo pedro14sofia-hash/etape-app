@@ -57,6 +57,9 @@ export function init() {
   if (q.get('theme')) { S.prefs.theme = q.get('theme'); applyTheme(); }
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
   if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
+  if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
+  // ícones carregam de forma assíncrona: redesenha a prévia quando ficarem prontos
+  document.addEventListener('etape:icons', () => { if (PV && $('dlgPreview').open) { PV.R2.invalidate(); PV.R2.draw(PV.S2); } });
 }
 
 export function selectStage(key) {
@@ -158,8 +161,39 @@ function startSim(kmh, from) {
   S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, Math.max(R.view.z, 15.5)); S.gpsMsg = 'Simulação ' + kmh + ' km/h'; $('btnSim').classList.add('on');
   gps.simulate(S.stage, kmh, onFix, from);
 }
-function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showBriefing(); } }
-function showBriefing() { const b = guide.briefing(S.stage, S.allParadas.itens, S.allParadas.dias, S.allParadas.regras); $('briefBody').innerHTML = ui.briefingHtml(b, S.stage); $('dlgBrief').showModal(); }
+function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
+function showBriefing() { showPreview(S.stage.key); }
+// prévia do dia: mapa inteiro, perfil, cronograma, paradas, compras, hospedagem; ou a viagem inteira
+let PV = null;
+function showPreview(key) {
+  const dlg = $('dlgPreview'), tabs = $('pvTabs');
+  const keys = Object.keys(S.routes.stages);
+  tabs.innerHTML = keys.map(k => `<button data-k="${k}" class="m-${(S.routes.types || {})[k] || 'blanc'}${k === key ? ' on' : ''}">${code(k)}</button>`).join('') + '<button data-k="trip" class="trip' + (key === 'trip' ? ' on' : '') + '">Viagem</button>';
+  tabs.querySelectorAll('button').forEach(b => b.onclick = () => showPreview(b.dataset.k));
+  if (key === 'trip') {
+    $('pvBody').innerHTML = ui.tripHtml(S.routes, report.list());
+    $('pvBody').querySelectorAll('li[data-k]').forEach(li => li.onclick = () => showPreview(li.dataset.k));
+    $('pvGo').hidden = true;
+  } else {
+    const st = key === S.stage.key ? S.stage : track.loadStage(S.routes, key);
+    const paradas = S.allParadas.itens.filter(p => p.stage === key);
+    const b = guide.briefing(st, S.allParadas.itens, S.allParadas.dias, S.allParadas.regras);
+    $('pvBody').innerHTML = ui.previewHtml(st, (S.routes.days || {})[key], b, paradas);
+    $('pvGo').hidden = false; $('pvGo').onclick = () => { dlg.close(); if (key !== S.stage.key) selectStage(key); };
+    if (!dlg.open) dlg.showModal();            // o canvas só tem tamanho com o diálogo aberto
+    // mapa inteiro, norte para cima, ajustado ao traçado
+    const cv = $('pvMap'); const R2 = createRenderer(cv); R2.setTheme(S.theme); R2.resize();
+    const bb = st.pts.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [90, 180, -90, -180]);
+    const { W, H } = R2.size(); const dx = mercX(bb[3]) - mercX(bb[1]), dy = mercY(bb[0]) - mercY(bb[2]);
+    const z = Math.log2(Math.min((W - 40) / Math.max(dx, 1e-9), (H - 40) / Math.max(dy, 1e-9)) / 256);
+    R2.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.min(15, z), 0); R2.view.anchorY = 0.5;
+    const S2 = { map: S.map, routes: S.routes, stage: st, paradas, proj: { idx: 0, dist: 0, off: 0 }, fix: null, scaleBottom: 8, mode: 'full' };
+    PV = { R2, S2 }; requestAnimationFrame(() => { R2.invalidate(); R2.draw(S2); });
+    import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true }));
+  }
+  if (!dlg.open) dlg.showModal();
+  dlg.scrollTop = 0;
+}
 function showReport(r) {
   if (!r) { alert('Sem relatório desta etapa ainda.'); return; }
   $('repBody').innerHTML = report.render(r);

@@ -91,6 +91,42 @@ export function theme(mode, S) {
   const night = mode === 'night' || (mode === 'auto' && S.light && S.light.remaining < 0 && S.light.remaining > -14 * 3600) || (mode === 'auto' && !S.light && new Date().getHours() >= 19);
   document.documentElement.setAttribute('data-theme', night ? 'night' : 'day'); return night ? 'night' : 'day';
 }
+// prévia do dia: tudo o que se lê na véspera. day = routes.days[key]; b = guide.briefing()
+export function previewHtml(stage, day, b, paradas, sun) {
+  const d = day || {}, code = /^\d/.test(stage.key) ? 'E' + stage.key : stage.key;
+  const tl = (d.timeline || []).map(t => `<li><span class="h">${t[0]}</span><span class="k">${t[1] ? 'km ' + t[1] : ''}</span><span>${t[2]}</span></li>`).join('');
+  const sights = paradas.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span><span><span class="chipk ${p.kind}">${p.kind}</span>${p.nome}${p.min ? ' · ' + p.min + ' min' : ''}<small>${p.oque || ''}</small></span></li>`).join('');
+  const shops = paradas.filter(p => p.kind === 'compras').map(p => `<li${p.nivel === 1 ? ' class="n1"' : ''}><span class="k">km ${Math.round(p.km)}</span><span>${p.nome}<small>${p.horario || ''}${p.oque ? ' · ' + p.oque : ''}</small></span></li>`).join('');
+  const climbs = stage.climbs.map(c => `<li><span class="k">km ${Math.round(c.from / 1000)}</span><span><span class="chipk">${c.cat}</span>${c.name} · ${(c.len / 1000).toFixed(1).replace('.', ',')} km a ${c.pct.toFixed(1).replace('.', ',')} % · +${c.gain} m</span></li>`).join('');
+  const bornes = stage.cps.map(c => `<li><span class="k">km ${c.kmLabel}</span><span>${c.full}${c.ele ? ' · ' + c.ele + ' m' : ''}</span></li>`).join('');
+  const h = d.hotel;
+  return `<div class="pv m-${stage.type}">
+  <div class="hd"><div class="eyebrow">${d.dia || b.day || ''}${d.sol ? ' · sol ' + d.sol : ''}</div><h3>${code} ${d.titulo || stage.name.replace(/^E\S+ /, '')}</h3><div class="sub">${d.sub || ''}${d.tipo ? ' · ' + d.tipo : ''}</div>${stage.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
+  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${d.saida || '–'}</b><span>saída</span></div><div><b>${d.chegada || '–'}</b><span>chegada</span></div></div>
+  <canvas class="map" id="pvMap"></canvas>
+  <canvas class="prof" id="pvProf"></canvas>
+  ${d.intro ? `<p>${d.intro}</p>` : ''}
+  ${b.critical.length ? `<h4>Não esquecer</h4><ul>${b.critical.map(p => `<li class="n1">${p.aviso}</li>`).join('')}</ul>` : ''}
+  <h4>Cronograma</h4><ul>${tl}</ul>
+  ${climbs ? `<h4>Subidas</h4><ul>${climbs}</ul>` : ''}
+  <h4>Paradas · ${b.mins} min</h4><ul>${sights}</ul>
+  ${shops ? `<h4>Compras e horários</h4><ul>${shops}</ul>` : ''}
+  <h4>Bornes</h4><ul>${bornes}</ul>
+  ${d.estradas ? `<h4>Estradas</h4><p>${d.estradas}</p>` : ''}
+  ${d.comida ? `<h4>Comida e água</h4><p>${d.comida}</p>${d.agua && d.agua.length ? `<p>Água: ${d.agua.join(', ')}.</p>` : ''}` : ''}
+  ${h ? `<h4>Hospedagem</h4><div class="card"><b>${h.nome || ''}</b>${h.end || ''}${h.tel ? '<br>' + h.tel : ''}${h.checkin ? '<br>Check-in: ' + h.checkin : ''}${h.bike ? '<br>Bike: ' + h.bike : ''}${h.obs ? '<br><small>' + h.obs + '</small>' : ''}</div>` : ''}
+  ${d.alertas && d.alertas.length ? `<h4>Alertas</h4><ul>${d.alertas.map(a => `<li>${a}</li>`).join('')}</ul>` : ''}
+  ${d.planob ? `<h4>Plano B</h4><p>${d.planob}</p>` : ''}
+  ${d.hospital || d.bike_shop ? `<h4>Se der problema</h4>${d.hospital ? `<p><b>Hospital:</b> ${d.hospital}</p>` : ''}${d.bike_shop ? `<p><b>Bicicletaria:</b> ${d.bike_shop}</p>` : ''}` : ''}
+  <h4>Horários da região</h4><ul>${b.regras.map(r => `<li><small style="font-size:.85rem;color:var(--ink)">${r}</small></li>`).join('')}</ul>
+  </div>`;
+}
+export function tripHtml(routes, reports) {
+  const keys = Object.keys(routes.stages).filter(k => k !== '4b');
+  let km = 0, up = 0;
+  const items = keys.map(k => { const s = routes.stages[k], d = (routes.days || {})[k] || {}, r = reports[k]; km += s.km; up += s.up; return `<li data-k="${k}"><span class="code m-${(routes.types || {})[k] || 'blanc'}">${/^\d/.test(k) ? 'E' + k : k}</span><span><b style="font-family:var(--fd);font-size:1.15rem;text-transform:uppercase;display:block;line-height:1">${d.titulo || routes.names[k]}</b><small>${d.dia || ''}${d.sub ? ' · ' + d.sub : ''}${r ? ' · feita: ' + (Math.round(r.km * 10) / 10) + ' km' : ''}</small></span><span class="r">${s.km}<small>km · ${s.up} m</small></span></li>`; }).join('');
+  return `<div class="pv"><div class="hd"><div class="eyebrow">Étape · a viagem</div><h3>8 etapas · ${Math.round(km)} km</h3><div class="sub">${Math.round(up).toLocaleString('pt-BR')} m de subida · 22 a 29 de outubro de 2026</div></div><ul class="trip">${items}</ul><p style="color:var(--muted);font-size:.82rem">Toque numa etapa para ver a prévia do dia.</p></div>`;
+}
 export function briefingHtml(b, stage) {
   const crit = b.critical.map(p => `<li><b>${p.aviso}</b></li>`).join('');
   const items = b.items.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span> ${p.nome} <small>${p.min ? p.min + ' min' : ''}${p.kind === 'opcional' ? ' · opcional' : ''}</small></li>`).join('');

@@ -3,6 +3,7 @@
 import { mercX, mercY, metersPerPixel } from './geo.js';
 import { query } from './data-mod.js';
 import { elevationAt } from './track.js';
+import { icon, ready, setOnLoad, KIND_ICON, SIGHT_ICON } from './icons.js';
 
 export const THEMES = {
   day: { map: '#F4EFE1', forest: '#D9E5C6', res: '#EAE5D8', water: '#A9CDE6', waterLine: '#7FB2D6', waterTxt: '#3E7FAF', rail: '#6C7176',
@@ -22,6 +23,7 @@ export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5 }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day;
+  document.addEventListener('etape:icons', () => { dirty = true; });
   function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); dirty = true; }
   const scale = () => 256 * Math.pow(2, view.z);
   function toPx(lat, lon) {
@@ -79,6 +81,9 @@ export function createRenderer(canvas) {
     // bornes
     for (const c of st.cps) { const q = toPx(c.lat, c.lon); if (q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, z); }
     // posição
+    if (!S.fix && S.stage.cps.length) { // prévia: largada e chegada em destaque
+      for (const c of [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]]) { const q = toPx(c.lat, c.lon); const im = icon('hotel', 30); if (ready(im)) ctx.drawImage(im, q[0] - 15, q[1] - 26, 30, 30); }
+    }
     if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 12) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } bike(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
     // escala
     const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
@@ -95,6 +100,8 @@ export function createRenderer(canvas) {
     if (z >= 12) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 17, q[1] - 8, 'left', '600 13px "Archivo Narrow", Archivo, sans-serif');
   }
   function sightIcon(p, q, z) {
+    const im = icon(SIGHT_ICON[p.kind] || 'camera', z >= 14.5 ? 34 : 26);
+    if (ready(im)) { const s = z >= 14.5 ? 34 : 26; ctx.globalAlpha = p.done ? .45 : 1; ctx.drawImage(im, q[0] - s / 2, q[1] - s * .78, s, s); ctx.globalAlpha = 1; if (z >= 14) label(p.nome.split(' · ')[0], q[0], q[1] + 12, 'center', '600 12px "Archivo Narrow", Archivo, sans-serif'); return; }
     const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#D71920';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
     ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath();
@@ -105,6 +112,8 @@ export function createRenderer(canvas) {
   }
   function poiIcon(p, q, z) {
     const s = POI[p.k]; if (!s) return;
+    const nm = KIND_ICON[p.k], im = nm ? icon(nm, z >= 15 ? 28 : 22) : null;
+    if (ready(im)) { const sz = z >= 15 ? 28 : 22; ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .78, sz, sz); if ((z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + sz / 2 + 1, q[1] - 3, 'left', '600 11px "Archivo Narrow", Archivo, sans-serif'); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
     ctx.fillStyle = s[0]; ctx.strokeStyle = s[0]; ctx.beginPath();
     switch (s[1]) {
