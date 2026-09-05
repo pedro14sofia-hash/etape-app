@@ -24,6 +24,38 @@ const POI = { water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
 const CAMS = { tp: { yh: 0.30, yr: 0.76, dc: 70, hc: 34, far: 2600, rider: true, riderScale: 1.35 }, fp: { yh: 0.40, yr: 1.06, dc: 22, hc: 7.5, far: 1800, rider: false, riderScale: 1 } };
 
+// bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
+export const FLAG = { start: '#FFFFFF', cat: '#E4032E', sprint: '#2F8F46', feed: '#8A8F96', sight: '#2F8F46', flamme: '#E4032E', finish: '#FFFFFF' };
+export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
+  const col = FLAG[kind] || '#E4032E', fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
+  ctx.save(); ctx.lineCap = 'butt';
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = pw + 1.4; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
+  ctx.strokeStyle = kind === 'feed' ? '#8A8F96' : col; ctx.lineWidth = pw; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
+  const fx = x, fy = yTop - fh; ctx.fillStyle = col; ctx.strokeStyle = '#17191C'; ctx.lineWidth = 1;
+  if (kind === 'finish') {
+    const n = 4, cw = fw / n, ch = fh / 3;
+    for (let i = 0; i < n; i++) for (let j = 0; j < 3; j++) { ctx.fillStyle = (i + j) % 2 ? '#17191C' : '#FFFFFF'; ctx.fillRect(fx + i * cw, fy + j * ch, cw + .3, ch + .3); }
+    ctx.strokeRect(fx, fy, fw, fh);
+  } else if (kind === 'feed') {
+    ctx.fillStyle = '#B9BCC2'; ctx.beginPath(); ctx.moveTo(fx, fy + fh); ctx.lineTo(fx + fw * .15, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw * .85, fy + fh); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.moveTo(fx + fw * .42, fy + fh * .28); ctx.lineTo(fx + fw * .62, fy + fh * .28); ctx.lineTo(fx + fw * .7, fy + fh * .82); ctx.lineTo(fx + fw * .34, fy + fh * .82); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw, fy + fh); ctx.lineTo(fx + fw * .12, fy + fh); ctx.lineTo(fx, fy + fh * .55); ctx.closePath(); ctx.fill(); if (kind === 'start') ctx.stroke();
+    if (kind === 'start') { ctx.fillStyle = '#17191C'; ctx.beginPath(); ctx.moveTo(fx + fw * .32, fy + fh * .2); ctx.lineTo(fx + fw * .32, fy + fh * .8); ctx.lineTo(fx + fw * .78, fy + fh * .5); ctx.closePath(); ctx.fill(); }
+    else if (kind === 'sight') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + fw * .3, fy + fh * .3, fw * .42, fh * .42); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(fx + fw * .51, fy + fh * .51, fh * .13, 0, 7); ctx.fill(); }
+    else if (text) { ctx.fillStyle = '#FFFFFF'; ctx.font = '800 ' + Math.round(11 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
+  }
+  ctx.restore();
+}
+// pontos com bandeira ao longo da etapa: largada, cols, paradas (verde), abastecimento (musette), flamme rouge, chegada
+export function stageFlags(stage, paradas) {
+  const out = [{ dist: 0, kind: 'start' }];
+  for (const c of stage.climbs) out.push({ dist: c.to, kind: 'cat', text: c.cat, name: c.name });
+  for (const p of paradas || []) { if (p.kind === 'compras') out.push({ dist: p.km * 1000, kind: 'feed', name: p.nome }); else if (p.kind === 'visita' || p.kind === 'foto') out.push({ dist: p.km * 1000, kind: 'sight', name: p.nome }); }
+  out.push({ dist: Math.max(0, stage.total - 1000), kind: 'flamme', text: '1' }); out.push({ dist: stage.total, kind: 'finish' });
+  return out.sort((a, b) => a.dist - b.dist);
+}
+
 export function createRenderer(canvas, overlay) {
   const ctx = canvas.getContext('2d'), octx = overlay ? overlay.getContext('2d') : null;
   let rider = null, riderMoved = false;
@@ -118,7 +150,7 @@ export function createRenderer(canvas, overlay) {
     }
   }
   const inter = (b, box) => !(b[2] < box[0] || b[0] > box[2] || b[3] < box[1] || b[1] > box[3]);
-  function label(txt, x, y, align = 'left', font = '600 13px Archivo, sans-serif', color = theme.label) {
+  function label(txt, x, y, align = 'left', font = '600 13px Barlow, sans-serif', color = theme.label) {
     ctx.font = font; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = theme.halo; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillStyle = color; ctx.fillText(txt, x, y); ctx.textAlign = 'left';
   }
   // escala de tamanho para ícones e rótulos em 3D (1 na linha do ciclista), com corte de distância
@@ -195,13 +227,20 @@ export function createRenderer(canvas, overlay) {
     // curvas
     if (zBase >= 14) for (const t of st.turns) { if (t.dist < S.proj.dist - 200) continue; const q = proj(st.pts[t.i][0], st.pts[t.i][1]); if (!q[3]) continue; const r = 7 * sizeAt(q); ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 7); ctx.fillStyle = th.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = th.casing; ctx.stroke(); }
     // rótulos de estradas
-    if (zBase >= 14) { const seen = new Set(); for (const w of ways) { if (!w.n || w.c > (zBase >= 16 ? 5 : 4) || seen.has(w.n) || (zBase < 15.5 && !/^[A-Z] ?\d/.test(w.n))) continue; const q = midOf(w.p); if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue; seen.add(w.n); label(w.n, q[0], q[1], 'center', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Archivo Narrow", Archivo, sans-serif'); } }
+    if (zBase >= 14) { const seen = new Set(); for (const w of ways) { if (!w.n || w.c > (zBase >= 16 ? 5 : 4) || seen.has(w.n) || (zBase < 15.5 && !/^[A-Z] ?\d/.test(w.n))) continue; const q = midOf(w.p); if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue; seen.add(w.n); label(w.n, q[0], q[1], 'center', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); } }
     // POIs
     if (zBase >= 13) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place') || (zBase < 15 && (p.k === 'shop' || p.k === 'bakery' || p.k === 'pharmacy' || p.k === 'cafe' || p.k === 'toilets'))) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
     // paradas (foto/visita/compras)
     if (zBase >= 12) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; sightIcon(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12 : 14.5; if (zBase < minz) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(16 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(14 * sz) + 'px' : '600 ' + Math.round(12 * sz) + 'px') + ' "Archivo Narrow", Archivo, sans-serif'); }
+    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12 : 14.5; if (zBase < minz) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(16 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(14 * sz) + 'px' : '600 ' + Math.round(12 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
+    // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
+    if (cam) for (const f of stageFlags(st, S.paradas)) {
+      if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
+      const sz = sizeAt(q); if (sz < .3) continue; const hgt = 62 * sz;
+      flagAt(ctx, q[0], q[1] - hgt, q[1], f.kind, f.text, Math.max(.6, sz));
+      if (f.name && sz > .6) label(f.name.split(' · ')[0], q[0] + 30 * sz, q[1] - hgt + 8 * sz, 'left', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    }
     // bornes
     for (const c of st.cps) { const q = proj(c.lat, c.lon); if (!q[3] || q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, zBase); }
     // posição
@@ -215,7 +254,7 @@ export function createRenderer(canvas, overlay) {
       const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
       const sx = S.mode === 'resumo' ? 156 : 12;
       ctx.fillStyle = th.scale; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp, 4); ctx.fillStyle = th.borne; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp / 2, 4); ctx.strokeStyle = th.scale; ctx.lineWidth = 0.8; ctx.strokeRect(sx, H - S.scaleBottom - 4, bar / mpp, 4);
-      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx, H - S.scaleBottom - 12, 'left', '600 11px Archivo, sans-serif');
+      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx, H - S.scaleBottom - 12, 'left', '600 11px Barlow, sans-serif');
     }
   }
   function drawSky() {
@@ -231,13 +270,13 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q), w = 26 * sz, h = 30 * sz, x = q[0] - w / 2, y = q[1] - h;
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x, y + 4 * sz); ctx.arc(q[0], y + 13 * sz, 13 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 10 * sz); ctx.lineTo(x, y + 10 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#D71920' : '#FFD100'; ctx.fill();
-    ctx.fillStyle = '#17191C'; ctx.font = '800 ' + Math.round(13 * sz) + 'px "Big Shoulders Display", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 22 * sz); ctx.textAlign = 'left';
-    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 17 * sz, q[1] - 8 * sz, 'left', '600 ' + Math.round(13 * Math.max(.8, sz)) + 'px "Archivo Narrow", Archivo, sans-serif');
+    ctx.fillStyle = '#17191C'; ctx.font = '800 ' + Math.round(13 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 22 * sz); ctx.textAlign = 'left';
+    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 17 * sz, q[1] - 8 * sz, 'left', '600 ' + Math.round(13 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
     const im = icon(SIGHT_ICON[p.kind] || 'camera', z >= 14.5 ? 34 : 26);
-    if (ready(im)) { const s = (z >= 14.5 ? 34 : 26) * sz; ctx.globalAlpha = p.done ? .45 : 1; ctx.drawImage(im, q[0] - s / 2, q[1] - s * .78, s, s); ctx.globalAlpha = 1; if (z >= 14 && sz > .55) label(p.nome.split(' · ')[0], q[0], q[1] + 12 * sz, 'center', '600 12px "Archivo Narrow", Archivo, sans-serif'); return; }
+    if (ready(im)) { const s = (z >= 14.5 ? 34 : 26) * sz; ctx.globalAlpha = p.done ? .45 : 1; ctx.drawImage(im, q[0] - s / 2, q[1] - s * .78, s, s); ctx.globalAlpha = 1; if (z >= 14 && sz > .55) label(p.nome.split(' · ')[0], q[0], q[1] + 12 * sz, 'center', '600 12px "Barlow Condensed", Barlow, sans-serif'); return; }
     const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#D71920';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
@@ -245,7 +284,7 @@ export function createRenderer(canvas, overlay) {
     const s = POI[p.k]; if (!s) return;
     const sz = sizeAt(q); if (sz < .35) return;
     const nm = KIND_ICON[p.k], im = nm ? icon(nm, z >= 15 ? 28 : 22) : null;
-    if (ready(im)) { const s2 = (z >= 15 ? 28 : 22) * sz; ctx.drawImage(im, q[0] - s2 / 2, q[1] - s2 * .78, s2, s2); if (sz > .6 && (z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + s2 / 2 + 1, q[1] - 3, 'left', '600 11px "Archivo Narrow", Archivo, sans-serif'); return; }
+    if (ready(im)) { const s2 = (z >= 15 ? 28 : 22) * sz; ctx.drawImage(im, q[0] - s2 / 2, q[1] - s2 * .78, s2, s2); if (sz > .6 && (z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + s2 / 2 + 1, q[1] - 3, 'left', '600 11px "Barlow Condensed", Barlow, sans-serif'); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {
@@ -276,26 +315,32 @@ export function createRenderer(canvas, overlay) {
   };
 }
 
-// perfil da etapa (aba Perfil e sparkline do resumo) no estilo Tour: silhueta escura sobre amarelo
+// perfil da etapa no grafismo do Tour: amarelo com contorno branco, hastes e bandeirinhas
 export function drawProfile(canvas, stage, dist, theme, opts = {}) {
   const ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth, h = canvas.clientHeight;
   if (!w || !h) return; if (canvas.width !== Math.round(w * dpr)) { canvas.width = w * dpr; canvas.height = h * dpr; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
   const p = stage.prof, km = stage.total / 1000; let lo = 1e9, hi = -1e9; for (const q of p) { if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; }
-  lo = Math.floor((lo - 40) / 100) * 100; hi = Math.ceil((hi + 80) / 100) * 100;
-  const X = d => d / km * w, Y = e => h - 2 - (e - lo) / (hi - lo) * (h - 6);
-  ctx.fillStyle = theme === 'night' ? '#F2C500' : '#FFE566'; ctx.fillRect(0, 0, w, h);
-  ctx.beginPath(); ctx.moveTo(0, h); for (const q of p) ctx.lineTo(X(q[0]), Y(q[1])); ctx.lineTo(w, h); ctx.closePath(); ctx.fillStyle = '#17191C'; ctx.fill();
-  const xd = X(dist / 1000); ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fillRect(0, 0, xd, h); ctx.fillStyle = '#D71920'; ctx.fillRect(xd - 1, 0, 2, h);
-  if (opts.labels) {
-    ctx.fillStyle = '#17191C'; ctx.font = '800 11px "Big Shoulders Display", "Arial Narrow", sans-serif'; ctx.textBaseline = 'middle';
-    for (const c of stage.climbs) {
-      const txt = c.name + ' · ' + c.cat, tw = ctx.measureText(txt).width; let y = Y(c.topEle) - 4; if (y - tw < 4) y = Math.min(h - 6, tw + 4);
-      const x = Math.min(w - 6, Math.max(8, X(c.to / 1000)));
-      ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.strokeStyle = theme === 'night' ? '#F2C500' : '#FFE566'; ctx.lineJoin = 'round'; ctx.strokeText(txt, 2, 0); ctx.fillStyle = '#17191C'; ctx.fillText(txt, 2, 0); ctx.restore();
-    }
-    ctx.font = '600 10px "Archivo Narrow", Archivo, sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#17191C';
-    const a = stage.cps[0], b = stage.cps[stage.cps.length - 1]; ctx.fillText(a.name + ' ' + Math.round(elevationAt(stage, 0)), 4, h - 8); ctx.textAlign = 'right'; ctx.fillText(b.name + ' ' + Math.round(elevationAt(stage, stage.total)), w - 4, h - 8); ctx.textAlign = 'left';
-    ctx.fillStyle = '#D71920'; for (const c of stage.cps) { ctx.beginPath(); ctx.arc(X(c.dist / 1000), Y(elevationAt(stage, c.dist)), 3, 0, 7); ctx.fill(); }
+  lo = Math.floor((lo - 40) / 100) * 100; hi = Math.ceil((hi + 60) / 100) * 100;
+  const big = !!opts.labels, top = big ? 34 : 4, bottom = big ? 16 : 2;
+  const X = d => 6 + d / km * (w - 12), Y = e => h - bottom - (e - lo) / (hi - lo) * (h - top - bottom);
+  const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#3A3D44'); g.addColorStop(1, '#1D1F23'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  ctx.beginPath(); ctx.moveTo(X(0), h - bottom); for (const q of p) ctx.lineTo(X(q[0]), Y(q[1])); ctx.lineTo(X(km), h - bottom); ctx.closePath(); ctx.fillStyle = '#F2DF00'; ctx.fill();
+  ctx.beginPath(); for (let i = 0; i < p.length; i++) { const q = p[i]; if (i) ctx.lineTo(X(q[0]), Y(q[1])); else ctx.moveTo(X(q[0]), Y(q[1])); } ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = big ? 3 : 1.6; ctx.lineJoin = 'round'; ctx.stroke();
+  const xd = X(dist / 1000); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(6, 0, Math.max(0, xd - 6), h - bottom);
+  const flags = stageFlags(stage, opts.paradas || []);
+  for (const f of flags) {
+    if (!big && f.kind !== 'cat' && f.kind !== 'finish' && f.kind !== 'start') continue;
+    const x = Math.min(w - 16, Math.max(8, X(f.dist / 1000))), y = Y(elevationAt(stage, f.dist));
+    if (big) flagAt(ctx, x, Math.max(20, y - 26), h - bottom, f.kind, f.text, 1);
+    else { ctx.strokeStyle = FLAG[f.kind] || '#E4032E'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, Math.max(2, y - 6)); ctx.stroke(); }
+  }
+  ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), big ? 5 : 3.5, 0, 7); ctx.fillStyle = '#17191C'; ctx.fill(); ctx.lineWidth = big ? 2 : 1.2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+  if (big) {
+    ctx.font = '600 10px "Barlow Condensed", Barlow, sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#FFFFFF';
+    const a = stage.cps[0], b = stage.cps[stage.cps.length - 1]; ctx.textAlign = 'left'; ctx.fillText(a.name + ' ' + Math.round(elevationAt(stage, 0)) + ' m', 8, h - 7); ctx.textAlign = 'right'; ctx.fillText(b.name + ' ' + Math.round(elevationAt(stage, stage.total)) + ' m', w - 6, h - 7);
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '700 9px Barlow, sans-serif'; ctx.textAlign = 'left';
+    for (const c of stage.climbs) { const x = Math.min(w - 16, Math.max(8, X(c.to / 1000))); const nm = (c.name.length > 16 ? c.name.slice(0, 15) + '…' : c.name).toUpperCase(); ctx.fillText(nm, x + 4, Math.max(20, Y(c.topEle) - 26) + 4 + 16 + 7); }
+    ctx.textAlign = 'left';
   }
 }

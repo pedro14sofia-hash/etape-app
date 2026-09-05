@@ -234,7 +234,7 @@ function showPreview(key) {
     R2.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.min(15, z), 0); R2.view.anchorY = 0.5;
     const S2 = { map: S.map, routes: S.routes, stage: st, paradas, proj: { idx: 0, dist: 0, off: 0 }, fix: null, scaleBottom: 8, mode: 'full', showStart: false };
     PV = { R2, S2 }; requestAnimationFrame(() => { R2.invalidate(); R2.draw(S2); });
-    import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true }));
+    import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
   }
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;

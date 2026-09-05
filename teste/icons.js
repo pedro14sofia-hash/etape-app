@@ -20,7 +20,7 @@ export const ICONS = {
   // fonte: tanque com jato
   water: base() + g(`<ellipse cx="32" cy="40" rx="18" ry="6" fill="${WATER}"/><path d="M14 40v4a18 6 0 0 0 36 0v-4" fill="${MID}"/><rect x="29" y="18" width="6" height="22" fill="${PAPER}"/><path d="M32 10c-6 6-6 12 0 12s6-6 0-12z" fill="${WATER}"/><path d="M24 34c2-3 4-3 5 0M35 35c2-3 4-3 5 0" fill="none" stroke="${PAPER}" stroke-width="1.6"/>`),
   // banheiro: porta com placa WC
-  toilets: base() + g(`<path d="M20 46V16h20v30z" fill="${PAPER}"/><path d="M40 46V16l6-4v30z" fill="${MID}"/><rect x="24" y="22" width="12" height="9" rx="1" fill="${WATER}"/><text x="30" y="29" font-family="Archivo,Arial,sans-serif" font-weight="800" font-size="6.5" fill="${PAPER}" text-anchor="middle" stroke="none">WC</text><circle cx="35" cy="36" r="1.5" fill="${INK}"/>`),
+  toilets: base() + g(`<path d="M20 46V16h20v30z" fill="${PAPER}"/><path d="M40 46V16l6-4v30z" fill="${MID}"/><rect x="24" y="22" width="12" height="9" rx="1" fill="${WATER}"/><text x="30" y="29" font-family="Barlow,Arial,sans-serif" font-weight="800" font-size="6.5" fill="${PAPER}" text-anchor="middle" stroke="none">WC</text><circle cx="35" cy="36" r="1.5" fill="${INK}"/>`),
   // bicicletaria: roda com chave inglesa
   bike: base() + g(`<circle cx="32" cy="32" r="14" fill="${PAPER}"/><circle cx="32" cy="32" r="9" fill="none" stroke="${MID}" stroke-width="3"/><circle cx="32" cy="32" r="3" fill="${INK}"/><path d="M32 18v28M18 32h28M22 22l20 20M42 22L22 42" stroke-width="1.4"/><path d="M40 10l6 6-3 3 8 8-4 4-8-8-3 3-6-6a5 5 0 0 1 7-7z" fill="${VERT}"/>`),
   // hotel: cama

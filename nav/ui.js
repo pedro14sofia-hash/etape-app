@@ -72,7 +72,7 @@ export function panel(S) {
   }
   // perfil
   if (S.tab === 'prof') {
-    drawProfile(S.mode === 'resumo' ? $('spark') : $('prof'), st, d, S.theme, { labels: S.mode !== 'resumo' });
+    drawProfile(S.mode === 'resumo' ? $('spark') : $('prof'), st, d, S.theme, { labels: S.mode !== 'resumo', paradas: S.paradas });
     const ahead = st.climbs.filter(c => c.to > d);
     $('pAhead').innerHTML = `<div><b>${ahead.length}</b><span>subidas</span></div><div><b>${n0(L ? L.upRem : 0)}</b><span>m a subir</span></div><div><b>${n0(rem / 1000)}</b><span>km restam</span></div>`;
     const cl = L && L.climb; $('mProfTxt').innerHTML = cl ? `<span>${cl.cat} · topo em <b>${fmtKm1(L.climbLeft)} km</b></span><span><b>${n0(L.upRem)} m</b> a subir</span>` : `<span>${ahead.length} subidas à frente</span><span><b>${n0(L ? L.upRem : 0)} m</b> a subir</span>`;
