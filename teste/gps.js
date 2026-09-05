@@ -26,12 +26,15 @@ export function smooth(fix, prev) {
     const d = haversine(prev.lat, prev.lon, fix.lat, fix.lon), dt = Math.max(0.5, (fix.t - prev.t) / 1000);
     if (d / dt > 40) return null;                 // > 144 km/h: salto
     f.v = fix.speed != null && !isNaN(fix.speed) && fix.speed >= 0 ? fix.speed : d / dt;
-    // rumo só em movimento (> 1 m/s): parado o GPS gira à toa
-    if (f.v > 1 && d > 3) {
-      let h = bearing(prev.lat, prev.lon, fix.lat, fix.lon);
+    // rumo só em movimento (> 0,5 m/s): parado o GPS gira à toa. Calculado pelo deslocamento desde o último ponto de
+    // referência (≥ 4 m), e não entre fixes consecutivos: a pé, cada fix anda 1 m e o rumo nunca saía do lugar.
+    const ref = prev.headRef || prev, dr = haversine(ref.lat, ref.lon, fix.lat, fix.lon);
+    f.headRef = ref;
+    if (f.v > 0.5 && dr >= 4) {
+      let h = bearing(ref.lat, ref.lon, fix.lat, fix.lon);
       if (fix.head != null && !isNaN(fix.head) && f.v > 1.5) h = fix.head;
-      if (prev.head != null) { const dh = ((h - prev.head + 540) % 360) - 180; h = (prev.head + dh * 0.6 + 360) % 360; }
-      f.head = h;
+      if (prev.head != null) { const dh = ((h - prev.head + 540) % 360) - 180; h = (prev.head + dh * (f.v > 1.5 ? 0.6 : 0.4) + 360) % 360; }
+      f.head = h; f.headRef = { lat: fix.lat, lon: fix.lon };
     } else f.head = prev.head;
   } else { f.head = fix.head != null && !isNaN(fix.head) ? fix.head : 0; f.v = fix.speed > 0 ? fix.speed : 0; }
   return f;

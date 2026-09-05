@@ -15,6 +15,7 @@ import * as fuel from './fuel.js';
 import * as report from './report.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
+import * as compass from './compass.js';
 let rider3d = null, diorama = null;   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
@@ -128,7 +129,7 @@ function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme
 export function startNavigation(silent) {
   const ok = gps.start(onFix, e => { S.gpsMsg = 'GPS: ' + (e.message || 'erro'); refresh(); });
   if (!ok) return;
-  S.gpsMsg = 'GPS ligado'; S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19);
+  compass.start(); S.gpsMsg = 'GPS ligado'; S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19);
   gps.keepAwake(true);
   if (!silent) voice.announce({ level: 3, text: 'Navegação iniciada', sub: S.stage.name, speak: 'Navegação iniciada. ' + S.stage.name.replace(/^E\S+ /, '') });
 }
@@ -221,7 +222,7 @@ function glide(ts) {
   if (lost && !(T.on && T.v > 2 && age < 45)) { if (lost && S.gpsMsg === 'GPS ligado' && gps.running() && T.v > 0.5) { S.gpsMsg = 'GPS perdido · estimando'; refresh(); } if (age > 45) return; }
   const ahead = T.v < 0.5 ? 0 : T.v * Math.min(lost ? 45 : 1.5, age);
   if (T.on) { dist = Math.min(S.stage.total, T.dist + ahead); const p = track.pointAt(S.stage, dist); lat = p[0]; lon = p[1]; head = track.bearingAt(S.stage, Math.min(S.stage.total, dist + 15)) * Math.PI / 180; }
-  else { lat = T.lat + ahead * Math.cos(T.head) / 111320; lon = T.lon + ahead * Math.sin(T.head) / (111320 * Math.cos(T.lat * Math.PI / 180)); head = T.head; }
+  else { lat = T.lat + ahead * Math.cos(T.head) / 111320; lon = T.lon + ahead * Math.sin(T.head) / (111320 * Math.cos(T.lat * Math.PI / 180)); head = T.head; const ch = T.v < 1.2 ? compass.heading() : null; if (ch != null) head = ch * Math.PI / 180; }
   const kp = 1 - Math.exp(-dt / 0.25), kh = 1 - Math.exp(-dt / 0.35), P = S.pos;
   let dh = head - P.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
   const dlat = lat - P.lat, dlon = lon - P.lon;
