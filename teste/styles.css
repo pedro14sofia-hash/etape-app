@@ -30,6 +30,8 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #ctl button{width:48px;height:48px;border:1px solid rgba(23,25,28,.35);background:rgba(255,255,255,.72);color:var(--ink);border-radius:6px;font-family:var(--fd);font-weight:800;font-size:1.4rem;box-shadow:0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 :root[data-theme="night"] #ctl button{background:rgba(29,31,35,.7);border-color:rgba(255,229,102,.35);box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08)}
 #ctl button.on{background:rgba(255,209,0,.9);color:#17191C;border-color:rgba(23,25,28,.5)}
+#btnFollow:not(.on){animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.18)}50%{box-shadow:0 0 0 6px rgba(215,25,32,.35)}}
 #ctl button svg{display:block;margin:0 auto}
 #edge{position:absolute;inset:0;z-index:7;pointer-events:none;border:8px solid #D71920;opacity:0;transition:opacity .15s}
 #edge.show{opacity:.9;animation:edge .5s 3}
