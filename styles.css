@@ -130,6 +130,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .mini.ab span{display:block;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mini.ab span b{font-family:var(--fd);font-size:1.1rem;color:var(--rouge);letter-spacing:0;font-weight:900}
 .mini .kv{align-items:flex-end;padding-right:12px!important;white-space:nowrap}
+.mini .kv>span{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:2px}
 .mini .kv b{font-family:var(--fd);font-weight:900;font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}
 .mini .kv b small{font-family:var(--fd);font-weight:700;font-size:.9rem;color:var(--muted);margin-left:2px}
 .mini.fu{display:grid;grid-template-columns:1fr 1fr;min-height:54px}

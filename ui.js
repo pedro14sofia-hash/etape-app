@@ -49,7 +49,10 @@ export function panel(S) {
   const L = S.live;
   if (L) {
     $('tV').textContent = n1(L.v); $('tG').textContent = n1(L.grade); $('tDone').textContent = fmtKm1(d); $('tVam').textContent = n0(L.vam); $('tEle').textContent = n0(L.ele); $('tUp').textContent = n0(L.upRem);
-    $('mV').textContent = n1(L.v); $('mG').textContent = n1(L.grade);
+    // resumo: FC e cadência quando há sensor; senão VAM e subida restante (a velocidade já está no velocímetro)
+    const sn = S.sensors || {};
+    if (sn.hr) { $('mV').textContent = n0(sn.hr); $('mVu').textContent = 'bpm'; $('mVl').textContent = 'FC'; } else { $('mV').textContent = n0(L.vam); $('mVu').textContent = 'm/h'; $('mVl').textContent = 'VAM'; }
+    if (sn.cad) { $('mG').textContent = n0(sn.cad); $('mGu').textContent = 'rpm'; $('mGl').textContent = 'cadência'; } else { $('mG').textContent = n0(L.upRem); $('mGu').textContent = 'm'; $('mGl').textContent = 'a subir'; }
     const cl = L.climb, ctxEl = $('ctx');
     if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
     else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, Math.round(S.light.remaining / 60)); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${mins} min</b><span>de sol</span></div>`; }
