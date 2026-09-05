@@ -50,7 +50,7 @@ export function tick(S, fix, now) {
   // paradas e compras
   for (const p of S.paradas) {
     const ahead = p.km * 1000 - dist, near = p.kind === 'compras' ? 500 : 300;
-    if (!p.warned && ahead > 0 && ahead < near) { p.warned = true; ev.push({ kind: p.kind === 'compras' ? 'shop' : 'sight', level: p.nivel, text: p.aviso, sub: p.kind === 'compras' ? p.horario : (p.min ? p.min + ' min previstos' : ''), speak: p.aviso.replace(/·/g, ','), parada: p }); }
+    if (!p.warned && ahead > 0 && ahead < near) { p.warned = true; ev.push({ kind: p.kind === 'compras' ? 'shop' : 'sight', level: p.nivel, text: p.aviso, sub: p.kind === 'compras' ? p.horario : (p.min ? (p.min >= 60 ? Math.floor(p.min / 60) + 'h' + (p.min % 60 ? String(p.min % 60).padStart(2, '0') : '') : p.min + ' min') + ' previstos' : ''), speak: p.aviso.replace(/·/g, ','), parada: p }); }
     if (!p.passed && ahead < -300) { p.passed = true; }
   }
   // fonte à frente (POIs do mapa) para o abastecimento

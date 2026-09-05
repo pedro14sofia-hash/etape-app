@@ -9,6 +9,7 @@ const fmtKm1 = m => (Math.max(0, m) / 1000).toFixed(1).replace('.', ',');
 const fmtH = d => d ? d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') : '–';
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
 const n0 = x => isFinite(x) ? Math.round(x).toLocaleString('pt-BR') : '–';
+export const fmtMin = m => { m = Math.round(Math.abs(m)); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return r ? h + 'h' + String(r).padStart(2, '0') : h + ' h'; };
 const n1 = x => isFinite(x) ? (Math.round(x * 10) / 10).toFixed(1).replace('.', ',') : '–';
 const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 7l4 3"/>', direita: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>', reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>', retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>' };
 export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
@@ -33,7 +34,7 @@ export function panel(S) {
   const moving = session.movingTime(sess, now);
   // faixa fixa
   $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–';
-  const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + Math.abs(vp) + ' min'; $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
+  const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem);
   $('btnSession').innerHTML = session.label(sess.state) + '<small>' + (sess.state === 'idle' ? 'etapa' : 'mov. ' + fmtT(moving)) + '</small>';
   $('btnSession').className = 'sbtn ' + sess.state;
@@ -55,7 +56,7 @@ export function panel(S) {
     if (sn.cad) { $('mG').textContent = n0(sn.cad); $('mGu').textContent = 'rpm'; $('mGl').textContent = 'cadência'; } else { $('mG').textContent = n0(L.upRem); $('mGu').textContent = 'm'; $('mGl').textContent = 'a subir'; }
     const cl = L.climb, ctxEl = $('ctx');
     if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
-    else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, Math.round(S.light.remaining / 60)); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${mins} min</b><span>de sol</span></div>`; }
+    else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, S.light.remaining / 60); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${fmtMin(mins)}</b><span>de sol</span></div>`; }
     else ctxEl.hidden = true;
   }
   // abastecer
@@ -64,8 +65,8 @@ export function panel(S) {
     const set = (id, v, plan, total) => { $(id + 'Bar').style.width = Math.min(100, total ? v / total * 100 : 0) + '%'; $(id + 'Mark').style.left = Math.min(100, total ? plan / total * 100 : 0) + '%'; };
     set('fW', F.water, F.waterPlan, F.waterTotal); set('fC', F.carbs, F.carbsPlan, F.carbsTotal); set('fS', F.sodium, F.sodiumPlan, F.sodiumTotal);
     $('fWv').innerHTML = n1(F.water / 1000) + '<small>de ' + n1(F.waterTotal / 1000) + ' L</small>'; $('fCv').innerHTML = n0(F.carbs) + '<small>de ' + n0(F.carbsTotal) + ' g</small>'; $('fSv').innerHTML = n1(F.sodium / 1000) + '<small>de ' + n1(F.sodiumTotal / 1000) + ' g</small>';
-    $('fNext').innerHTML = `<span>garrafa ≈ <b>${n1(F.bottles)}</b></span><span>beber em <b>${F.nextDrinkMin} min</b></span><span>comer em <b>${F.nextEatMin} min</b></span>`;
-    $('mWv').textContent = n1(F.water / 1000) + ' L'; $('mWn').textContent = F.nextDrinkMin + ' min'; $('mCv').textContent = n0(F.carbs) + ' g'; $('mCn').textContent = F.nextEatMin + ' min';
+    $('fNext').innerHTML = `<span>garrafa ≈ <b>${n1(F.bottles)}</b></span><span>beber em <b>${fmtMin(F.nextDrinkMin)}</b></span><span>comer em <b>${fmtMin(F.nextEatMin)}</b></span>`;
+    $('mWv').textContent = n1(F.water / 1000) + ' L'; $('mWn').textContent = fmtMin(F.nextDrinkMin); $('mCv').textContent = n0(F.carbs) + ' g'; $('mCn').textContent = fmtMin(F.nextEatMin);
     $('mWBar').style.width = Math.min(100, F.waterTotal ? F.water / F.waterTotal * 100 : 0) + '%'; $('mWMark').style.left = Math.min(100, F.waterTotal ? F.waterPlan / F.waterTotal * 100 : 0) + '%';
     $('mCBar').style.width = Math.min(100, F.carbsTotal ? F.carbs / F.carbsTotal * 100 : 0) + '%'; $('mCMark').style.left = Math.min(100, F.carbsTotal ? F.carbsPlan / F.carbsTotal * 100 : 0) + '%';
   }
@@ -98,7 +99,7 @@ export function theme(mode, S) {
 export function previewHtml(stage, day, b, paradas, sun) {
   const d = day || {}, code = /^\d/.test(stage.key) ? 'E' + stage.key : stage.key;
   const tl = (d.timeline || []).map(t => `<li><span class="h">${t[0]}</span><span class="k">${t[1] ? 'km ' + t[1] : ''}</span><span>${t[2]}</span></li>`).join('');
-  const sights = paradas.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span><span><span class="chipk ${p.kind}">${p.kind}</span>${p.nome}${p.min ? ' · ' + p.min + ' min' : ''}<small>${p.oque || ''}</small></span></li>`).join('');
+  const sights = paradas.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span><span><span class="chipk ${p.kind}">${p.kind}</span>${p.nome}${p.min ? ' · ' + fmtMin(p.min) : ''}<small>${p.oque || ''}</small></span></li>`).join('');
   const shops = paradas.filter(p => p.kind === 'compras').map(p => `<li${p.nivel === 1 ? ' class="n1"' : ''}><span class="k">km ${Math.round(p.km)}</span><span>${p.nome}<small>${p.horario || ''}${p.oque ? ' · ' + p.oque : ''}</small></span></li>`).join('');
   const climbs = stage.climbs.map(c => `<li><span class="k">km ${Math.round(c.from / 1000)}</span><span><span class="chipk">${c.cat}</span>${c.name} · ${(c.len / 1000).toFixed(1).replace('.', ',')} km a ${c.pct.toFixed(1).replace('.', ',')} % · +${c.gain} m</span></li>`).join('');
   const bornes = stage.cps.map(c => `<li><span class="k">km ${c.kmLabel}</span><span>${c.full}${c.ele ? ' · ' + c.ele + ' m' : ''}</span></li>`).join('');
@@ -112,7 +113,7 @@ export function previewHtml(stage, day, b, paradas, sun) {
   ${b.critical.length ? `<h4>Não esquecer</h4><ul>${b.critical.map(p => `<li class="n1">${p.aviso}</li>`).join('')}</ul>` : ''}
   <h4>Cronograma</h4><ul>${tl}</ul>
   ${climbs ? `<h4>Subidas</h4><ul>${climbs}</ul>` : ''}
-  <h4>Paradas · ${b.mins} min</h4><ul>${sights}</ul>
+  <h4>Paradas · ${fmtMin(b.mins)}</h4><ul>${sights}</ul>
   ${shops ? `<h4>Compras e horários</h4><ul>${shops}</ul>` : ''}
   <h4>Bornes</h4><ul>${bornes}</ul>
   ${d.estradas ? `<h4>Estradas</h4><p>${d.estradas}</p>` : ''}
@@ -132,9 +133,9 @@ export function tripHtml(routes, reports) {
 }
 export function briefingHtml(b, stage) {
   const crit = b.critical.map(p => `<li><b>${p.aviso}</b></li>`).join('');
-  const items = b.items.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span> ${p.nome} <small>${p.min ? p.min + ' min' : ''}${p.kind === 'opcional' ? ' · opcional' : ''}</small></li>`).join('');
+  const items = b.items.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span> ${p.nome} <small>${p.min ? fmtMin(p.min) : ''}${p.kind === 'opcional' ? ' · opcional' : ''}</small></li>`).join('');
   return `<div class="brief"><div class="eyebrow">${b.day}${b.sunday ? ' · DOMINGO: comércio fechado' : b.monday ? ' · segunda: lojas fechadas de manhã' : ''}</div><h3>${stage.name}</h3>
-  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${b.mins}</b><span>min de paradas</span></div></div>
+  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${fmtMin(b.mins)}</b><span>de paradas</span></div></div>
   ${crit ? `<h4>Não esquecer</h4><ul class="crit">${crit}</ul>` : ''}
   <h4>Paradas do dia</h4><ul class="list">${items}</ul>
   <h4>Horários da região</h4><ul class="rules">${b.regras.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
