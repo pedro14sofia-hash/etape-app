@@ -133,8 +133,8 @@ export function createRenderer(canvas) {
     // como no Waze: a bike vista de cima, girada para o rumo, sem disco; só uma sombra suave embaixo
     ctx.save(); ctx.translate(q[0], q[1]); ctx.rotate(rot);
     ctx.beginPath(); ctx.ellipse(3, 6, 16, 30, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fill();
-    const im = icon('bikeTop', 72);
-    if (ready(im)) ctx.drawImage(im, -36, -40, 72, 72);
+    const im = icon('bikeTop', 84);
+    if (ready(im)) ctx.drawImage(im, -42, -46, 84, 84);
     else { ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(10, 12); ctx.lineTo(0, 6); ctx.lineTo(-10, 12); ctx.closePath(); ctx.fillStyle = theme.puck; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme.bike; ctx.stroke(); }
     ctx.restore();
   }
