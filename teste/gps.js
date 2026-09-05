@@ -48,10 +48,15 @@ export function speedWindow(history, seconds) {
   }
   return tMove > 20 ? d / tMove : 0;
 }
-// simulação: percorre o traçado a speedKmh a partir de fromDist
-export function simulate(stage, speedKmh, onFix, fromDist = 0) {
-  stopSim(); let dist = fromDist, t = Date.now(); const step = 700, v = speedKmh / 3.6;
+// simulação: percorre o traçado; a velocidade segue a rampa do perfil (sobe devagar, desce rápido), com variação natural
+export function simulate(stage, speedKmh, onFix, fromDist = 0, gradeAt = null) {
+  stopSim(); let dist = fromDist, t = Date.now(), v = speedKmh / 3.6; const step = 700;
   const tick = () => {
+    const g = gradeAt ? gradeAt(dist) : 0;
+    const base = speedKmh / 3.6;
+    let target = g > 0 ? base * Math.max(0.28, 1 - g * 0.085) : Math.min(58 / 3.6, base * (1 + Math.abs(g) * 0.07));
+    target *= 1 + (Math.random() - 0.5) * 0.12;                 // cadência irregular
+    v += (target - v) * 0.25;                                   // inércia
     dist += v * step / 1000; t += step;
     if (dist > stage.total + 30) { stopSim(); return; }
     // interpola dentro do segmento para a simulação andar liso, como o GPS real

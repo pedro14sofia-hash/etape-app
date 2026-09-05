@@ -172,7 +172,7 @@ function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').cla
 function startSim(kmh, from) {
   stopNavigation(); if (S.session.state === 'idle') session.start(S.session, Date.now()); else if (S.session.state === 'paused') session.resume(S.session, Date.now());
   S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, Math.max(R.view.z, 16.2)); S.gpsMsg = 'Simulação ' + kmh + ' km/h'; $('btnSim').classList.add('on');
-  gps.simulate(S.stage, kmh, onFix, from);
+  gps.simulate(S.stage, kmh, onFix, from, d => track.gradeAt(S.stage, d, 150));
 }
 function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
 function showBriefing() { showPreview(S.stage.key); }
