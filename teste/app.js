@@ -15,13 +15,14 @@ import * as fuel from './fuel.js';
 import * as report from './report.js';
 
 const $ = id => document.getElementById(id);
+const code = k => /^\d/.test(k) ? 'E' + k : k;
 const S = { map: null, routes: null, stage: null, paradas: [], proj: { idx: 0, dist: 0, off: 0 }, fix: null, prev: null, off: false, offSince: 0, session: null, log: [], fuel: null, fuelPlan: null, live: null, eta: null, next: {}, follow: true, mode: 'full', tab: 'tele', theme: 'day', prefs: store.prefs(), scaleBottom: 380, hist: [], planArrival: null };
 let R, panelTimer = null;
 
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'));
-  const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = 'E' + k; sel.appendChild(o); }
+  const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
   $('zin').onclick = () => R.setView(null, null, R.view.z + 0.7); $('zout').onclick = () => R.setView(null, null, R.view.z - 0.7);
@@ -63,7 +64,7 @@ export function selectStage(key) {
   if (gps.running()) stopNavigation();
   S.stage = track.loadStage(S.routes, key); track.nameTurns(S.stage.turns, S.stage, S.map.index);
   store.set('stage', key); $('stageSel').value = key; $('stageName').textContent = S.stage.name.replace(/^E\S+ /, ''); $('stageSub').textContent = (S.allParadas.dias[key] || '') + ' · ' + S.stage.km + ' km · ' + S.stage.up + ' m';
-  $('stageKey').textContent = 'E' + key; $('stageCode').className = 'code m-' + S.stage.type;
+  $('stageKey').textContent = code(key); $('stageCode').className = 'code m-' + S.stage.type;
   S.paradas = S.allParadas.itens.filter(p => p.stage === key).map(p => ({ ...p }));
   S.planArrival = (S.routes.plan || {})[key] || null;
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
