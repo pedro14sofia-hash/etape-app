@@ -439,7 +439,7 @@ export function createRenderer(canvas, overlay) {
     setSat(on) { view.sat = !!on; dirty = true; },
     setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; dirty = true; lastViewChange = performance.now(); },
     // zoom mantendo fixo o ponto da tela (px, py): pinça e toque duplo, como no Waze
-    zoomAround(z, px, py) { const a = fromPx(px, py); view.z = Math.max(9, Math.min(19, z)); const b = fromPx(px, py); view.cx += a.mx - b.mx; view.cy += a.my - b.my; dirty = true; lastViewChange = performance.now(); },
+    zoomAround(z, px, py, rot) { const a = fromPx(px, py); view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; const b = fromPx(px, py); view.cx += a.mx - b.mx; view.cy += a.my - b.my; dirty = true; riderMoved = true; lastViewChange = performance.now(); },
     animateTo(to, ms = 450) { anim = { from: { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot }, to: { cx: to.cx ?? view.cx, cy: to.cy ?? view.cy, z: to.z ?? view.z, rot: to.rot ?? view.rot }, t0: performance.now(), ms }; dirty = true; },
     animating() { return !!anim; }, stopAnim() { anim = null; },
     stats() { return { baseCount, dpr, base: base ? base.W : 0 }; },

@@ -1,6 +1,6 @@
 // Étape Navegar · telemetry.js
 // Telemetria: amostras a 5 s, números da tela, VAM, gradiente, registro do dia, GPX.
-import { elevationAt, climbRemaining, gradeAt, climbAt } from './track.js';
+import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js';
 import * as store from './store.js';
 
 export function sample(fix, stage, proj, prev) {
@@ -34,7 +34,7 @@ export function live(log, stage, session, now, movingSec) {
   // média em movimento: distância desde a primeira amostra da sessão sobre o tempo em movimento, só depois de 2 min
   const first = log[0] || s, avg = movingSec > 120 ? Math.max(0, s.dist - first.dist) / movingSec : 0;
   const cl = climbAt(stage, s.dist);
-  return { v: s.v * 3.6, avg: avg * 3.6, vmax: vmax * 3.6, grade: s.grade, gradeAhead: gradeAt(stage, s.dist, 500), vam: vam(log, 300), ele: s.ele, maxEle, up, upRem: climbRemaining(stage, s.dist), climb: cl, climbPct: cl ? Math.min(1, Math.max(0, (s.dist - cl.from) / (cl.to - cl.from))) : 0, climbLeft: cl ? Math.max(0, cl.to - s.dist) : 0 };
+  return { v: s.v * 3.6, avg: avg * 3.6, vmax: vmax * 3.6, grade: s.grade, gradeAhead: gradeAhead(stage, s.dist, 500), vam: vam(log, 300), ele: s.ele, maxEle, up, upRem: climbRemaining(stage, s.dist), climb: cl, climbPct: cl ? Math.min(1, Math.max(0, (s.dist - cl.from) / (cl.to - cl.from))) : 0, climbLeft: cl ? Math.max(0, cl.to - s.dist) : 0 };
 }
 export function toGpx(samples, meta) {
   const pts = samples.map(s => `<trkpt lat="${s.lat}" lon="${s.lon}"><ele>${s.ele}</ele><time>${new Date(s.t).toISOString()}</time></trkpt>`).join('\n');

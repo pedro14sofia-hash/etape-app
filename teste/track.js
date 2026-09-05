@@ -111,9 +111,20 @@ export function bearingAt(stage, dist) {
   return bearing(a[0], a[1], b[0], b[1]);
 }
 // inclinação média nos próximos windowM metros
-export function gradeAt(stage, dist, windowM = 200) {
+// rampa à frente (próximos windowM), para previsão
+export function gradeAhead(stage, dist, windowM = 200) {
   const d2 = Math.min(stage.total, dist + windowM), d1 = Math.max(0, Math.min(dist, d2 - 50));
   return (elevationAt(stage, d2) - elevationAt(stage, d1)) / Math.max(50, d2 - d1) * 100;
+}
+// rampa onde se está: janela centrada (metade atrás, metade à frente) sobre o perfil suavizado, sem os degraus
+// do perfil em passos de 40–50 m com metros inteiros
+export function gradeAt(stage, dist, windowM = 120) {
+  const d1 = Math.max(0, dist - windowM / 2), d2 = Math.min(stage.total, dist + windowM / 2); if (d2 - d1 < 30) return 0;
+  return (elevationSmoothAt(stage, d2) - elevationSmoothAt(stage, d1)) / (d2 - d1) * 100;
+}
+export function elevationSmoothAt(stage, dist) {
+  if (!stage.profS) { const p = stage.prof, n = p.length; stage.profS = p.map((q, i) => { let s = 0, c = 0; for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { s += p[j][1]; c++; } return [q[0], s / c]; }); }
+  const saved = stage.prof; stage.prof = stage.profS; try { return elevationAt(stage, dist); } finally { stage.prof = saved; }
 }
 export function climbAt(stage, dist) { return stage.climbs.find(c => dist >= c.from - 100 && dist < c.to); }
 export function surfaceAt(stage, dist) { const s = stage.surfaces.find(x => dist >= x.from && dist < x.to); return s ? s.kind : ''; }

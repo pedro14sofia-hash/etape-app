@@ -17,13 +17,13 @@ const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 
 export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
 
-export function bindGestures(canvas, R, onUserPan, onUserZoom) {
+export function bindGestures(canvas, R, onUserPan, onUserZoom, onUserRotate) {
   const ptrs = new Map(); let pinch = null, trail = [], fling = 0, lastTap = 0, lastTapAt = null;
   const stopFling = () => { if (fling) { cancelAnimationFrame(fling); fling = 0; } };
   const rect = () => canvas.getBoundingClientRect();
   canvas.addEventListener('pointerdown', e => {
-    stopFling(); R.stopAnim(); ptrs.set(e.pointerId, [e.clientX, e.clientY]); canvas.setPointerCapture(e.pointerId); trail = [[performance.now(), e.clientX, e.clientY]];
-    if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), z: R.view.z }; if (onUserZoom) onUserZoom(); }
+    stopFling(); R.stopAnim(); ptrs.set(e.pointerId, [e.clientX, e.clientY]); try { canvas.setPointerCapture(e.pointerId); } catch (err) { } trail = [[performance.now(), e.clientX, e.clientY]];
+    if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), z: R.view.z, ang: Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]), rot: R.view.rot, turned: false }; if (onUserZoom) onUserZoom(); }
   });
   canvas.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId)) return; const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
@@ -32,7 +32,10 @@ export function bindGestures(canvas, R, onUserPan, onUserZoom) {
       const now = performance.now(); trail.push([now, e.clientX, e.clientY]); while (trail.length > 2 && now - trail[0][0] > 90) trail.shift();
     } else if (ptrs.size === 2 && pinch) {
       const a = [...ptrs.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), r = rect();
-      R.zoomAround(pinch.z + Math.log2(d / pinch.d), (a[0][0] + a[1][0]) / 2 - r.left, (a[0][1] + a[1][1]) / 2 - r.top);
+      // rotação com dois dedos: só depois de girar 8° (evita girar sem querer ao dar pinça); depois acompanha o ângulo
+      const ang = Math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0]); let da = ang - pinch.ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+      if (!pinch.turned && Math.abs(da) > 0.14) { pinch.turned = true; pinch.ang = ang; pinch.rot = R.view.rot; da = 0; if (onUserRotate) onUserRotate(); }
+      R.zoomAround(pinch.z + Math.log2(d / pinch.d), (a[0][0] + a[1][0]) / 2 - r.left, (a[0][1] + a[1][1]) / 2 - r.top, pinch.turned ? pinch.rot + da : null);
     }
   });
   const up = e => {
