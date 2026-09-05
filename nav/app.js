@@ -54,7 +54,10 @@ export function init() {
   selectStage(store.get('stage', '1'));
   ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
   requestAnimationFrame(loop);
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
+  // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
+  window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); } });
+  const inFrame = window.parent && window.parent !== window;
+  if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
     navigator.serviceWorker.register('sw.js').catch(() => { });
     // versão nova instalada: recarrega quando não há etapa rodando
     let had = !!navigator.serviceWorker.controller;

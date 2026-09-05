@@ -7,7 +7,7 @@ import { icon, ready, setOnLoad, KIND_ICON, SIGHT_ICON } from './icons.js';
 
 export const THEMES = {
   day: { map: '#F4EFE1', forest: '#D9E5C6', res: '#EAE5D8', water: '#A9CDE6', waterLine: '#7FB2D6', waterTxt: '#3E7FAF', rail: '#6C7176',
-    r1: '#E63329', r2: '#E63329', r3: '#E8473D', r4: '#F5D96B', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B8946A', r8: '#3A9A5A', r9: '#9A9A9A', casing: '#17191C', casingMinor: '#A8A498',
+    r1: '#E63329', r2: '#E63329', r3: '#E8473D', r4: '#F1E2A8', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B8946A', r8: '#3A9A5A', r9: '#9A9A9A', casing: '#17191C', casingMinor: '#A8A498',
     ribbon: '#FFD100', ribbonCasing: '#17191C', done: '#17191C', other: '#C9C3B4', gravel: '#6B4423', label: '#17191C', halo: '#F4EFE1', borne: '#FFFFFF', forestTxt: '#4A6B3A', contour: '#C9A97A',
     puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.18)', scale: '#17191C', poiBg: '#FFFFFF' },
   night: { map: '#1A1C21', forest: '#20271F', res: '#22252A', water: '#213A4C', waterLine: '#2E5A73', waterTxt: '#7FB2D6', rail: '#6C7176',
