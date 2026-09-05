@@ -29,6 +29,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .cue.show ~ #ctl{top:calc(166px + env(safe-area-inset-top))}
 #ctl button{width:48px;height:48px;border:1.5px solid var(--ink);background:var(--ctl);color:var(--ink);border-radius:4px;font-family:var(--fd);font-weight:800;font-size:1.4rem;box-shadow:0 2px 5px rgba(0,0,0,.22)}
 #ctl button.on{background:var(--deep);color:#17191C;border-color:#17191C}
+#ctl button svg{display:block;margin:0 auto}
 #edge{position:absolute;inset:0;z-index:7;pointer-events:none;border:8px solid #D71920;opacity:0;transition:opacity .15s}
 #edge.show{opacity:.9;animation:edge .5s 3}
 @keyframes edge{50%{opacity:.25}}
