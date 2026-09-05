@@ -1,0 +1,102 @@
+// Étape Navegar · ui.js
+// Painel, controles, gestos, tema, orientação, modo resumo.
+import { drawProfile } from './render.js';
+import { surfaceAt, nextSurfaceChange } from './track.js';
+import * as session from './session.js';
+
+const $ = id => document.getElementById(id);
+const fmtKm1 = m => (Math.max(0, m) / 1000).toFixed(1).replace('.', ',');
+const fmtH = d => d ? d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') : '–';
+const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
+const n0 = x => isFinite(x) ? Math.round(x).toLocaleString('pt-BR') : '–';
+const n1 = x => isFinite(x) ? (Math.round(x * 10) / 10).toFixed(1).replace('.', ',') : '–';
+const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 7l4 3"/>', direita: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>', reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>', retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>' };
+export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
+export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
+
+export function bindGestures(canvas, R, onUserPan) {
+  const ptrs = new Map(); let pinch = null;
+  canvas.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); canvas.setPointerCapture(e.pointerId); if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), z: R.view.z }; } });
+  canvas.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return; const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptrs.size === 1) { const a = R.fromPx(prev[0], prev[1]), b = R.fromPx(e.clientX, e.clientY); R.setView(R.view.cx - (b.mx - a.mx), R.view.cy - (b.my - a.my)); onUserPan(); }
+    else if (ptrs.size === 2 && pinch) { const a = [...ptrs.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); R.setView(null, null, pinch.z + Math.log2(d / pinch.d)); }
+  });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
+  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); R.setView(null, null, R.view.z - Math.sign(e.deltaY) * 0.4); }, { passive: false });
+}
+
+// painel: atualiza tudo a partir do estado
+export function panel(S) {
+  const st = S.stage, d = S.proj.dist, rem = st.total - d, sess = S.session, now = Date.now();
+  const moving = session.movingTime(sess, now);
+  // faixa fixa
+  $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–';
+  const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + Math.abs(vp) + ' min'; $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
+  $('rem').textContent = fmtKm1(rem);
+  $('btnSession').innerHTML = session.label(sess.state) + '<small>' + (sess.state === 'idle' ? 'etapa' : 'mov. ' + fmtT(moving)) + '</small>';
+  $('btnSession').className = 'sbtn ' + sess.state;
+  // linha da borne + curva
+  const cp = S.next.cp, tn = S.next.turn, sf = surfaceAt(st, d), ch = nextSurfaceChange(st, d);
+  $('nbName').textContent = cp ? cp.name : '–';
+  const sfTxt = ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf);
+  $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (sfTxt || (cp.ele ? cp.ele + ' m' : '')) : '';
+  $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
+  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.txt.includes('retorno') ? 'retorno' : tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.txt; }
+  else { $('tcArrow').innerHTML = svgArrow('reto'); $('tcDist').textContent = fmtKm1(rem) + ' km'; $('tcSub').textContent = 'reto'; }
+  // telemetria
+  const L = S.live;
+  if (L) {
+    $('tV').textContent = n1(L.v); $('tG').textContent = n1(L.grade); $('tDone').textContent = fmtKm1(d); $('tVam').textContent = n0(L.vam); $('tEle').textContent = n0(L.ele); $('tUp').textContent = n0(L.upRem);
+    $('mV').textContent = n1(L.v); $('mG').textContent = n1(L.grade);
+    const cl = L.climb, ctxEl = $('ctx');
+    if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
+    else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, Math.round(S.light.remaining / 60)); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${mins} min</b><span>de sol</span></div>`; }
+    else ctxEl.hidden = true;
+  }
+  // abastecer
+  const F = S.fuelStatus;
+  if (F) {
+    const set = (id, v, plan, total) => { $(id + 'Bar').style.width = Math.min(100, total ? v / total * 100 : 0) + '%'; $(id + 'Mark').style.left = Math.min(100, total ? plan / total * 100 : 0) + '%'; };
+    set('fW', F.water, F.waterPlan, F.waterTotal); set('fC', F.carbs, F.carbsPlan, F.carbsTotal); set('fS', F.sodium, F.sodiumPlan, F.sodiumTotal);
+    $('fWv').innerHTML = n1(F.water / 1000) + '<small>de ' + n1(F.waterTotal / 1000) + ' L</small>'; $('fCv').innerHTML = n0(F.carbs) + '<small>de ' + n0(F.carbsTotal) + ' g</small>'; $('fSv').innerHTML = n1(F.sodium / 1000) + '<small>de ' + n1(F.sodiumTotal / 1000) + ' g</small>';
+    $('fNext').innerHTML = `<span>garrafa ≈ <b>${n1(F.bottles)}</b></span><span>beber em <b>${F.nextDrinkMin} min</b></span><span>comer em <b>${F.nextEatMin} min</b></span>`;
+    $('mWv').textContent = n1(F.water / 1000) + ' L'; $('mWn').textContent = F.nextDrinkMin + ' min'; $('mCv').textContent = n0(F.carbs) + ' g'; $('mCn').textContent = F.nextEatMin + ' min';
+    $('mWBar').style.width = Math.min(100, F.waterTotal ? F.water / F.waterTotal * 100 : 0) + '%'; $('mWMark').style.left = Math.min(100, F.waterTotal ? F.waterPlan / F.waterTotal * 100 : 0) + '%';
+    $('mCBar').style.width = Math.min(100, F.carbsTotal ? F.carbs / F.carbsTotal * 100 : 0) + '%'; $('mCMark').style.left = Math.min(100, F.carbsTotal ? F.carbsPlan / F.carbsTotal * 100 : 0) + '%';
+  }
+  // perfil
+  if (S.tab === 'prof' || S.mode === 'resumo') {
+    drawProfile(S.mode === 'resumo' ? $('spark') : $('prof'), st, d, S.theme, { labels: S.mode !== 'resumo' });
+    const ahead = st.climbs.filter(c => c.to > d);
+    $('pAhead').innerHTML = `<div><b>${ahead.length}</b><span>subidas</span></div><div><b>${n0(L ? L.upRem : 0)}</b><span>m a subir</span></div><div><b>${n0(rem / 1000)}</b><span>km restam</span></div>`;
+    const cl = L && L.climb; $('mProfTxt').innerHTML = cl ? `<span>${cl.cat} · topo em <b>${fmtKm1(L.climbLeft)} km</b></span><span><b>${n0(L.upRem)} m</b> a subir</span>` : `<span>${ahead.length} subidas à frente</span><span><b>${n0(L ? L.upRem : 0)} m</b> a subir</span>`;
+    terrainStrip($('terr'), st); terrainStrip($('mTerr'), st);
+  }
+  // velocímetro estilo Tour, só no resumo
+  const sp = $('speedo'); sp.hidden = S.mode !== 'resumo';
+  if (!sp.hidden && L) { $('spV').textContent = Math.round(L.v); $('spBar').style.width = Math.min(100, L.v / 80 * 100) + '%'; const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); $('spA').textContent = 'méd. ' + n1(L.avg); sp.style.bottom = (S.scaleBottom + 22) + 'px'; }
+  $('gpsSt').textContent = S.gpsMsg || '';
+  $('clock').textContent = fmtH(new Date());
+}
+function terrainStrip(el, st) {
+  if (!el || el.dataset.k === st.key) return; el.dataset.k = st.key;
+  if (!st.surfaces.length) { el.innerHTML = '<i class="a" style="width:100%"></i>'; return; }
+  el.innerHTML = st.surfaces.map(s => `<i class="${s.kind === 'asfalto' ? 'a' : s.kind === 'gravel' ? 'g' : 't'}" style="width:${(s.to - s.from) / st.total * 100}%"></i>`).join('');
+}
+export function setTab(S, tab) { S.tab = tab; document.querySelectorAll('#tabs div').forEach(d => d.classList.toggle('on', d.dataset.tab === tab)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== tab); document.querySelectorAll('.mini').forEach(p => p.hidden = p.dataset.tab !== tab); }
+export function setMode(S, mode) { S.mode = mode; $('panel').classList.toggle('resumo', mode === 'resumo'); }
+export function theme(mode, S) {
+  const night = mode === 'night' || (mode === 'auto' && S.light && S.light.remaining < 0 && S.light.remaining > -14 * 3600) || (mode === 'auto' && !S.light && new Date().getHours() >= 19);
+  document.documentElement.setAttribute('data-theme', night ? 'night' : 'day'); return night ? 'night' : 'day';
+}
+export function briefingHtml(b, stage) {
+  const crit = b.critical.map(p => `<li><b>${p.aviso}</b></li>`).join('');
+  const items = b.items.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span> ${p.nome} <small>${p.min ? p.min + ' min' : ''}${p.kind === 'opcional' ? ' · opcional' : ''}</small></li>`).join('');
+  return `<div class="brief"><div class="eyebrow">${b.day}${b.sunday ? ' · DOMINGO: comércio fechado' : b.monday ? ' · segunda: lojas fechadas de manhã' : ''}</div><h3>${stage.name}</h3>
+  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${b.mins}</b><span>min de paradas</span></div></div>
+  ${crit ? `<h4>Não esquecer</h4><ul class="crit">${crit}</ul>` : ''}
+  <h4>Paradas do dia</h4><ul class="list">${items}</ul>
+  <h4>Horários da região</h4><ul class="rules">${b.regras.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
+}

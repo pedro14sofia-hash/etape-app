@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#FFE566">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Étape Navegar</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Archivo:wght@400;600;700&family=Archivo+Narrow:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+<header id="top">
+  <div id="stageCode" class="code">E1<select id="stageSel" aria-label="Etapa"></select></div>
+  <div class="name"><b id="stageName">–</b><span id="stageSub"></span></div>
+  <div class="clock"><b id="clock">–:–</b><button id="btnTheme" aria-label="Tema">◐</button></div>
+</header>
+<div id="edge"></div>
+<div id="cue" class="cue"></div>
+<div id="ctl">
+  <button id="zin" aria-label="Aproximar">+</button>
+  <button id="zout" aria-label="Afastar">−</button>
+  <button id="btnFollow" class="on" aria-label="Seguir">◎</button>
+  <button id="btnVoice" class="on" aria-label="Voz">♪</button>
+  <button id="btnBrief" aria-label="Briefing do dia">i</button>
+</div>
+<div id="attr">© OpenStreetMap contributors</div>
+<div id="speedo" hidden>
+  <div class="sp"><b id="spV">0</b><span>km/h</span></div>
+  <div class="spbar"><i id="spBar"></i><em></em><em></em><em></em></div>
+  <div class="spx"><span id="spG" class="g">0 %</span><span id="spA">méd. 0</span></div>
+</div>
+
+<footer id="panel">
+  <div id="grab" class="grab"></div>
+  <div id="fixed" class="fixed">
+    <div class="eta"><b id="eta">–:–</b><span>chegada · <i id="vsplan"></i></span></div>
+    <div><b id="rem">–</b><span>km restam</span></div>
+    <div class="btn"><button id="btnSession" class="sbtn idle">Iniciar<small>etapa</small></button></div>
+  </div>
+  <div id="next" class="next">
+    <div class="nb"><em id="nbName">–</em><span id="nbSub"></span></div>
+    <div class="tc"><span id="tcArrow"></span><div><span id="tcDist">–</span><small id="tcSub"></small></div></div>
+  </div>
+  <div id="tabs" class="tabs"><div data-tab="tele" class="on">Telemetria</div><div data-tab="fuel">Abastecer</div><div data-tab="prof">Perfil</div></div>
+
+  <section class="pane" data-tab="tele">
+    <div class="tele">
+      <div><b><span id="tV">–</span><small>km/h</small></b><span>velocidade</span></div>
+      <div><b><span id="tG">–</span><small>%</small></b><span>rampa agora</span></div>
+      <div><b><span id="tDone">–</span><small>km</small></b><span>feitos</span></div>
+      <div><b><span id="tVam">–</span><small>m/h</small></b><span>VAM 5 min</span></div>
+      <div><b><span id="tEle">–</span><small>m</small></b><span>altitude</span></div>
+      <div><b><span id="tUp">–</span><small>m</small></b><span>subida restante</span></div>
+    </div>
+    <div id="ctx" hidden></div>
+  </section>
+  <section class="pane" data-tab="fuel" hidden>
+    <div class="fuel">
+      <div class="row"><div class="lab">Água</div><div class="bar"><i id="fWBar"></i><em id="fWMark"></em></div><div class="val" id="fWv">–</div></div>
+      <div class="row"><div class="lab">Carbo</div><div class="bar"><i id="fCBar"></i><em id="fCMark"></em></div><div class="val" id="fCv">–</div></div>
+      <div class="row"><div class="lab">Sódio</div><div class="bar"><i id="fSBar"></i><em id="fSMark"></em></div><div class="val" id="fSv">–</div></div>
+      <div class="acts"><button id="fDrink">Bebi<small>150 ml</small></button><button id="fEat">Comi<small>30 g</small></button><button id="fSnooze">Depois<small>+10 min</small></button></div>
+      <div class="nxt" id="fNext"></div>
+    </div>
+  </section>
+  <section class="pane" data-tab="prof" hidden>
+    <div class="prof">
+      <canvas id="prof"></canvas>
+      <div class="terr" id="terr"></div>
+      <div class="lg"><span><i class="a"></i>asfalto</span><span><i class="g"></i>gravel</span><span><i class="t"></i>trilha</span></div>
+      <div class="ahead" id="pAhead"></div>
+    </div>
+  </section>
+
+  <div class="mini ab" data-tab="tele" hidden>
+    <div class="grow"><em id="mName">–</em><span id="mSub"></span></div>
+    <div class="kv"><b><span id="mV">–</span><small>km/h</small></b></div>
+    <div class="kv"><b><span id="mG">–</span><small>%</small></b></div>
+  </div>
+  <div class="mini fu" data-tab="fuel" hidden>
+    <div><div class="l"><span>Água</span><b id="mWv">–</b><i id="mWn">–</i></div><div class="fbar"><i id="mWBar"></i><em id="mWMark"></em></div><div class="mini-acts"><button id="mDrink">Bebi</button></div></div>
+    <div><div class="l"><span>Carbo</span><b id="mCv">–</b><i id="mCn">–</i></div><div class="fbar"><i id="mCBar"></i><em id="mCMark"></em></div><div class="mini-acts"><button id="mEat">Comi</button></div></div>
+  </div>
+  <div class="mini pr" data-tab="prof" hidden>
+    <canvas id="spark" class="spark"></canvas>
+    <div class="strip" id="mTerr"></div>
+    <div class="cs" id="mProfTxt"></div>
+  </div>
+
+  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnSim">Sim</button><button id="btnReport">Relatório</button><button id="btnFinish">Encerrar</button><button id="btnReset">Zerar</button></span></div>
+</footer>
+
+<dialog id="dlgBrief"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
+<dialog id="dlgReport"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
+
+<script src="data.js"></script>
+<script type="module" src="app.js"></script>
+<noscript><div style="position:absolute;inset:0;background:#F7F5EE;padding:24px;font-family:sans-serif">O navegador precisa de JavaScript. Abra no Chrome.</div></noscript>
+</body>
+</html>
