@@ -21,7 +21,7 @@ export const THEMES = {
 };
 const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
-const POI = { water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
+const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000000', 'ch'], castle: ['#000000', 'ca'], viewpoint: ['#1DAE50', 'vp'], picnic: ['#1DAE50', 'pi'], water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
 const CAMS = { tp: { yh: 0.30, yr: 0.76, dc: 70, hc: 34, far: 2600, rider: true, riderScale: 1.35 }, fp: { yh: 0.40, yr: 1.06, dc: 22, hc: 7.5, far: 1800, rider: false, riderScale: 1 } };
 
@@ -276,7 +276,9 @@ export function createRenderer(canvas, overlay) {
 
   function draw(S) {
     if (anim) stepAnim();
-    if (!dirty) return; dirty = false;
+    if (!dirty) return;
+    if (!W || !H) { if (canvas.clientWidth && canvas.clientHeight) resize(); else return; }   // canvas sem tamanho (iframe ainda oculto): espera
+    dirty = false;
     setupCam();
     if (cam) { drawStatic(S); drawDynamic(S); return; }
     ensureBase(S);
@@ -354,7 +356,7 @@ export function createRenderer(canvas, overlay) {
     // rótulos de estradas
     if (zBase >= 14) { const seen = new Set(); for (const w of ways) { if (!w.n || w.c > (zBase >= 16 ? 5 : 4) || seen.has(w.n) || (zBase < 15.5 && !/^[A-Z] ?\d/.test(w.n))) continue; const q = midOf(w.p); if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue; seen.add(w.n); label(w.n, q[0], q[1], 'center', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); } }
     // POIs
-    if (zBase >= 13) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place') || (zBase < 15 && (p.k === 'shop' || p.k === 'bakery' || p.k === 'pharmacy' || p.k === 'cafe' || p.k === 'toilets'))) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
+    if (zBase >= 13) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place') || (zBase < 15 && (p.k === 'shop' || p.k === 'bakery' || p.k === 'pharmacy' || p.k === 'cafe' || p.k === 'toilets')) || (zBase < 14 && (p.k === 'church' || p.k === 'castle' || p.k === 'viewpoint' || p.k === 'picnic'))) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
     // paradas (foto/visita/compras)
     if (zBase >= 12) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; sightIcon(p, q, zBase); }
     // lugares

@@ -78,6 +78,7 @@ export function init() {
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
   $('dlgPreview').addEventListener('close', () => { if (diorama) diorama.dispose(); });
+  if (window !== window.parent) { try { parent.postMessage({ etape: 'ready' }, '*'); } catch (e) { } }   // avisa o guia que já aceita selectStage
   window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); size3d(); } });
   const inFrame = window.parent && window.parent !== window;
   if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
@@ -261,6 +262,7 @@ function perfHud(ts, ms) {
   PERF.n = 0; PERF.ms = 0;
 }
 function loop(ts) {
+  try {
   glide(ts);
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
@@ -268,6 +270,7 @@ function loop(ts) {
   const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;
   if (rider3d && rider3d.isReady()) { if (R.riderMoved()) R.drawRider(0); rider3d.render(R.riderInfo(), moving ? v : 0, ts); }
   else if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
+  } catch (e) { if (!loop._err) { loop._err = 1; console.error(e); } }   // um erro num quadro não pode matar o loop
   requestAnimationFrame(loop);
 }
 
