@@ -14,6 +14,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #top{position:absolute;top:0;left:0;right:0;z-index:5;background:var(--auto);border-bottom:2px solid var(--casing);display:flex;align-items:stretch;height:calc(58px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);color:#17191C}
 #top .code{font-family:var(--fd);font-weight:900;font-size:1.7rem;padding:0 10px;display:flex;align-items:center;border-right:1.5px solid #17191C}
 #top .code.m-pois{background-color:#fff;background-image:radial-gradient(#D71920 2.4px,transparent 2.8px);background-size:12px 12px}
+#top .code.m-pois #stageKey{background:#fff;padding:0 5px;border-radius:2px}
 #top .code.m-jaune{background:#FFD100}#top .code.m-vert{background:#2F8F46;color:#fff}#top .code.m-blanc{background:#fff}
 #top .code{position:relative;min-width:64px;justify-content:center}
 #stageSel{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px}
@@ -143,7 +144,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .foot .tools{display:flex;gap:6px}.foot .tools button{border:1px solid var(--line);border-radius:3px;padding:3px 8px;font-family:var(--fd);font-weight:700;font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
 .foot .tools button.on{background:var(--deep);color:#17191C}
 /* diálogos: briefing e relatório */
-dialog{border:0;padding:0;background:var(--paper);color:var(--ink);width:min(100vw,440px);max-width:100vw;height:100dvh;max-height:100dvh;margin:0 auto;overflow:auto;font-family:var(--fb)}
+dialog{touch-action:pan-y;-webkit-user-select:text;user-select:text;border:0;padding:0;background:var(--paper);color:var(--ink);width:min(100vw,440px);max-width:100vw;height:100dvh;max-height:100dvh;margin:0 auto;overflow:auto;font-family:var(--fb)}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 .dlg-acts{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 14px calc(14px + env(safe-area-inset-bottom));background:var(--bg);border-top:2px solid var(--casing)}
 .dlg-acts button{flex:1;text-align:center;border:1.5px solid var(--ink);border-radius:4px;padding:11px 4px;font-family:var(--fd);font-weight:900;font-size:1.15rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}

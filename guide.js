@@ -9,8 +9,12 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 // S: estado do app {stage, proj, fix, off, offSince, session, paradas, map}; devolve eventos {kind, level, text, sub, speak}
 export function tick(S, fix, now) {
   const ev = [], st = S.stage;
-  const pr = project(st, fix.lat, fix.lon, (now - (S.globalAt || 0) > 15000) ? -1 : S.proj.idx);
-  if ((now - (S.globalAt || 0)) > 15000) S.globalAt = now;
+  // projeção local primeiro; global só quando perdido, e só troca se for claramente melhor (ida e volta)
+  let pr = project(st, fix.lat, fix.lon, S.proj.idx);
+  if (pr.off > 150 && now - (S.globalAt || 0) > 10000) {
+    S.globalAt = now; const g = project(st, fix.lat, fix.lon, -1);
+    if (g.off < 40 && g.off < pr.off - 100) pr = g;
+  }
   if (pr.off < 250) S.proj = pr; else S.proj = { ...S.proj, off: pr.off };
   const dist = S.proj.dist;
   // fora de rota
@@ -22,6 +26,7 @@ export function tick(S, fix, now) {
   for (const c of st.cps) {
     if (!c.done && haversine(fix.lat, fix.lon, c.lat, c.lon) < 150 && Math.abs(dist - c.dist) < 400) {
       c.done = true; c.at = now;
+      if (c.n === 0 && dist < 400) continue;               // largada: sem aviso
       const last = c === st.cps[st.cps.length - 1];
       ev.push({ kind: last ? 'arrival' : 'checkpoint', level: last ? 2 : 3, text: (last ? 'Chegada · ' : 'Borne ' + c.kmLabel + ' · ') + c.name, sub: last ? 'etapa concluída' : 'km ' + (c.dist / 1000).toFixed(1).replace('.', ','), speak: last ? 'Chegada. Etapa concluída.' : c.name, cp: c });
     }

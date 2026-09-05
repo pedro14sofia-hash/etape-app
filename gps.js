@@ -20,17 +20,20 @@ export function running() { return watchId != null || simTimer != null; }
 
 // filtra saltos e suaviza rumo; prev = fix anterior aceito
 export function smooth(fix, prev) {
-  if (fix.acc > 50 && fix.src === 'gps') return null;
+  if (fix.acc > 80 && fix.src === 'gps') return null;   // sem qualidade: descarta (gargantas podem chegar a 30 m)
   const f = { ...fix };
   if (prev) {
     const d = haversine(prev.lat, prev.lon, fix.lat, fix.lon), dt = Math.max(0.5, (fix.t - prev.t) / 1000);
     if (d / dt > 40) return null;                 // > 144 km/h: salto
-    if (d > 3) f.head = bearing(prev.lat, prev.lon, fix.lat, fix.lon);
-    else f.head = prev.head;
-    if (fix.head != null && !isNaN(fix.head) && fix.speed > 1.5) f.head = fix.head;
-    if (f.head != null && prev.head != null) { let dh = ((f.head - prev.head + 540) % 360) - 180; f.head = (prev.head + dh * 0.6 + 360) % 360; }
-    f.v = fix.speed != null && !isNaN(fix.speed) ? fix.speed : d / dt;
-  } else { f.head = fix.head || 0; f.v = fix.speed || 0; }
+    f.v = fix.speed != null && !isNaN(fix.speed) && fix.speed >= 0 ? fix.speed : d / dt;
+    // rumo só em movimento (> 1 m/s): parado o GPS gira à toa
+    if (f.v > 1 && d > 3) {
+      let h = bearing(prev.lat, prev.lon, fix.lat, fix.lon);
+      if (fix.head != null && !isNaN(fix.head) && f.v > 1.5) h = fix.head;
+      if (prev.head != null) { const dh = ((h - prev.head + 540) % 360) - 180; h = (prev.head + dh * 0.6 + 360) % 360; }
+      f.head = h;
+    } else f.head = prev.head;
+  } else { f.head = fix.head != null && !isNaN(fix.head) ? fix.head : 0; f.v = fix.speed > 0 ? fix.speed : 0; }
   return f;
 }
 // velocidade média numa janela (s), só com movimento; history = [{t,lat,lon}]
@@ -51,8 +54,11 @@ export function simulate(stage, speedKmh, onFix, fromDist = 0) {
   const tick = () => {
     dist += v * step / 1000; t += step;
     if (dist > stage.total + 30) { stopSim(); return; }
-    const i = idxAt(stage, dist), p = stage.pts[Math.min(i, stage.pts.length - 1)], q = stage.pts[Math.max(0, i - 2)];
-    onFix({ t, lat: p[0] + (Math.random() - 0.5) * 0.00004, lon: p[1] + (Math.random() - 0.5) * 0.00004, acc: 8, ele: null, speed: v, head: bearing(q[0], q[1], p[0], p[1]), src: 'sim' });
+    // interpola dentro do segmento para a simulação andar liso, como o GPS real
+    const i = Math.max(1, idxAt(stage, dist)), a = stage.pts[i - 1], b = stage.pts[Math.min(i, stage.pts.length - 1)];
+    const f = Math.min(1, Math.max(0, (dist - stage.cum[i - 1]) / Math.max(1, stage.cum[i] - stage.cum[i - 1])));
+    const lat = a[0] + (b[0] - a[0]) * f, lon = a[1] + (b[1] - a[1]) * f;
+    onFix({ t, lat: lat + (Math.random() - 0.5) * 0.00004, lon: lon + (Math.random() - 0.5) * 0.00004, acc: 8, ele: null, speed: v, head: bearing(a[0], a[1], b[0], b[1]), src: 'sim' });
   };
   simTimer = setInterval(tick, step); tick();
   return stopSim;

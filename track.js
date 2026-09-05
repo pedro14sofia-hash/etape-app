@@ -52,11 +52,23 @@ export function nameTurns(turns, stage, index) {
 }
 
 // projeção da posição no traçado; busca local em torno de hintIdx, global se hintIdx < 0
+// índice do traçado para uma distância acumulada
+export function idxAtDist(stage, dist) { const c = stage.cum; let lo = 0, hi = c.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (c[m] < dist) lo = m + 1; else hi = m; } return lo; }
+
+// janela local: ~2 km para trás e ~8 km para a frente, para não pular para a volta nos trechos de ida e volta
 export function project(stage, lat, lon, hintIdx) {
   const { pts, cum } = stage; let lo = 0, hi = pts.length - 1;
-  if (hintIdx >= 0) { lo = Math.max(0, hintIdx - 40); hi = Math.min(pts.length - 1, hintIdx + 300); }
-  let best = 1e12, bi = Math.max(0, hintIdx);
-  for (let i = lo; i <= hi; i++) { const d = fastDist(lat, lon, pts[i][0], pts[i][1]); if (d < best) { best = d; bi = i; } }
+  if (hintIdx >= 0) {
+    lo = hintIdx; while (lo > 0 && cum[hintIdx] - cum[lo] < 2000) lo--;
+    hi = hintIdx; while (hi < pts.length - 1 && cum[hi] - cum[hintIdx] < 8000) hi++;
+  }
+  // empate entre ida e volta na mesma estrada: penaliza andar para trás (0,2 m por metro), sem impedir um retorno real
+  let best = 1e12, bi = Math.max(0, hintIdx); const ref = hintIdx >= 0 ? cum[hintIdx] : 0;
+  for (let i = lo; i <= hi; i++) {
+    const d = fastDist(lat, lon, pts[i][0], pts[i][1]), score = hintIdx >= 0 ? d + Math.max(0, ref - cum[i]) * 0.2 : d;
+    if (score < best) { best = score; bi = i; }
+  }
+  best = fastDist(lat, lon, pts[bi][0], pts[bi][1]);
   // refina entre o vértice e os vizinhos
   let dist = cum[bi], off = best;
   for (const j of [bi - 1, bi + 1]) {

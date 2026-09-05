@@ -67,7 +67,7 @@ export function panel(S) {
     $('mCBar').style.width = Math.min(100, F.carbsTotal ? F.carbs / F.carbsTotal * 100 : 0) + '%'; $('mCMark').style.left = Math.min(100, F.carbsTotal ? F.carbsPlan / F.carbsTotal * 100 : 0) + '%';
   }
   // perfil
-  if (S.tab === 'prof' || S.mode === 'resumo') {
+  if (S.tab === 'prof') {
     drawProfile(S.mode === 'resumo' ? $('spark') : $('prof'), st, d, S.theme, { labels: S.mode !== 'resumo' });
     const ahead = st.climbs.filter(c => c.to > d);
     $('pAhead').innerHTML = `<div><b>${ahead.length}</b><span>subidas</span></div><div><b>${n0(L ? L.upRem : 0)}</b><span>m a subir</span></div><div><b>${n0(rem / 1000)}</b><span>km restam</span></div>`;

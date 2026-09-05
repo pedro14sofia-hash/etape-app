@@ -18,6 +18,7 @@ export function tick(f, p, movingSec, now, ctx) {
   if (sinceEat >= p.eatEveryMin + f.snoozed.eat && (!f._eAt || now - f._eAt > 180000)) { f._eAt = now; ev.push({ kind: 'eat', level: 2, text: 'Comer ' + p.biteG + ' g', sub: Math.round(sinceEat) + ' min sem comer', speak: 'Hora de comer.' }); }
   // atrasado: ingestão 20 % abaixo do plano na hora corrida
   const hours = movingSec / 3600, planW = p.waterPerHour * hours, planC = p.carbsPerHour * hours;
+  if (!f.events.length) return ev;                 // sem confirmação nenhuma, não cobra atraso nem garrafa
   if (hours > 1 && f.water < planW * 0.8 && (!f._bAt || now - f._bAt > 900000)) { f._bAt = now; ev.push({ kind: 'behind', level: 1, text: 'Água atrasada', sub: Math.round(f.water / 1000 * 10) / 10 + ' L de ' + Math.round(planW / 100) / 10 + ' L do plano', speak: 'Você está bebendo menos que o plano.' }); }
   if (ctx && ctx.waterAhead && f.bottleLeft < 0.3 * p.bottleMl * p.bottles && (!f._rAt || now - f._rAt > 600000)) { f._rAt = now; ev.push({ kind: 'refill', level: 2, text: 'Encher garrafa', sub: 'fonte a ' + Math.round(ctx.waterAhead) + ' m', speak: 'Fonte em ' + Math.round(ctx.waterAhead) + ' metros. Encha a garrafa.' }); }
   return ev;

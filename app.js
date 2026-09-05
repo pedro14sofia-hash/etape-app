@@ -62,14 +62,14 @@ export function selectStage(key) {
   if (gps.running()) stopNavigation();
   S.stage = track.loadStage(S.routes, key); track.nameTurns(S.stage.turns, S.stage, S.map.index);
   store.set('stage', key); $('stageSel').value = key; $('stageName').textContent = S.stage.name.replace(/^E\S+ /, ''); $('stageSub').textContent = (S.allParadas.dias[key] || '') + ' · ' + S.stage.km + ' km · ' + S.stage.up + ' m';
-  $('stageCode').firstChild.textContent = 'E' + key; $('stageCode').className = 'code m-' + S.stage.type;
+  $('stageKey').textContent = 'E' + key; $('stageCode').className = 'code m-' + S.stage.type;
   S.paradas = S.allParadas.itens.filter(p => p.stage === key).map(p => ({ ...p }));
   S.planArrival = (S.routes.plan || {})[key] || null;
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
   S.session = session.restore(key) || session.create(key);
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
   S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
-  if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, -1); }
+  if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
   const b = S.stage.pts.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [90, 180, -90, -180]);
   R.setView((mercX(b[1]) + mercX(b[3])) / 2, (mercY(b[0]) + mercY(b[2])) / 2, 11.6, 0); R.view.anchorY = 0.45;
   S.next = guide.nextCue(S); S.live = telemetry.live(S.log, S.stage, S.session, Date.now(), session.movingTime(S.session, Date.now()));
@@ -96,9 +96,9 @@ export function toggleSession() {
   else if (s.state === 'paused') { session.resume(s, now); if (!gps.running()) startNavigation(true); voice.announce({ level: 3, text: 'Retomada', speak: 'Retomando.' }); }
   refresh();
 }
-export function finishStage() {
+export function finishStage(force) {
   if (S.session.state === 'idle') return;
-  if (!confirm('Encerrar a etapa e gerar o relatório?')) return;
+  if (!force && !confirm('Encerrar a etapa e gerar o relatório?')) return;
   session.finish(S.session, Date.now()); stopNavigation();
   telemetry.record(S.log, S.log[S.log.length - 1] || telemetry.sample({ t: Date.now(), lat: S.stage.pts[0][0], lon: S.stage.pts[0][1] }, S.stage, S.proj), S.stage.key, true);
   const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival); report.save(r); showReport(r);
@@ -140,13 +140,14 @@ function onFix(raw) {
 function handleEvent(ev) {
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
   if (ev.kind === 'sight') { ev.right = '<button class="mini-btn" data-done="' + ev.parada.id + '">feito</button>'; }
+  if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
   if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.txt.includes('retorno') ? 'retorno' : ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
   voice.announce(ev);
   if (ev.kind === 'arrival') setTimeout(() => { if (S.session.state === 'running' && confirm('Chegou. Encerrar a etapa e gerar o relatório?')) finishStage(); }, 1500);
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
 }
-function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } }, 120); }
+function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
 function loop() { R.draw(S); requestAnimationFrame(loop); }
 
 function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); return; } startSim(22, S.proj.dist); }
