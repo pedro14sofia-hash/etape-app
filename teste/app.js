@@ -14,6 +14,7 @@ import * as telemetry from './telemetry.js';
 import * as fuel from './fuel.js';
 import * as report from './report.js';
 import * as sat from './sat.js';
+import * as dem from './dem.js';
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -48,6 +49,7 @@ export function init() {
       store.set('satdl:' + S.stage.key, true); S.gpsMsg = 'satélite da etapa guardado'; refresh(); R.invalidate();
     }
   };
+  dem.loadIndex('dem/index.json').then(ix => { if (ix) R.invalidate(); });
   sat.loadIndex('sat/index.json').then(ix => { if (ix) { R.setSat(!!S.prefs.sat); $('btnSat').classList.toggle('on', !!S.prefs.sat); $('btnSat').hidden = false; } else $('btnSat').hidden = true; setCam(S.prefs.cam || '2d'); });
   // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
   const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
