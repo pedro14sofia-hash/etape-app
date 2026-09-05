@@ -30,6 +30,10 @@ export function tile(x, y) {
 // canto noroeste do tile em Mercator normalizado [0..1]
 export function tileMerc(x, y) { const n = 2 ** Z; return { mx: x / n, my: y / n, size: 1 / n }; }
 export const zoom = Z;
+// tiles da maquete (nível baixo cobrindo a caixa inteira da etapa): {z, list}
+export function dioTiles(key) { const d = index && index.dio; return d && d.stages[key] ? { z: d.z, list: d.stages[key] } : null; }
+export function tileUrl(x, y, z = Z) { return base + z + '/' + x + '/' + y + '.jpg'; }
+export function tileMercZ(x, y, z) { const n = 2 ** z; return { mx: x / n, my: y / n, size: 1 / n }; }
 // cor média por célula de 8×8 px do tile (32×32 por tile), calculada uma vez; devolve [r,g,b] ou null
 const grids = new Map();
 export function colorAt(lat, lon) {
@@ -48,11 +52,12 @@ export function colorAt(lat, lon) {
 // baixa todos os tiles de uma etapa para o cache do service worker (uso offline); progress(feitos, total)
 export async function prefetch(key, progress) {
   if (!index || !index.stages[key]) return false;
-  const list = index.stages[key]; let done = 0;
+  const dio = index.dio && index.dio.stages[key] ? index.dio.stages[key].map(([x, y]) => [x, y, index.dio.z]) : [];
+  const list = index.stages[key].map(([x, y]) => [x, y, Z]).concat(dio); let done = 0;
   const c = 'caches' in window ? await caches.open('etape-sat') : null;
   for (let i = 0; i < list.length; i += 8) {
-    await Promise.all(list.slice(i, i + 8).map(async ([x, y]) => {
-      const u = base + Z + '/' + x + '/' + y + '.jpg';
+    await Promise.all(list.slice(i, i + 8).map(async ([x, y, z]) => {
+      const u = base + z + '/' + x + '/' + y + '.jpg';
       try { if (c) { const hit = await c.match(u); if (!hit) { const r = await fetch(u); if (r.ok) await c.put(u, r); } } else await fetch(u); } catch (e) { }
       done++;
     }));

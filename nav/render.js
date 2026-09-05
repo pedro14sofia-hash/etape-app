@@ -59,7 +59,7 @@ export function stageFlags(stage, paradas) {
 
 export function createRenderer(canvas, overlay) {
   const ctx = canvas.getContext('2d'), octx = overlay ? overlay.getContext('2d') : null;
-  let rider = null, riderMoved = false; const S3 = { noOcclude: false };
+  let rider = null, riderMoved = false, riderExternal = false; const S3 = { noOcclude: false };
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5, mode: '2d', sat: false }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day, flat = null, fctx = null;
   document.addEventListener('etape:icons', () => { dirty = true; });
@@ -372,7 +372,7 @@ export function createRenderer(canvas, overlay) {
   // camada do ciclista: só ela é redesenhada a cada quadro da pedalada
   function drawRider(frame) {
     if (!octx) return; octx.clearRect(0, 0, W, H); riderMoved = false;
-    if (rider && rider.show) bike(octx, rider, frame);
+    if (rider && rider.show && !riderExternal) bike(octx, rider, frame);
   }
   function bike(c, r, frame) {
     c.save(); c.translate(r.x, r.y); c.rotate(r.rot); const s = 84 * (r.scale || 1);
@@ -383,7 +383,7 @@ export function createRenderer(canvas, overlay) {
   }
   function rr(x, y, w, h, r) { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   return {
-    view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, drawRider, riderMoved() { return riderMoved; }, size() { return { W, H }; },
+    view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, drawRider, riderMoved() { return riderMoved; }, riderInfo() { return rider ? { ...rider, mode: cam ? (cam.rider ? 'tp' : 'fp') : '2d' } : null; }, setRiderExternal(v) { riderExternal = !!v; }, size() { return { W, H }; },
     setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; },
     setMode(m) { view.mode = m; if (m !== '2d') view.anchorY = CAMS[m].yr; dirty = true; },
     setSat(on) { view.sat = !!on; dirty = true; },

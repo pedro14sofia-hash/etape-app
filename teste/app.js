@@ -15,6 +15,8 @@ import * as fuel from './fuel.js';
 import * as report from './report.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
+import * as rider3d from './rider3d.js';
+import * as diorama from './diorama.js';
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -24,6 +26,8 @@ let R, panelTimer = null;
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
+  // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
+  if (/[?&]r3d=1/.test(location.search) && rider3d.init($('rider3d'))) { R.setRiderExternal(true); }
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
@@ -66,11 +70,14 @@ export function init() {
   if (!S.prefs.voice) { voice.mute(); $('btnVoice').classList.remove('on'); } else $('btnVoice').classList.add('on');
   window.addEventListener('resize', () => { R.resize(); measurePanel(); });
   R.resize();
+  const size3d = () => { const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); };
+  size3d(); window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
   ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
-  window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); } });
+  $('dlgPreview').addEventListener('close', () => diorama.dispose());
+  window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); size3d(); } });
   const inFrame = window.parent && window.parent !== window;
   if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
     navigator.serviceWorker.register('sw.js').catch(() => { });
@@ -199,7 +206,8 @@ function loop(ts) {
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
   const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();
   const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;
-  if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
+  if (rider3d.isReady()) { if (R.riderMoved()) R.drawRider(0); rider3d.render(R.riderInfo(), moving ? v : 0, ts); }
+  else if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
   requestAnimationFrame(loop);
 }
 
@@ -237,6 +245,13 @@ function showPreview(key) {
     R2.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.min(15, z), 0); R2.view.anchorY = 0.5;
     const S2 = { map: S.map, routes: S.routes, stage: st, paradas, proj: { idx: 0, dist: 0, off: 0 }, fix: null, scaleBottom: 8, mode: 'full', showStart: false };
     PV = { R2, S2 }; requestAnimationFrame(() => { R2.invalidate(); R2.draw(S2); });
+    // maquete 3D da etapa (relevo real); sem DEM/WebGL fica o mapa plano
+    const dioBox = $('pvBody').querySelector('.dio'), ctl = dioBox.querySelector('.dio-ctl');
+    const showView = v => { ctl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); $('pvDio').hidden = v === 'map'; $('pvMap').hidden = v !== 'map'; if (v === 'map') { R2.resize(); R2.invalidate(); R2.draw(S2); diorama.stop(); } else { diorama.setSat(v === 'sat'); } };
+    ctl.querySelectorAll('button').forEach(b => b.onclick = () => showView(b.dataset.v));
+    const hint = dioBox.querySelector('.dio-hint');
+    if (dem.available()) diorama.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } });
+    else { showView('map'); ctl.hidden = true; }
     import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
   }
   if (!dlg.open) dlg.showModal();

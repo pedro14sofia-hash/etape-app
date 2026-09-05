@@ -1,7 +1,7 @@
 // Étape Navegar · dem.js
 // Elevação do terreno a partir dos tiles Terrarium (z12, ~38 m/px) guardados no app em dem/12/x/y.png.
 // Cada tile é decodificado uma vez para Float32 (altura = R*256 + G + B/256 − 32768) e consultado com interpolação bilinear.
-const Z = 12, N = 2 ** Z, MAX = 48;
+const Z = 12, N = 2 ** Z, MAX = 120;
 const tiles = new Map(); let index = null, base = 'dem/', onLoad = null;
 
 export function setOnLoad(cb) { onLoad = cb; }
@@ -25,6 +25,14 @@ function tile(x, y) {
   img.src = base + Z + '/' + x + '/' + y + '.png'; tiles.set(k, e);
   if (tiles.size > MAX) tiles.delete(tiles.keys().next().value);
   return null;
+}
+// garante uma lista de tiles [[x,y],...] carregados (os que existem no acervo)
+export function ensure(list) {
+  return Promise.all(list.map(([x, y]) => new Promise(res => {
+    const k = x + '/' + y; if (!index || !index.set.has(k)) return res();
+    tile(x, y); const e = tiles.get(k); if (!e) return res(); if (e.h) return res();
+    e.img.addEventListener('load', () => res(), { once: true }); e.img.addEventListener('error', () => res(), { once: true });
+  })));
 }
 // altitude (m) em lat/lon, ou null se o tile ainda não carregou / não existe
 export function elevation(lat, lon) {

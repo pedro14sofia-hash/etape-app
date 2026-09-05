@@ -1,0 +1,15 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Étape · ciclista 3D</title>
+<style>html,body{margin:0;height:100%;background:#F7F5EE;font-family:'Barlow Condensed',system-ui,sans-serif}canvas{display:block;width:100vw;height:100vh}#hud{position:fixed;left:12px;top:10px;font:600 22px/1 'Barlow Condensed',sans-serif;color:#17191C;letter-spacing:.04em;text-transform:uppercase}#hud small{display:block;font-size:13px;opacity:.6;margin-top:4px}</style>
+<link rel="stylesheet" href="fonts/fonts.css"></head><body>
+<canvas id="c"></canvas><div id="hud">Ciclista 3D<small>arraste para girar · scroll para aproximar · ?v=26 velocidade km/h</small></div>
+<script type="module">
+import * as r3d from './rider3d.js';
+const c = document.getElementById('c'), q = new URLSearchParams(location.search);
+const v = (+q.get('v') || 24) / 3.6; let az = +q.get('az') || 0.9, el = +q.get('el') || 0.35, dist = +q.get('d') || 3.4, drag = null;
+r3d.init(c); const fit = () => r3d.resize(innerWidth, innerHeight, Math.min(devicePixelRatio || 1, 2)); fit(); addEventListener('resize', fit);
+c.addEventListener('pointerdown', e => drag = [e.clientX, e.clientY]); addEventListener('pointerup', () => drag = null);
+addEventListener('pointermove', e => { if (!drag) return; az += (e.clientX - drag[0]) * 0.01; el = Math.max(0.05, Math.min(1.4, el + (e.clientY - drag[1]) * 0.01)); drag = [e.clientX, e.clientY]; });
+addEventListener('wheel', e => dist = Math.max(1.2, Math.min(8, dist + e.deltaY * 0.002)));
+function loop(t) { r3d.renderFree({ az, el, dist, size: Math.min(innerWidth, innerHeight) }, q.has('stop') ? 0 : v, t); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script></body></html>
