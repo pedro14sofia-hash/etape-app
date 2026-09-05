@@ -10,6 +10,8 @@ const fmtH = d => d ? d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
 const n0 = x => isFinite(x) ? Math.round(x).toLocaleString('pt-BR') : '–';
 export const fmtMin = m => { m = Math.round(Math.abs(m)); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return r ? h + 'h' + String(r).padStart(2, '0') : h + ' h'; };
+const fmtGap = m => { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') + "'" : m + "'"; };
+const fmtMinH = m => { m = Math.round(m); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
 const n1 = x => isFinite(x) ? (Math.round(x * 10) / 10).toFixed(1).replace('.', ',') : '–';
 const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 7l4 3"/>', direita: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>', reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>', retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>' };
 export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
@@ -77,6 +79,17 @@ export function panel(S) {
     $('pAhead').innerHTML = `<div><b>${ahead.length}</b><span>subidas</span></div><div><b>${n0(L ? L.upRem : 0)}</b><span>m a subir</span></div><div><b>${n0(rem / 1000)}</b><span>km restam</span></div>`;
     const cl = L && L.climb; $('mProfTxt').innerHTML = cl ? `<span>${cl.cat} · topo em <b>${fmtKm1(L.climbLeft)} km</b></span><span><b>${n0(L.upRem)} m</b> a subir</span>` : `<span>${ahead.length} subidas à frente</span><span><b>${n0(L ? L.upRem : 0)} m</b> a subir</span>`;
     terrainStrip($('terr'), st); terrainStrip($('mTerr'), st);
+  }
+  // écart estilo TV: diferença para o plano do guia (à frente em verde, atrás em vermelho)
+  const ec = S.ecart, eb = $('ecart');
+  if (eb) {
+    if (ec && ec.now != null && sess.state !== 'idle') { const g = ec.now; eb.hidden = false; eb.className = 'ecart ' + (g > 2 ? 'late' : g < -2 ? 'ahead' : ''); eb.innerHTML = '<span>écart</span><b>' + (g > 0 ? '+' : g < 0 ? '−' : '') + fmtGap(Math.abs(g)) + '</b>'; }
+    else eb.hidden = true;
+  }
+  const pl = $('passages');
+  if (pl && S.tab === 'prof') {
+    if (ec && ec.items.length) pl.innerHTML = ec.items.map(it => `<li${it.dist <= d ? ' class="done"' : ''}><span class="k">${it.kind === 'cat' ? '<i class="catf">' + it.cat + '</i>' : it.kind === 'start' ? '▶' : '🏁'}</span><span class="nm">${it.name}</span><span class="t">${fmtMinH(it.plan)}</span><span class="t">${it.eta == null ? '–' : fmtMinH(it.eta)}</span><span class="g ${it.gap == null ? '' : it.gap > 2 ? 'late' : it.gap < -2 ? 'ahead' : ''}">${it.gap == null ? '' : (it.gap > 0 ? '+' : it.gap < 0 ? '−' : '') + fmtGap(Math.abs(it.gap))}</span></li>`).join('');
+    else pl.innerHTML = '';
   }
   // velocímetro estilo Tour, só no resumo
   const sp = $('speedo'); sp.hidden = S.mode !== 'resumo';

@@ -97,6 +97,29 @@ export function shopWindow(S, speedMs, now) {
   }
   return ev;
 }
+// hora prevista no plano do guia para um km da etapa (interpola o cronograma do dia; horas "8h45")
+export function planTimeAt(day, distM) {
+  const tl = ((day && day.timeline) || []).filter(t => t[1] !== '' && t[1] != null).map(t => { const m = String(t[0]).match(/(\d{1,2})h(\d{0,2})/); return m ? { km: +t[1], min: +m[1] * 60 + (+(m[2] || 0)) } : null; }).filter(Boolean);
+  if (tl.length < 2) return null; const km = distM / 1000;
+  if (km <= tl[0].km) return tl[0].min; if (km >= tl[tl.length - 1].km) return tl[tl.length - 1].min;
+  for (let i = 1; i < tl.length; i++) if (tl[i].km >= km) { const a = tl[i - 1], b = tl[i]; return a.min + (b.min - a.min) * (km - a.km) / Math.max(0.1, b.km - a.km); }
+  return null;
+}
+// écart: diferença (min) entre a hora prevista de passagem e a hora do plano, nos pontos com bandeira à frente
+export function ecart(S, speedMs, now, day) {
+  const st = S.stage, out = [], d0 = S.proj.dist;
+  const nowMin = new Date(now).getHours() * 60 + new Date(now).getMinutes() + new Date(now).getSeconds() / 60;
+  const planNow = planTimeAt(day, d0);
+  const items = [{ dist: 0, name: 'Largada', kind: 'start' }].concat(st.climbs.map(c => ({ dist: c.to, name: c.name, kind: 'cat', cat: c.cat })), [{ dist: st.total, name: 'Chegada', kind: 'finish' }]);
+  for (const it of items) {
+    const plan = planTimeAt(day, it.dist); if (plan == null) continue;
+    let eta = null;
+    if (it.dist <= d0) { const mk = (S.session.marks || []).find(m => m.dist != null && Math.abs(m.dist - it.dist) < 400); eta = mk ? new Date(mk.at).getHours() * 60 + new Date(mk.at).getMinutes() : null; }
+    else if (speedMs > 0.8) eta = nowMin + (it.dist - d0) / speedMs / 60;
+    out.push({ ...it, plan, eta, gap: eta == null ? null : Math.round(eta - plan) });
+  }
+  return { now: planNow == null ? null : Math.round(nowMin - planNow), items: out };
+}
 export function nextCue(S) {
   const st = S.stage, d = S.proj.dist;
   return { cp: nextCheckpoint(st, d), turn: st.turns.find(t => t.dist > d) };

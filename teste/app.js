@@ -167,6 +167,7 @@ function onFix(raw) {
     // chegada prevista: recalculada a cada 15 min (ou quando ainda não há), não a cada posição
     if (!S.eta || !S.eta.arrival || now - (S.etaAt || 0) > 900000) { const e = guide.eta(S.stage, S.proj.dist, S.speed10, left); if (e.arrival) { S.eta = e; S.etaAt = now; S.vsPlan = guide.vsPlan(S.planArrival, e.arrival); } }
     S.light = guide.daylight(new Date(now), fix.lat, fix.lon);
+    S.ecart = guide.ecart(S, S.speed10, now, (S.routes.days || {})[S.stage.key]);
     if (S.prefs.theme === 'auto') applyTheme();
   }
   for (const ev of events) handleEvent(ev);
@@ -241,7 +242,7 @@ function showPreview(key) {
 }
 function showReport(r) {
   if (!r) { alert('Sem relatório desta etapa ainda.'); return; }
-  $('repBody').innerHTML = report.render(r);
+  $('repBody').innerHTML = report.render(r, report.list());
   const sh = report.share(r, S.log);
   $('repShare').onclick = async () => { try { if (navigator.share) await navigator.share({ title: r.name, text: sh.text }); else { await navigator.clipboard.writeText(sh.text); alert('Resumo copiado.'); } } catch (e) { } };
   $('repGpx').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sh.gpx], { type: 'application/gpx+xml' })); a.download = 'etape-' + r.stageKey + '.gpx'; a.click(); };
