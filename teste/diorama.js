@@ -94,8 +94,15 @@ export async function build(cv, stage, paradas, key, opts = {}) {
   }
   const named = [];
   for (const c of stage.cps) if (c.col || c.hotel || c.idx === 0 || c.dist >= stage.total - 500) named.push(c);
-  const seen = new Set(); let li = 0;
-  for (const c of named) { if (seen.has(c.name)) continue; seen.add(c.name); const [x, z] = toXZ(c.lat, c.lon); labels.add(textSprite(c.name.toUpperCase(), x, heightAt(c.lat, c.lon) + lift + flagH * (1.2 + 0.55 * (li++ % 2)), z, c.col, big)); }
+  const seen = new Set(), placed = [], poleMat = new THREE.LineBasicMaterial({ color: 0x17191c, transparent: true, opacity: 0.55 });
+  for (const c of named) {
+    if (seen.has(c.name)) continue; seen.add(c.name);
+    const [x, z] = toXZ(c.lat, c.lon), y0 = heightAt(c.lat, c.lon) + lift;
+    const level = placed.filter(p => Math.hypot(p[0] - x, p[1] - z) < 0.16).length; placed.push([x, z]);
+    const y = y0 + flagH * (1.25 + 0.7 * level);
+    labels.add(textSprite(c.name.toUpperCase(), x, y, z, c.col, big));
+    if (level > 0) labels.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, y0, z), new THREE.Vector3(x, y, z)]), poleMat));
+  }
   // ciclista
   const marker = new THREE.Group();
   const dot = new THREE.Mesh(new THREE.SphereGeometry(rw * 1.8, 14, 10), new THREE.MeshBasicMaterial({ color: 0xffd100 })); marker.add(dot);
@@ -154,7 +161,7 @@ async function satTexture() {
   if (!world || !sat.available()) return null;
   const dio = sat.dioTiles(world.key); if (!dio || !dio.list.length) return null; const list = dio.list;
   const TW = 2048, TH = Math.max(64, Math.round(2048 * world.rows / world.cols)); const c = document.createElement('canvas'); c.width = TW; c.height = TH;
-  const g = c.getContext('2d'); g.drawImage(world.texBase.image, 0, 0, TW, TH);
+  const g = c.getContext('2d'); g.drawImage(world.texBase.image, 0, 0, TW, TH); try { g.filter = 'brightness(1.22) saturate(0.92)'; } catch (e) { }
   const mx0 = mercX(world.box[1]), mx1 = mercX(world.box[3]), my0 = mercY(world.box[2]), my1 = mercY(world.box[0]);
   await new Promise(res => { let pending = 0; const done = () => { if (--pending <= 0) res(); };
     for (const [x, y] of list) {
@@ -163,6 +170,7 @@ async function satTexture() {
       pending++; const im = new Image(); im.onload = () => { g.drawImage(im, px, py, pw + 0.5, ph + 0.5); done(); }; im.onerror = done; im.src = sat.tileUrl(x, y, dio.z);
     }
     if (!pending) res(); });
+  g.filter = 'none'; g.fillStyle = 'rgba(247,245,238,0.14)'; g.fillRect(0, 0, TW, TH);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; return tex;
 }
 export async function setSat(on) {
