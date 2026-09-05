@@ -54,7 +54,7 @@ export function createRenderer(canvas) {
     for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.stroke(); } }
     if (z >= 11) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
     // estradas: por classe, casing e depois preenchimento
-    const zf = Math.max(0.6, Math.min(1.7, (z - 11) / 4 + 0.6));
+    const zf = Math.max(0.6, Math.min(2.6, (z - 11) / 4 + 0.6));
     const ways = query(M.index, box).filter(w => z >= MINZ[w.c]);
     ways.sort((a, b) => b.c - a.c);
     for (const w of ways) { if (w.c >= 7) continue; path(w.p); ctx.strokeStyle = w.c <= 4 ? th.casing : th.casingMinor; ctx.lineWidth = CLASSW[w.c] * zf + 1.8; ctx.stroke(); }
@@ -143,7 +143,7 @@ export function createRenderer(canvas) {
   return {
     view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, size() { return { W, H }; },
     setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; },
-    setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(17.5, z)); if (rot != null) view.rot = rot; dirty = true; },
+    setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; dirty = true; },
     centerOn(lat, lon) { view.cx = mercX(lon); view.cy = mercY(lat); dirty = true; }
   };
 }
