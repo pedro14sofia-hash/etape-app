@@ -30,11 +30,12 @@ export function init() {
   if (/[?&]r3d=1/.test(location.search)) import('./rider3d.js').then(m => { if (m.init($('rider3d'))) { rider3d = m; R.setRiderExternal(true); size3d(); } });
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
-  ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
+  ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); });
   // zoom manual desliga o zoom automático por 45 s
-  $('zin').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z + 0.7); }; $('zout').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z - 0.7); };
+  const zoomBtn = dz => { S.userZoomAt = Date.now(); const { W, H } = R.size(); ui.zoomAnim(R, R.view.z + dz, W / 2, H * R.view.anchorY); };
+  $('zin').onclick = () => zoomBtn(0.7); $('zout').onclick = () => zoomBtn(-0.7);
   $('map').addEventListener('wheel', () => { S.userZoomAt = Date.now(); }); $('map').addEventListener('pointerdown', e => { if (e.isPrimary === false) S.userZoomAt = Date.now(); });
-  $('btnFollow').onclick = () => { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; if (S.fix) { R.centerOn(S.fix.lat, S.fix.lon); R.setView(null, null, 19); R.invalidate(); } };
+  $('btnFollow').onclick = () => { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
   $('btnSession').onclick = toggleSession; $('btnFinish').onclick = finishStage; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
@@ -211,7 +212,7 @@ function snapView() { R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, nu
 // Rumo pela geometria da via 15 m à frente (estável), ou pelo GPS fora da rota. Constantes de tempo: posição 0,25 s,
 // rumo 0,35 s, zoom 1,2 s. ~30 qps em 2D, 20 com relevo + satélite; parado, nada é redesenhado.
 function glide(ts) {
-  const T = S.viewTarget; if (!T || !S.pos || !gps.running()) return;
+  const T = S.viewTarget; if (!T || !S.pos || !gps.running() || R.animating()) return;
   const now = Date.now(), age = (now - T.t) / 1000;
   const minGap = (R.view.mode !== '2d' && R.view.sat) ? 50 : 33; if (ts - lastGlide < minGap) return;
   const dt = Math.min(0.1, lastGlide ? (ts - lastGlide) / 1000 : 0.033); lastGlide = ts;
@@ -234,9 +235,19 @@ function glide(ts) {
   }
   if (moved) R.invalidate();
 }
+const PERF = { n: 0, ms: 0, last: 0, el: null };
+function perfHud(ts, ms) {
+  if (!/[?&]debug=1/.test(location.search)) return;
+  PERF.n++; PERF.ms += ms;
+  if (ts - PERF.last < 500) return; PERF.last = ts;
+  if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFE566;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
+  const st = R.stats(), mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '';
+  PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem;
+  PERF.n = 0; PERF.ms = 0;
+}
 function loop(ts) {
   glide(ts);
-  R.draw(S);
+  const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
   const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();
   const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;

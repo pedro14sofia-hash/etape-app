@@ -58,13 +58,15 @@ export function stageFlags(stage, paradas) {
 }
 
 export function createRenderer(canvas, overlay) {
-  const ctx = canvas.getContext('2d'), octx = overlay ? overlay.getContext('2d') : null;
+  let ctx = canvas.getContext('2d'); const octx = overlay ? overlay.getContext('2d') : null;
+  // cache do mapa estático (2D): bitmap maior que a tela, redesenhado só quando precisa; cada quadro é um drawImage
+  let base = null, dirtyBase = true, lastViewChange = 0, anim = null, baseCount = 0;
   let rider = null, riderMoved = false, riderExternal = false; const S3 = { noOcclude: false };
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5, mode: '2d', sat: false }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day, flat = null, fctx = null;
   document.addEventListener('etape:icons', () => { dirty = true; });
   sat.setOnLoad(() => { dirty = true; }); dem.setOnLoad(() => { dirty = true; });
-  function resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
+  function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
   const scale = () => 256 * Math.pow(2, view.z);
   const is3d = () => view.mode !== '2d';
   // ---------- projeções ----------
@@ -266,10 +268,53 @@ export function createRenderer(canvas, overlay) {
   }
 
   function draw(S) {
+    if (anim) stepAnim();
     if (!dirty) return; dirty = false;
     setupCam();
+    if (cam) { drawStatic(S); drawDynamic(S); return; }
+    ensureBase(S);
+    ctx.fillStyle = theme.map; ctx.fillRect(0, 0, W, H);
+    if (base) {
+      ctx.save(); ctx.imageSmoothingQuality = 'medium'; ctx.translate(W / 2, H * view.anchorY); ctx.rotate(view.rot);
+      const sv = scale(); ctx.translate((base.cx - view.cx) * sv, (base.cy - view.cy) * sv); ctx.rotate(-base.rot);
+      const kk = Math.pow(2, view.z - base.z); ctx.scale(kk, kk);
+      ctx.drawImage(base.canvas, -base.W / 2, -base.H / 2, base.W, base.H); ctx.restore();
+    }
+    drawDynamic(S);
+  }
+  // animação de câmera (voar até um ponto/zoom/rumo), ease-out cúbico
+  function stepAnim() {
+    const t = Math.min(1, (performance.now() - anim.t0) / anim.ms), e = 1 - Math.pow(1 - t, 3), f = anim.from, to = anim.to;
+    view.cx = f.cx + (to.cx - f.cx) * e; view.cy = f.cy + (to.cy - f.cy) * e; view.z = f.z + (to.z - f.z) * e;
+    let dr = to.rot - f.rot; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); view.rot = f.rot + dr * e;
+    dirty = true; riderMoved = true; if (t >= 1) anim = null;
+  }
+  // base: precisa redesenhar? (etapa/tema/satélite mudou, zoom ou rotação longe demais, tela saiu da área, progresso a ~1 s, ou zoom parou de mudar)
+  function ensureBase(S) {
+    const now = performance.now(), diag = Math.hypot(W, H);
+    let need = !base || base.stage !== S.stage.key || base.theme !== theme || base.sat !== view.sat || base.W < diag * 1.6;
+    if (!need) {
+      const kk = Math.pow(2, view.z - base.z), sb = 256 * Math.pow(2, base.z);
+      const dx = (view.cx - base.cx) * sb, dy = (view.cy - base.cy) * sb, r = diag / 2 / kk + 8;
+      let dr = view.rot - base.rot; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+      need = Math.abs(dx) + r > base.W / 2 || Math.abs(dy) + r > base.H / 2 || kk > 1.6 || kk < 0.62 || Math.abs(dr) > 0.35
+        || (dirtyBase && now - base.stamp > 900) || (base.z !== view.z && now - lastViewChange > 250 && now - base.stamp > 250);
+    }
+    if (need) renderBase(S, now);
+  }
+  function renderBase(S, now) {
+    const diag = Math.hypot(W, H), BW = Math.ceil(diag * 1.7), bdpr = Math.min(dpr, 1.5);
+    if (!base || base.W !== BW) { const c = document.createElement('canvas'); c.width = c.height = Math.round(BW * bdpr); base = { canvas: c, ctx: c.getContext('2d'), W: BW, H: BW }; }
+    const saved = { ctx, W, H, anchorY: view.anchorY };
+    ctx = base.ctx; W = BW; H = BW; view.anchorY = 0.5;
+    ctx.setTransform(bdpr, 0, 0, bdpr, 0, 0); ctx.fillStyle = theme.map; ctx.fillRect(0, 0, W, H); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    try { drawStatic(S); } finally { ctx = saved.ctx; W = saved.W; H = saved.H; view.anchorY = saved.anchorY; }
+    Object.assign(base, { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot, stamp: now, stage: S.stage.key, theme, sat: view.sat }); dirtyBase = false; baseCount++;
+  }
+  // camadas estáticas: fundo, satélite, polígonos, água, ferrovias, estradas, outras etapas, fita, curvas, rótulos, POIs, paradas, lugares, bandeiras, bornes
+  function drawStatic(S) {
     const M = S.map, st = S.stage, z = view.z, box = visibleBox(), th = theme;
-    ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H);
+    if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let satOn = false;
     if (cam && cam.terrain) { drawSkyFull(); drawTerrain(view.sat && sat.available()); satOn = view.sat && sat.available(); }
@@ -316,6 +361,10 @@ export function createRenderer(canvas, overlay) {
     }
     // bornes
     for (const c of st.cps) { const q = proj(c.lat, c.lon); if (!q[3] || q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, zBase); }
+  }
+  // camadas dinâmicas: posição/ciclista, círculo de precisão, escala
+  function drawDynamic(S) {
+    const th = theme;
     // posição
     if (!S.fix && S.stage.cps.length) {
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 30); const sz = 30 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
@@ -384,11 +433,16 @@ export function createRenderer(canvas, overlay) {
   }
   function rr(x, y, w, h, r) { ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   return {
-    view, resize, toPx, fromPx, invalidate() { dirty = true; }, draw, drawRider, riderMoved() { return riderMoved; }, riderInfo() { return rider ? { ...rider, mode: cam ? (cam.rider ? 'tp' : 'fp') : '2d' } : null; }, setRiderExternal(v) { riderExternal = !!v; }, size() { return { W, H }; },
-    setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; },
+    view, resize, toPx, fromPx, invalidate() { dirty = true; dirtyBase = true; }, draw, drawRider, riderMoved() { return riderMoved; }, riderInfo() { return rider ? { ...rider, mode: cam ? (cam.rider ? 'tp' : 'fp') : '2d' } : null; }, setRiderExternal(v) { riderExternal = !!v; }, size() { return { W, H }; },
+    setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; dirtyBase = true; },
     setMode(m) { view.mode = m; if (m !== '2d') view.anchorY = CAMS[m].yr; dirty = true; },
     setSat(on) { view.sat = !!on; dirty = true; },
-    setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; dirty = true; },
+    setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(19, z)); if (rot != null) view.rot = rot; dirty = true; lastViewChange = performance.now(); },
+    // zoom mantendo fixo o ponto da tela (px, py): pinça e toque duplo, como no Waze
+    zoomAround(z, px, py) { const a = fromPx(px, py); view.z = Math.max(9, Math.min(19, z)); const b = fromPx(px, py); view.cx += a.mx - b.mx; view.cy += a.my - b.my; dirty = true; lastViewChange = performance.now(); },
+    animateTo(to, ms = 450) { anim = { from: { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot }, to: { cx: to.cx ?? view.cx, cy: to.cy ?? view.cy, z: to.z ?? view.z, rot: to.rot ?? view.rot }, t0: performance.now(), ms }; dirty = true; },
+    animating() { return !!anim; }, stopAnim() { anim = null; },
+    stats() { return { baseCount, dpr, base: base ? base.W : 0 }; },
     centerOn(lat, lon) { view.cx = mercX(lon); view.cy = mercY(lat); dirty = true; }
   };
 }

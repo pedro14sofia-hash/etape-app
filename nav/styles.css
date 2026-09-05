@@ -9,7 +9,7 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--map);color:var(--ink);font-family:var(--fb);font-size:15px;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
-#map{position:absolute;inset:0;width:100%;height:100%;display:block;background:var(--map)}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;background:var(--map);touch-action:none;-webkit-user-select:none;user-select:none}
 #rider,#rider3d{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:2}
 /* topo */
 #top{position:absolute;top:0;left:0;right:0;z-index:5;background:var(--auto);border-bottom:2px solid var(--casing);display:flex;align-items:stretch;height:calc(58px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);color:#17191C}

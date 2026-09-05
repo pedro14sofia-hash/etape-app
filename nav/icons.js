@@ -80,7 +80,8 @@ export function icon(name, size = 32) {
   const svg = ICONS[name]; if (!svg) return null;
   const dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.round(size * dpr);
   const img = new Image(px, px);
-  img.onload = () => { if (onLoad) onLoad(); try { document.dispatchEvent(new Event('etape:icons')); } catch (e) { } };
+  // ao carregar, rasteriza num canvas (desenhar SVG direto é lento no Android); o canvas imita complete/naturalWidth
+  img.onload = () => { try { const cv = document.createElement('canvas'); cv.width = cv.height = px; cv.getContext('2d').drawImage(img, 0, 0, px, px); cv.complete = true; cv.naturalWidth = px; cache.set(key, cv); } catch (e) { } if (onLoad) onLoad(); try { document.dispatchEvent(new Event('etape:icons')); } catch (e) { } };
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${px}" height="${px}">${svg}</svg>`);
   cache.set(key, img); return img;
 }

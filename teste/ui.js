@@ -17,17 +17,52 @@ const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 
 export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
 
-export function bindGestures(canvas, R, onUserPan) {
-  const ptrs = new Map(); let pinch = null;
-  canvas.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); canvas.setPointerCapture(e.pointerId); if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), z: R.view.z }; } });
+export function bindGestures(canvas, R, onUserPan, onUserZoom) {
+  const ptrs = new Map(); let pinch = null, trail = [], fling = 0, lastTap = 0, lastTapAt = null;
+  const stopFling = () => { if (fling) { cancelAnimationFrame(fling); fling = 0; } };
+  const rect = () => canvas.getBoundingClientRect();
+  canvas.addEventListener('pointerdown', e => {
+    stopFling(); R.stopAnim(); ptrs.set(e.pointerId, [e.clientX, e.clientY]); canvas.setPointerCapture(e.pointerId); trail = [[performance.now(), e.clientX, e.clientY]];
+    if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = { d: Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), z: R.view.z }; if (onUserZoom) onUserZoom(); }
+  });
   canvas.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId)) return; const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
-    if (ptrs.size === 1) { const a = R.fromPx(prev[0], prev[1]), b = R.fromPx(e.clientX, e.clientY); R.setView(R.view.cx - (b.mx - a.mx), R.view.cy - (b.my - a.my)); onUserPan(); }
-    else if (ptrs.size === 2 && pinch) { const a = [...ptrs.values()]; const d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); R.setView(null, null, pinch.z + Math.log2(d / pinch.d)); }
+    if (ptrs.size === 1) {
+      const a = R.fromPx(prev[0], prev[1]), b = R.fromPx(e.clientX, e.clientY); R.setView(R.view.cx - (b.mx - a.mx), R.view.cy - (b.my - a.my)); onUserPan();
+      const now = performance.now(); trail.push([now, e.clientX, e.clientY]); while (trail.length > 2 && now - trail[0][0] > 90) trail.shift();
+    } else if (ptrs.size === 2 && pinch) {
+      const a = [...ptrs.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]), r = rect();
+      R.zoomAround(pinch.z + Math.log2(d / pinch.d), (a[0][0] + a[1][0]) / 2 - r.left, (a[0][1] + a[1][1]) / 2 - r.top);
+    }
   });
-  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
+  const up = e => {
+    const was = ptrs.size; ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
+    if (was === 1 && trail.length >= 1) {
+      const now = performance.now(), t0 = trail[0], t1 = trail[trail.length - 1], dt = Math.max(16, t1[0] - t0[0]);
+      if (trail.length >= 2 && now - t1[0] < 60) {
+        let vx = (t1[1] - t0[1]) / dt * 1000, vy = (t1[2] - t0[2]) / dt * 1000;   // px/s
+        const sp = Math.hypot(vx, vy); if (sp > 2600) { vx *= 2600 / sp; vy *= 2600 / sp; }   // teto de velocidade da inércia
+        if (sp > 250) {                                             // inércia: decai com constante de 0,35 s
+          let last = now; const step = () => { const t = performance.now(), d = Math.min(0.05, (t - last) / 1000); last = t; const k = Math.exp(-d / 0.35);
+            const a = R.fromPx(0, 0), b = R.fromPx(vx * d, vy * d); R.setView(R.view.cx - (b.mx - a.mx), R.view.cy - (b.my - a.my)); vx *= k; vy *= k;
+            if (Math.hypot(vx, vy) > 15) fling = requestAnimationFrame(step); else fling = 0; };
+          fling = requestAnimationFrame(step);
+        }
+      }
+      // toque duplo: aproxima em volta do dedo
+      const moved = Math.hypot(e.clientX - trail[0][1], e.clientY - trail[0][2]) > 10;
+      if (!moved && lastTapAt && now - lastTap < 320 && Math.hypot(e.clientX - lastTapAt[0], e.clientY - lastTapAt[1]) < 30) { stopFling(); const r = rect(); zoomAnim(R, R.view.z + 1, e.clientX - r.left, e.clientY - r.top); if (onUserZoom) onUserZoom(); lastTap = 0; lastTapAt = null; }
+      else if (!moved) { lastTap = now; lastTapAt = [e.clientX, e.clientY]; }
+    }
+  };
   canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); R.setView(null, null, R.view.z - Math.sign(e.deltaY) * 0.4); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); const r = rect(); zoomAnim(R, R.view.z - Math.sign(e.deltaY) * 0.5, e.clientX - r.left, e.clientY - r.top, 160); if (onUserZoom) onUserZoom(); }, { passive: false });
+}
+// zoom animado em volta de um ponto da tela (ease-out, 220 ms)
+export function zoomAnim(R, z, px, py, ms = 220) {
+  const z0 = R.view.z, z1 = Math.max(9, Math.min(19, z)), t0 = performance.now();
+  const step = () => { const t = Math.min(1, (performance.now() - t0) / ms), e = 1 - Math.pow(1 - t, 3); R.zoomAround(z0 + (z1 - z0) * e, px, py); if (t < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
 }
 
 // painel: atualiza tudo a partir do estado
