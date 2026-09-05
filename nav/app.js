@@ -31,7 +31,7 @@ export function init() {
   if (/[?&]r3d=1/.test(location.search)) import('./rider3d.js').then(m => { if (m.init($('rider3d'))) { rider3d = m; R.setRiderExternal(true); size3d(); } });
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
-  ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); }, () => { S.rotLock = true; $('btnFollow').classList.add('pulse'); });
+  ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); if (R.view.mode === '2d') R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); }, () => { S.rotLock = true; $('btnFollow').classList.add('pulse'); });
   // zoom manual desliga o zoom automático por 45 s
   const zoomBtn = dz => { S.userZoomAt = Date.now(); const { W, H } = R.size(); ui.zoomAnim(R, R.view.z + dz, W / 2, H * R.view.anchorY); };
   $('zin').onclick = () => zoomBtn(0.7); $('zout').onclick = () => zoomBtn(-0.7);
@@ -206,7 +206,7 @@ function handleEvent(ev) {
 function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
 function size3d() { if (!rider3d) return; const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); }
 let riderFrame = -1, lastGlide = 0;
-function headingRot() { if (S.rotLock && R.view.mode === '2d') return R.view.rot; return (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -S.pos.head : 0; }
+function headingRot() { if (S.rotLock) return R.view.rot; return (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -S.pos.head : 0; }
 function snapView() { R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, null, headingRot()); R.invalidate(); }
 // Posição mostrada (S.pos) desliza até a posição prevista: na estrada, avança pela geometria do traçado à velocidade do
 // último fix (extrapolação até 1,5 s; com GPS perdido, até 45 s como o Waze num túnel); fora dela, em linha reta.

@@ -100,6 +100,12 @@ export function createRenderer(canvas, overlay) {
   }
   function toPx(lat, lon) { const p = proj(lat, lon); return [p[0], p[1]]; }
   function fromPx(x, y) {
+    // 3D: inverte a câmera pinhole sobre o plano do chão (sem relevo): D = F·hc/(y − yh); acima do horizonte, fica no limite
+    if (cam) {
+      const dyh = Math.max(cam.F * cam.hc / (cam.far * 0.6), y - cam.yh), D = cam.F * cam.hc / dyh, right = (x - W / 2) * D / cam.F;
+      const s = scale(), px = right / cam.mpp, py = -(D - cam.dc) / cam.mpp, c = Math.cos(-view.rot), sn = Math.sin(-view.rot);
+      return { mx: view.cx + (px * c - py * sn) / s, my: view.cy + (px * sn + py * c) / s };
+    }
     const s = scale(), dx = x - W / 2, dy = y - H * view.anchorY, c = Math.cos(-view.rot), sn = Math.sin(-view.rot);
     return { mx: view.cx + (dx * c - dy * sn) / s, my: view.cy + (dx * sn + dy * c) / s };
   }
