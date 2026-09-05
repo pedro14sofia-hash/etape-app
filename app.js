@@ -31,10 +31,16 @@ export function init() {
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
   $('btnSession').onclick = toggleSession; $('btnFinish').onclick = finishStage; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => showReport(report.list()[S.stage.key]);
-  document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); setMode(S.prefs.mode[S.tab] || 'full'); });
+  document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
   $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
-  let gy = null; $('panel').addEventListener('pointerdown', e => { if (e.target.closest('button,select,.pane,.tabs')) return; gy = e.clientY; });
-  $('panel').addEventListener('pointerup', e => { if (gy == null) return; const dy = e.clientY - gy; gy = null; if (dy > 40) setMode('resumo'); else if (dy < -40) setMode('full'); });
+  // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
+  const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
+  $('panel').addEventListener('pointerdown', e => { if (e.target.closest('button,select,.tabs')) return; gy = e.clientY; gx = e.clientX; });
+  $('panel').addEventListener('pointerup', e => {
+    if (gy == null) return; const dy = e.clientY - gy, dx = e.clientX - gx; gy = gx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { const i = TABS.indexOf(S.tab); const t = TABS[(i + (dx < 0 ? 1 : TABS.length - 1)) % TABS.length]; ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); refresh(); return; }
+    if (dy > 40) setMode('resumo'); else if (dy < -40) setMode('full');
+  });
   $('fDrink').onclick = () => confirmFuel('drink'); $('fEat').onclick = () => confirmFuel('eat'); $('fSnooze').onclick = () => { fuel.snooze(S.fuel, 'drink'); fuel.snooze(S.fuel, 'eat'); refresh(); };
   $('mDrink').onclick = () => confirmFuel('drink'); $('mEat').onclick = () => confirmFuel('eat');
   $('cue').onclick = () => { voice.clearBanner(); };
@@ -43,7 +49,7 @@ export function init() {
   window.addEventListener('resize', () => { R.resize(); measurePanel(); });
   R.resize();
   selectStage(store.get('stage', '1'));
-  ui.setTab(S, S.prefs.tab || 'tele'); setMode(S.prefs.mode[S.tab] || 'full');
+  ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
   requestAnimationFrame(loop);
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
     navigator.serviceWorker.register('sw.js').catch(() => { });
@@ -82,7 +88,7 @@ export function selectStage(key) {
   if (S.session.state === 'running') startNavigation(true);
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
-function setMode(m) { ui.setMode(S, m); S.prefs.mode[S.tab] = m; store.setPrefs(S.prefs); R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; refresh(); measurePanel(); }
+function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
 export function startNavigation(silent) {

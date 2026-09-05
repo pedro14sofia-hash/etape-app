@@ -117,7 +117,9 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .ahead{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
 .ahead div{border:1.5px solid var(--ink);border-radius:4px;padding:6px 8px}.ahead b{display:block;font-family:var(--fd);font-weight:900;font-size:1.35rem;line-height:1}.ahead span{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted)}
 /* resumo */
-#panel.resumo .next,#panel.resumo .tabs,#panel.resumo .pane,#panel.resumo .foot{display:none}
+#panel.resumo .next,#panel.resumo .pane,#panel.resumo .foot{display:none}
+#panel.resumo .tabs div{padding:3px 0 2px;font-size:.78rem;letter-spacing:.14em}
+#panel.resumo .tabs div.on::after{height:2px}
 #panel:not(.resumo) .mini{display:none!important}
 .mini[hidden],.pane[hidden],#ctx[hidden],#speedo[hidden]{display:none!important}
 .mini.ab{display:flex;align-items:stretch;min-height:54px}

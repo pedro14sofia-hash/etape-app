@@ -6,7 +6,7 @@ export function set(key, value) { try { localStorage.setItem(P + key, JSON.strin
 export function del(key) { try { localStorage.removeItem(P + key); } catch (e) { } }
 export function progress(stageKey) { return get('prog:' + stageKey, { done: [], sights: [], shops: [] }); }
 export function setProgress(stageKey, p) { set('prog:' + stageKey, p); }
-export function prefs() { return { voice: true, theme: 'auto', orientation: 'heading', autoPause: false, mode: {}, tab: 'tele', weight: 75, ...get('prefs', {}) }; }
+export function prefs() { return { voice: true, theme: 'auto', orientation: 'heading', autoPause: false, mode: 'full', tab: 'tele', weight: 75, ...get('prefs', {}) }; }
 export function setPrefs(p) { set('prefs', p); }
 export function session(stageKey) { return get('sess:' + stageKey, null); }
 export function setSession(stageKey, s) { set('sess:' + stageKey, s); }
