@@ -13,6 +13,7 @@ import * as session from './session.js';
 import * as telemetry from './telemetry.js';
 import * as fuel from './fuel.js';
 import * as report from './report.js';
+import * as sat from './sat.js';
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -24,7 +25,7 @@ export function init() {
   R = createRenderer($('map'), $('rider'));
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
-  ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
+  ui.bindGestures($('map'), R, () => { if (R.view.mode !== '2d') setCam('2d'); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); R.setView(null, null, null, 0); } });
   // zoom manual desliga o zoom automático por 45 s
   $('zin').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z + 0.7); }; $('zout').onclick = () => { S.userZoomAt = Date.now(); R.setView(null, null, R.view.z - 0.7); };
   $('map').addEventListener('wheel', () => { S.userZoomAt = Date.now(); }); $('map').addEventListener('pointerdown', e => { if (e.isPrimary === false) S.userZoomAt = Date.now(); });
@@ -36,6 +37,18 @@ export function init() {
   document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
   $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
+  // câmera: 2D → 3ª pessoa → 1ª pessoa; satélite liga/desliga (e baixa a etapa para offline na primeira vez)
+  $('btnCam').onclick = () => { const seq = ['2d', 'tp', 'fp']; setCam(seq[(seq.indexOf(S.prefs.cam || '2d') + 1) % 3]); };
+  $('btnSat').onclick = async () => {
+    if (!sat.available()) { voice.banner('Satélite indisponível nesta versão', 3); return; }
+    const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); $('btnSat').classList.toggle('on', on);
+    if (on && sat.hasStage(S.stage.key) && !store.get('satdl:' + S.stage.key, false) && navigator.onLine) {
+      voice.banner('Baixando satélite da etapa', 3);
+      await sat.prefetch(S.stage.key, (d, t) => { S.gpsMsg = 'satélite ' + Math.round(d / t * 100) + ' %'; refresh(); });
+      store.set('satdl:' + S.stage.key, true); S.gpsMsg = 'satélite da etapa guardado'; refresh(); R.invalidate();
+    }
+  };
+  sat.loadIndex('sat/index.json').then(ix => { if (ix) { R.setSat(!!S.prefs.sat); $('btnSat').classList.toggle('on', !!S.prefs.sat); $('btnSat').hidden = false; } else $('btnSat').hidden = true; setCam(S.prefs.cam || '2d'); });
   // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
   const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
   $('panel').addEventListener('pointerdown', e => { if (e.target.closest('button,select,.tabs')) return; gy = e.clientY; gx = e.clientX; });
@@ -67,6 +80,8 @@ export function init() {
   if (q.get('stage')) selectStage(q.get('stage'));
   if (q.get('mode')) setMode(q.get('mode'));
   if (q.get('theme')) { S.prefs.theme = q.get('theme'); applyTheme(); }
+  if (q.get('cam')) S.prefs.cam = q.get('cam');
+  if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
   if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
@@ -90,14 +105,15 @@ export function selectStage(key) {
   // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
   S.eta = null; S.etaAt = 0; S.vsPlan = null; S.live = null; S.fuelStatus = null; S.light = null;
   const p0 = track.pointAt(S.stage, S.proj.dist), b0 = track.bearingAt(S.stage, S.proj.dist);
-  R.centerOn(p0[0], p0[1]); R.setView(null, null, 18.5, S.prefs.orientation === 'heading' ? -b0 * Math.PI / 180 : 0); R.view.anchorY = 0.45; S.follow = true; $('btnFollow').classList.add('on');
+  R.centerOn(p0[0], p0[1]); R.setView(null, null, R.view.mode === '2d' ? 18.5 : 16, S.prefs.orientation === 'heading' ? -b0 * Math.PI / 180 : 0); if (R.view.mode === '2d') R.view.anchorY = 0.45; S.follow = true; $('btnFollow').classList.add('on');
   S.next = guide.nextCue(S); S.live = telemetry.live(S.log, S.stage, S.session, Date.now(), session.movingTime(S.session, Date.now()));
   if (!S.log.length) S.live = { ...S.live, v: 0, avg: 0, vam: 0, grade: track.gradeAt(S.stage, 0, 200) };
   applyTheme(); refresh(); measurePanel();
   if (S.session.state === 'running') startNavigation(true);
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
-function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
+function setCam(c) { S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); $('btnCam').textContent = c === '2d' ? '2D' : c === 'tp' ? '3ª' : '1ª'; $('btnCam').classList.toggle('on', c !== '2d'); if (c !== '2d') { S.follow = true; $('btnFollow').classList.add('on'); if (S.fix) R.centerOn(S.fix.lat, S.fix.lon); R.setView(null, null, 16, S.fix ? -(S.fix.head || 0) * Math.PI / 180 : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
+function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
 export function startNavigation(silent) {
@@ -158,7 +174,8 @@ function onFix(raw) {
   if (S.follow) {
     R.centerOn(fix.lat, fix.lon); R.setView(null, null, null, S.prefs.orientation === 'heading' ? -(fix.head || 0) * Math.PI / 180 : 0);
     // zoom automático pela velocidade: parado/subida 16,5 · normal 16 · descida rápida 15,5; suave, e só sem zoom manual recente
-    if (now - (S.userZoomAt || 0) > 45000) { const v = fix.v || 0, target = v < 3 ? 19 : v < 9 ? 18.2 : 17.4; const z = R.view.z + (target - R.view.z) * 0.15; if (Math.abs(z - R.view.z) > 0.01) R.setView(null, null, z); }
+    if (R.view.mode !== '2d') R.setView(null, null, null, -(fix.head || 0) * Math.PI / 180);
+    if (R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) { const v = fix.v || 0, target = v < 3 ? 19 : v < 9 ? 18.2 : 17.4; const z = R.view.z + (target - R.view.z) * 0.15; if (Math.abs(z - R.view.z) > 0.01) R.setView(null, null, z); }
   }
   R.invalidate(); refresh();
 }
