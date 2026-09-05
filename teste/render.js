@@ -12,8 +12,8 @@ export const THEMES = {
     puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.18)', scale: '#17191C', poiBg: '#FFFFFF' },
   night: { map: '#1A1C21', forest: '#20271F', res: '#22252A', water: '#213A4C', waterLine: '#2E5A73', waterTxt: '#7FB2D6', rail: '#6C7176',
     r1: '#C8322A', r2: '#C8322A', r3: '#B8362E', r4: '#A08E3C', r5: '#5A5F68', r6: '#4B5058', r7: '#7A6242', r8: '#3A7A4A', r9: '#4B5058', casing: '#0A0B0D', casingMinor: '#0A0B0D',
-    ribbon: '#FFD100', ribbonCasing: '#F1EEE6', done: '#B9BCC2', other: '#3A3E45', gravel: '#D9A066', label: '#E6E2D8', halo: '#1A1C21', borne: '#F1EEE6', forestTxt: '#7FA070', contour: '#4A4033',
-    puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.16)', scale: '#E6E2D8', poiBg: '#1D1F23' }
+    ribbon: '#FFD100', ribbonCasing: '#F1EEE6', done: '#B9BCC2', other: '#3A3E45', gravel: '#D9A066', label: '#FFE566', halo: '#1A1C21', borne: '#F1EEE6', forestTxt: '#7FA070', contour: '#4A4033',
+    puck: '#FFD100', bike: '#17191C', acc: 'rgba(255,209,0,.16)', scale: '#FFE566', poiBg: '#1D1F23' }
 };
 const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };

@@ -4,7 +4,7 @@
  --btn:#17191C;--btn-ink:#FFE566;--cue:#17191C;--cue-ink:#FFE566;--ctl:#FFFFFF;--casing:#17191C;--attr:rgba(255,255,255,.75);--attr-ink:#444;
  --fd:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--fb:"Archivo","Segoe UI",Roboto,sans-serif}
 :root[data-theme="night"]{
- --map:#1A1C21;--paper:#141517;--bg:#1D1F23;--ink:#F1EEE6;--muted:#C2C6CC;--line:#31353B;--pill:#25282D;--auto:#F2C500;--deep:#FFD100;--rouge:#FF3B44;--vert:#5FC078;
+ --map:#1A1C21;--paper:#141517;--bg:#1D1F23;--ink:#FFE566;--muted:#C2C6CC;--line:#31353B;--pill:#25282D;--auto:#F2C500;--deep:#FFD100;--rouge:#FF3B44;--vert:#5FC078;
  --btn:#F2C500;--btn-ink:#17191C;--cue:#F2C500;--cue-ink:#17191C;--ctl:#1D1F23;--casing:#0A0B0D;--attr:rgba(20,21,23,.75);--attr-ink:#B9BCC2}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--map);color:var(--ink);font-family:var(--fb);font-size:15px;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
