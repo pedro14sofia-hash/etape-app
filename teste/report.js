@@ -27,7 +27,8 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
   const fuel = fuelState && fuelPlan ? { water: fuelState.water, waterPlan: fuelPlan.waterPerHour * hours, carbs: fuelState.carbs, carbsPlan: fuelPlan.carbsPerHour * hours, sodium: fuelState.sodium, sodiumPlan: fuelPlan.sodiumPerHour * hours } : null;
   let vsPlan = null;
   if (planArrival && sess.finishedAt) { const [h, m] = planArrival.split(/[h:]/).map(Number); const p = new Date(sess.finishedAt); p.setHours(h, m || 0, 0, 0); vsPlan = Math.round((sess.finishedAt - p) / 60000); }
-  return { stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 0 ? last.dist / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };
+  const first = log[0] || { dist: 0 }, ridden = Math.max(0, last.dist - first.dist);
+  return { stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };
 }
 
 export function render(r) {

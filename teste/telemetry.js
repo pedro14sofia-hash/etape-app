@@ -31,7 +31,8 @@ export function live(log, stage, session, now, movingSec) {
   const s = log[log.length - 1] || { dist: 0, v: 0, ele: elevationAt(stage, 0), grade: 0 };
   let vmax = 0, maxEle = 0, up = 0;
   for (let i = 0; i < log.length; i++) { if (log[i].v > vmax) vmax = log[i].v; if (log[i].ele > maxEle) maxEle = log[i].ele; if (i && log[i].ele > log[i - 1].ele) up += log[i].ele - log[i - 1].ele; }
-  const avg = movingSec > 60 ? s.dist / movingSec : 0;
+  // média em movimento: distância desde a primeira amostra da sessão sobre o tempo em movimento, só depois de 2 min
+  const first = log[0] || s, avg = movingSec > 120 ? Math.max(0, s.dist - first.dist) / movingSec : 0;
   const cl = climbAt(stage, s.dist);
   return { v: s.v * 3.6, avg: avg * 3.6, vmax: vmax * 3.6, grade: s.grade, gradeAhead: gradeAt(stage, s.dist, 500), vam: vam(log, 300), ele: s.ele, maxEle, up, upRem: climbRemaining(stage, s.dist), climb: cl, climbPct: cl ? Math.min(1, Math.max(0, (s.dist - cl.from) / (cl.to - cl.from))) : 0, climbLeft: cl ? Math.max(0, cl.to - s.dist) : 0 };
 }
