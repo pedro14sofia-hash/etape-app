@@ -2,7 +2,7 @@
 // Desenho do mapa (estilo Carte Michelin, dia e noite) e do perfil no Canvas. Só desenha quando invalidado.
 import { mercX, mercY, metersPerPixel } from './geo.js';
 import { query } from './data-mod.js';
-import { elevationAt } from './track.js';
+import { elevationAt, pointAt, bearingAt } from './track.js';
 import { icon, ready, setOnLoad, KIND_ICON, SIGHT_ICON } from './icons.js';
 
 export const THEMES = {
@@ -81,8 +81,9 @@ export function createRenderer(canvas) {
     // bornes
     for (const c of st.cps) { const q = toPx(c.lat, c.lon); if (q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, z); }
     // posição
-    if (!S.fix && S.stage.cps.length) { // prévia: largada e chegada em destaque
+    if (!S.fix && S.stage.cps.length) { // sem GPS ainda: hotéis nas pontas e a bike parada no ponto de largada (ou onde parou)
       for (const c of [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]]) { const q = toPx(c.lat, c.lon); const im = icon('hotel', 30); if (ready(im)) ctx.drawImage(im, q[0] - 15, q[1] - 26, 30, 30); }
+      if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = toPx(p[0], p[1]); bike(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
     if (S.fix) { const q = toPx(S.fix.lat, S.fix.lon); const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (accPx > 12) { ctx.beginPath(); ctx.arc(q[0], q[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); } bike(q, ((S.fix.head || 0) * Math.PI / 180) + view.rot); }
     // escala

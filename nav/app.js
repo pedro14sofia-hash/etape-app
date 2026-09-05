@@ -87,9 +87,12 @@ export function selectStage(key) {
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
   S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
   if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
-  const b = S.stage.pts.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [90, 180, -90, -180]);
-  R.setView((mercX(b[1]) + mercX(b[3])) / 2, (mercY(b[0]) + mercY(b[2])) / 2, 11.6, 0); R.view.anchorY = 0.45;
+  // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
+  S.eta = null; S.etaAt = 0; S.vsPlan = null; S.live = null; S.fuelStatus = null; S.light = null;
+  const p0 = track.pointAt(S.stage, S.proj.dist), b0 = track.bearingAt(S.stage, S.proj.dist);
+  R.centerOn(p0[0], p0[1]); R.setView(null, null, 18.5, S.prefs.orientation === 'heading' ? -b0 * Math.PI / 180 : 0); R.view.anchorY = 0.45; S.follow = true; $('btnFollow').classList.add('on');
   S.next = guide.nextCue(S); S.live = telemetry.live(S.log, S.stage, S.session, Date.now(), session.movingTime(S.session, Date.now()));
+  if (!S.log.length) S.live = { ...S.live, v: 0, avg: 0, vam: 0, grade: track.gradeAt(S.stage, 0, 200) };
   applyTheme(); refresh(); measurePanel();
   if (S.session.state === 'running') startNavigation(true);
 }
@@ -204,7 +207,7 @@ function showPreview(key) {
     const { W, H } = R2.size(); const dx = mercX(bb[3]) - mercX(bb[1]), dy = mercY(bb[0]) - mercY(bb[2]);
     const z = Math.log2(Math.min((W - 40) / Math.max(dx, 1e-9), (H - 40) / Math.max(dy, 1e-9)) / 256);
     R2.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.min(15, z), 0); R2.view.anchorY = 0.5;
-    const S2 = { map: S.map, routes: S.routes, stage: st, paradas, proj: { idx: 0, dist: 0, off: 0 }, fix: null, scaleBottom: 8, mode: 'full' };
+    const S2 = { map: S.map, routes: S.routes, stage: st, paradas, proj: { idx: 0, dist: 0, off: 0 }, fix: null, scaleBottom: 8, mode: 'full', showStart: false };
     PV = { R2, S2 }; requestAnimationFrame(() => { R2.invalidate(); R2.draw(S2); });
     import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true }));
   }
