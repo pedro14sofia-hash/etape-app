@@ -54,7 +54,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 #speedo .spbar i{position:absolute;left:0;top:0;bottom:0;background:#FFD100;width:0;transition:width .4s}
 #speedo .spbar em{position:absolute;top:0;bottom:0;width:1.5px;background:#17191C;left:25%}#speedo .spbar em:nth-child(3){left:50%}#speedo .spbar em:nth-child(4){left:75%}
 #speedo .spx{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-family:var(--fb);font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);text-shadow:0 0 3px var(--map),0 0 5px var(--map),0 0 8px var(--map)}
-#speedo .spx .g{font-family:var(--fd);font-weight:900;font-size:1.15rem;letter-spacing:0;color:#FFE566;padding:1px 7px;border-radius:3px;background:#17191C;text-shadow:none}
+#speedo .spx .g{font-family:var(--fd);font-weight:900;font-size:1.5rem;letter-spacing:0;color:#FFE566;padding:1px 7px;border-radius:3px;background:#17191C;text-shadow:none}
 #speedo .spx .g.up{background:#D71920;color:#fff}#speedo .spx .g.down{background:#2F8F46;color:#fff}
 /* painel */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:5;background:var(--bg);border-top:2px solid var(--casing);color:var(--ink);padding-bottom:env(safe-area-inset-bottom)}
