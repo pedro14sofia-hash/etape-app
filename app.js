@@ -142,7 +142,8 @@ function onFix(raw) {
     S.live = telemetry.live(S.log, S.stage, sess, now, moving);
     S.fuelStatus = fuel.status(S.fuel, S.fuelPlan, moving, (S.stage.total - S.proj.dist) / 1000, S.speed10 * 3.6);
     const left = S.paradas.filter(p => p.kind !== 'compras' && p.kind !== 'opcional' && !p.done && !p.skipped && p.km * 1000 > S.proj.dist).reduce((a, p) => a + p.min, 0);
-    S.eta = guide.eta(S.stage, S.proj.dist, S.speed10, left); S.vsPlan = guide.vsPlan(S.planArrival, S.eta.arrival);
+    // chegada prevista: recalculada a cada 15 min (ou quando ainda não há), não a cada posição
+    if (!S.eta || !S.eta.arrival || now - (S.etaAt || 0) > 900000) { const e = guide.eta(S.stage, S.proj.dist, S.speed10, left); if (e.arrival) { S.eta = e; S.etaAt = now; S.vsPlan = guide.vsPlan(S.planArrival, e.arrival); } }
     S.light = guide.daylight(new Date(now), fix.lat, fix.lon);
     if (S.prefs.theme === 'auto') applyTheme();
   }
