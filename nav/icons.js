@@ -43,6 +43,24 @@ export const ICONS = {
   pass: base() + g(`<path d="M22 44V22a10 10 0 0 1 20 0v22z" fill="${PAPER}"/><path d="M22 28a10 10 0 0 1 20 0v3H22z" fill="${ROUGE}"/><path d="M27 36h10M27 40h10" stroke="${DARK}" stroke-width="1.6"/>`),
   // compras: sacola
   shopping: base() + g(`<path d="M18 26h28l-3 20H21z" fill="${DEEP}"/><path d="M24 26v-4a8 8 0 0 1 16 0v4" fill="none"/><path d="M18 26h28l-1 5H19z" fill="${INK}"/>`),
+  // a Cannondale do Pedro: quadro branco com tubo inferior preto e verde, guidão preto, selim Fizik, rodas Mavic
+  mybike: `<g stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="32" cy="52" rx="26" ry="4" fill="rgba(0,0,0,.18)"/>
+    <circle cx="17" cy="40" r="11.5" fill="none" stroke="${INK}" stroke-width="4"/><circle cx="17" cy="40" r="11.5" fill="none" stroke="#5A5F68" stroke-width="1.2"/><circle cx="17" cy="40" r="8.5" fill="none" stroke="#C9C9C9" stroke-width="1.4"/>
+    <circle cx="47" cy="40" r="11.5" fill="none" stroke="${INK}" stroke-width="4"/><circle cx="47" cy="40" r="11.5" fill="none" stroke="#5A5F68" stroke-width="1.2"/><circle cx="47" cy="40" r="8.5" fill="none" stroke="#C9C9C9" stroke-width="1.4"/>
+    <g stroke="${INK}" stroke-width="1.2" opacity=".7"><path d="M17 29v22M6 40h22M9.2 32.2l15.6 15.6M24.8 32.2L9.2 47.8"/><path d="M47 29v22M36 40h22M39.2 32.2l15.6 15.6M54.8 32.2L39.2 47.8"/></g>
+    <circle cx="17" cy="40" r="2.2" fill="${INK}"/><circle cx="47" cy="40" r="2.2" fill="${INK}"/>
+    <path d="M17 40L24 24L42 23L33 41Z" fill="${PAPER}" stroke="${INK}" stroke-width="4.5"/>
+    <path d="M17 40L24 24L42 23L33 41Z" fill="${PAPER}" stroke="${PAPER}" stroke-width="2"/>
+    <path d="M42 23L33 41" stroke="${INK}" stroke-width="3.2"/><path d="M42 23L33 41" stroke="${VERT}" stroke-width="1.4" stroke-dasharray="3 5"/>
+    <path d="M17 40L33 41" stroke="${INK}" stroke-width="1.2" opacity=".5"/>
+    <path d="M42 23L46 40" stroke="${INK}" stroke-width="4.5"/><path d="M42 23L46 40" stroke="${PAPER}" stroke-width="2"/>
+    <path d="M24 24L22 19" stroke="${INK}" stroke-width="2.6"/>
+    <path d="M17 19h9.5" stroke="${INK}" stroke-width="3.6"/><path d="M17 19h4" stroke="${VERT}" stroke-width="3.6"/>
+    <path d="M42 23L44 18h5c2 0 2.5 3 0 4" fill="none" stroke="${INK}" stroke-width="2.6"/>
+    <circle cx="33" cy="41" r="4" fill="#C9C9C9" stroke="${INK}" stroke-width="1.4"/><path d="M33 41l4 4" stroke="${INK}" stroke-width="2.4"/><circle cx="37.5" cy="45.5" r="1.6" fill="${INK}"/>
+    <path d="M18 39L33 41" stroke="#8A8F96" stroke-width="1"/>
+  </g>`,
   // sos
   sos: base(ROUGE) + g(`<circle cx="32" cy="30" r="14" fill="${PAPER}"/><path d="M32 22v10l6 4" fill="none" stroke-width="3"/>`),
 };
