@@ -374,6 +374,15 @@ export function createRenderer(canvas, overlay) {
   // camadas dinâmicas: posição/ciclista, círculo de precisão, escala
   function drawDynamic(S) {
     const th = theme;
+    // fora da rota: linha tracejada e seta da posição até o ponto mais próximo do traçado, com a distância
+    if (S.fix && (S.off || (S.proj && S.proj.off > 60)) && !cam) {
+      const pp = S.pos || S.fix, q0 = proj(pp.lat, pp.lon), tp = pointAt(S.stage, S.proj.dist || 0), q1 = proj(tp[0], tp[1]);
+      ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E10D0D'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
+      const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E10D0D'; ctx.fill(); ctx.restore();
+      const mx = (q0[0] + q1[0]) / 2, my = (q0[1] + q1[1]) / 2; label(Math.round(S.proj.off) + ' m', mx + 8, my - 8, 'left', '900 14px "Barlow Condensed", sans-serif', '#E10D0D');
+    }
+    // lugares marcados
+    if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFFF00'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
     // posição
     if (!S.fix && S.stage.cps.length) {
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 30); const sz = 30 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }

@@ -16,6 +16,8 @@ import * as report from './report.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
 import * as compass from './compass.js';
+import * as weather from './weather.js';
+import * as sensors from './sensors.js';
 let rider3d = null, diorama = null;   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
@@ -39,6 +41,9 @@ export function init() {
   $('btnFollow').onclick = () => { S.follow = true; S.rotLock = false; $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
+  $('btnSos').onclick = showSos; $('btnMark').onclick = () => markPlace(); $('sosMark').onclick = () => { markPlace(); $('dlgSos').close(); };
+  $('btnSens').onclick = async () => { if (sensors.connected()) { sensors.disconnect(); $('btnSens').classList.remove('on'); S.sensors = null; refresh(); return; } if (!sensors.supported()) { voice.banner('Bluetooth indisponível neste navegador', 2); return; } try { const nm = await sensors.connect(); $('btnSens').classList.add('on'); voice.banner('Sensor ligado', 3, nm || ''); } catch (e) { voice.banner('Sem sensor', 2, (e && e.message || '').slice(0, 60)); } };
+  sensors.onData(d => { S.sensors = d; refresh(); });
   $('btnSession').onclick = toggleSession; $('btnFinish').onclick = finishStage; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => showReport(report.list()[S.stage.key]);
   document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
@@ -111,7 +116,7 @@ export function selectStage(key) {
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
   S.session = session.restore(key) || session.create(key);
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
-  S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
+  S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
   if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
   // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
   S.eta = null; S.etaAt = 0; S.vsPlan = null; S.live = null; S.fuelStatus = null; S.light = null;
@@ -168,7 +173,7 @@ function onFix(raw) {
   if (running) session.trackStill(sess, { ...fix, dist: S.proj.dist }, now, S.next.cp ? 'perto de ' + S.next.cp.name : '');
   const events = running ? guide.tick(S, fix, now) : (S.proj = track.project(S.stage, fix.lat, fix.lon, S.proj.idx), []);
   if (running && !S.off) {
-    const smp = telemetry.sample(fix, S.stage, S.proj, null); telemetry.record(S.log, smp, S.stage.key);
+    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr; telemetry.record(S.log, smp, S.stage.key);
     const moving = session.movingTime(sess, now);
     events.push(...fuel.tick(S.fuel, S.fuelPlan, moving, now, { waterAhead: S.waterAhead }));
     events.push(...guide.shopWindow(S, S.speed10, now));
@@ -208,6 +213,11 @@ function handleEvent(ev) {
   if (ev.kind === 'backOnRoute') ev.right = '<span class="pill vert">✓</span>';
   if (ev.kind === 'refill') ev.right = '<span class="pill bleu">' + Math.round(S.waterAhead || 0) + ' m</span>';
   if (ev.kind === 'checkpoint' && ev.cp) ev.right = '<span class="pill">' + ev.cp.kmLabel + '</span>';
+  if (ev.kind === 'hotel') ev.right = '<span class="pill">' + (ev.km || 0).toFixed(1).replace('.', ',') + ' km</span>';
+  if (ev.kind === 'toilets') ev.right = '<span class="pill bleu">' + Math.round((ev.m || 0) / 50) * 50 + ' m</span>';
+  if (ev.kind === 'bikeshop') ev.right = '<span class="pill vert">' + (ev.m >= 1000 ? (ev.m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(ev.m / 50) * 50 + ' m') + '</span>';
+  if (ev.kind === 'rec') ev.right = '<span class="pill rouge">● REC</span>';
+  if (ev.kind === 'offRoute' && ev.rel != null) ev.right = '<span class="arr"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(ev.rel) + 'deg)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34V8M10 18l10-10 10 10"/></svg></span><span class="pill">' + Math.round(ev.off) + ' m</span>';
   if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
   if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
   if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
@@ -217,6 +227,27 @@ function handleEvent(ev) {
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
   const fb = $('cue').querySelector('[data-finish]'); if (fb) fb.onclick = e => { e.stopPropagation(); voice.clearBanner(); finishStage(true); };
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
+}
+// SOS: números da França, posição atual para ditar, ligar/compartilhar, hotel do dia
+function showSos() {
+  const fix = S.fix, p = S.pos || fix, d = (S.routes.days || {})[S.stage.key] || {}, hotel = d.hotel || {};
+  const km = (S.proj.dist / 1000).toFixed(1).replace('.', ','), cp = S.stage.cps.slice().reverse().find(c => c.dist <= S.proj.dist + 100) || S.stage.cps[0];
+  const ele = Math.round(track.elevationAt(S.stage, S.proj.dist));
+  const pos = p ? p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) : 'sem GPS';
+  const maps = p ? 'https://maps.google.com/?q=' + p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : '';
+  $('sosBody').innerHTML = '<div class="sos-nums"><a class="pri" href="tel:112"><b>112</b><span>Emergência europeia</span></a><a href="tel:15"><b>15</b><span>SAMU · médico</span></a><a href="tel:18"><b>18</b><span>Bombeiros</span></a><a href="tel:17"><b>17</b><span>Polícia</span></a></div>' +
+    '<div class="sos-pos"><b>' + pos + '</b><span>km ' + km + ' da ' + S.stage.name.replace(/^E\S+ /, '') + ' · ' + (cp ? 'perto de ' + cp.name : '') + ' · ' + ele + ' m</span><div class="acts"><button id="sosCopy">Copiar posição</button><button id="sosShare">Compartilhar</button></div></div>' +
+    '<div class="sos-card"><b>Diga ao operador</b>"Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>' +
+    (hotel.nome ? '<div class="sos-card"><b>Hotel de hoje</b>' + hotel.nome + '<br>' + (hotel.end || '') + (hotel.tel ? '<br><a href="tel:' + hotel.tel.replace(/[^+\d]/g, '') + '">' + hotel.tel + '</a>' : '') + '</div>' : '') +
+    (d.hospital ? '<div class="sos-card"><b>Hospital mais perto</b>' + d.hospital + '</div>' : '');
+  $('sosCopy').onclick = async () => { try { await navigator.clipboard.writeText(pos + ' ' + maps); voice.banner('Posição copiada', 3); } catch (e) { } };
+  $('sosShare').onclick = async () => { try { if (navigator.share) await navigator.share({ title: 'Minha posição', text: 'Estou aqui: ' + pos + ' (km ' + km + ') ' + maps }); } catch (e) { } };
+  $('dlgSos').showModal();
+}
+function markPlace() {
+  const p = S.pos || S.fix; if (!p) { voice.banner('Sem posição ainda', 2); return; }
+  session.mark(S.session, 'lugar', { lat: p.lat, lon: p.lon, dist: S.proj.dist, ele: Math.round(track.elevationAt(S.stage, S.proj.dist)) });
+  voice.banner('Lugar marcado', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · vai para o relatório e o GPX'); R.invalidate();
 }
 function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
 function size3d() { if (!rider3d) return; const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); }
@@ -298,6 +329,9 @@ function showPreview(key) {
     const paradas = S.allParadas.itens.filter(p => p.stage === key);
     const b = guide.briefing(st, S.allParadas.itens, S.allParadas.dias, S.allParadas.regras);
     $('pvBody').innerHTML = ui.previewHtml(st, (S.routes.days || {})[key], b, paradas);
+    { const d = (S.routes.days || {})[key] || {}, hh = s => { const m = /(\d+)h/.exec(s || ''); return m ? +m[1] : null; };
+      const wxEl = $('pvWx'); const render = w => { if (wxEl) wxEl.innerHTML = weather.html(weather.summary(w, st, hh(d.saida), hh(d.chegada)), key); };
+      render(weather.cached(key)); weather.fetchStage(st, key).then(w => { if (w) render(w); }); }
     $('pvGo').hidden = false; $('pvGo').onclick = () => { dlg.close(); if (key !== S.stage.key) selectStage(key); };
     if (!dlg.open) dlg.showModal();            // o canvas só tem tamanho com o diálogo aberto
     // mapa inteiro, norte para cima, ajustado ao traçado

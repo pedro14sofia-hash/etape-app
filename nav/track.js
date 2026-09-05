@@ -12,7 +12,7 @@ export function loadStage(routes, key) {
   upRem[0] = acc;
   const stage = { key, name: routes.names[key], type: (routes.types || {})[key] || 'blanc', pts, cum, total, prof, upRem, km: s.km, up: s.up, climbs: s.climbs || [], surfaces: s.surfaces || [] };
   stage.cps = checkpoints(stage, s.wps.map(id => ({ id, ...routes.wps[id] })));
-  stage.turns = detectTurns(stage, 35, 25, 60);
+  stage.turns = detectTurns(stage, 45, 25, 60);
   return stage;
 }
 

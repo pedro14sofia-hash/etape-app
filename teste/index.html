@@ -34,6 +34,7 @@
   <button id="btnCam" aria-label="Câmera: 2D, terceira ou primeira pessoa">2D</button>
   <button id="btnSat" aria-label="Satélite" hidden><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></button>
   <button id="btnMode" aria-label="Recolher ou expandir o painel">▾</button>
+  <button id="btnSos" class="sos" aria-label="Emergência">SOS</button>
 </div>
 <div id="attr">© OpenStreetMap contributors</div>
 <div id="ecart" class="ecart" hidden></div>
@@ -100,7 +101,7 @@
     <div class="cs" id="mProfTxt"></div>
   </div>
 
-  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnSim">Sim</button><button id="btnReport">Relatório</button><button id="btnFinish">Encerrar</button><button id="btnReset">Zerar</button></span></div>
+  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnMark">📍 Marcar</button><button id="btnSens">Sensores</button><button id="btnSim">Sim</button><button id="btnReport">Relatório</button><button id="btnFinish">Encerrar</button><button id="btnReset">Zerar</button></span></div>
 </footer>
 
 <dialog id="dlgBrief"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
@@ -109,6 +110,7 @@
   <div id="pvBody"></div>
   <div class="dlg-acts"><button id="pvGo" class="pri">Navegar esta etapa</button><button data-close>Fechar</button></div>
 </dialog>
+<dialog id="dlgSos"><div class="sos-hd"><b>Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
 <dialog id="dlgReport"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
 
 <script src="data.js"></script>

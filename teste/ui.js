@@ -158,6 +158,7 @@ export function previewHtml(stage, day, b, paradas, sun) {
   return `<div class="pv m-${stage.type}">
   <div class="hd"><div class="eyebrow">${d.dia || b.day || ''}${d.sol ? ' · sol ' + d.sol : ''}</div><h3>${code} ${d.titulo || stage.name.replace(/^E\S+ /, '')}</h3><div class="sub">${d.sub || ''}${d.tipo ? ' · ' + d.tipo : ''}</div>${stage.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
   <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${d.saida || '–'}</b><span>saída</span></div><div><b>${d.chegada || '–'}</b><span>chegada</span></div></div>
+  <div id="pvWx"></div>
   <div class="dio"><canvas class="dio3d" id="pvDio"></canvas><canvas class="map" id="pvMap" hidden></canvas><div class="dio-ctl"><button data-v="dio" class="on">Maquete</button><button data-v="sat">Satélite</button><button data-v="map">Mapa</button></div><div class="dio-hint">montando a maquete…</div></div>
   <canvas class="prof" id="pvProf"></canvas>
   ${d.intro ? `<p>${d.intro}</p>` : ''}

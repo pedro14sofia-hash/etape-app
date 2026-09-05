@@ -14,8 +14,8 @@ export function tick(f, p, movingSec, now, ctx) {
   const ev = [];
   if (movingSec < 60) return ev;
   const sinceDrink = (movingSec - f.lastDrink) / 60, sinceEat = (movingSec - f.lastEat) / 60;
-  if (sinceDrink >= p.drinkEveryMin + f.snoozed.drink && (!f._dAt || now - f._dAt > 120000)) { f._dAt = now; ev.push({ kind: 'drink', level: 2, text: 'Beber', sub: Math.round(sinceDrink) + ' min sem beber · ' + Math.round(p.sipMl) + ' ml', speak: 'Hora de beber.' }); }
-  if (sinceEat >= p.eatEveryMin + f.snoozed.eat && (!f._eAt || now - f._eAt > 180000)) { f._eAt = now; ev.push({ kind: 'eat', level: 2, text: 'Comer ' + p.biteG + ' g', sub: Math.round(sinceEat) + ' min sem comer', speak: 'Hora de comer.' }); }
+  if (sinceDrink >= p.drinkEveryMin + f.snoozed.drink && (!f._dAt || now - f._dAt > 120000)) { f._dAt = now; f._dRep = (f._dRep || 0) + 1; if (f._dRep > 2) { f.snoozed.drink += p.drinkEveryMin; f._dRep = 0; } else ev.push({ kind: 'drink', level: 2, text: 'Beber', sub: Math.round(sinceDrink) + ' min sem beber · ' + Math.round(p.sipMl) + ' ml', speak: 'Hora de beber.' }); }
+  if (sinceEat >= p.eatEveryMin + f.snoozed.eat && (!f._eAt || now - f._eAt > 180000)) { f._eAt = now; f._eRep = (f._eRep || 0) + 1; if (f._eRep > 2) { f.snoozed.eat += p.eatEveryMin; f._eRep = 0; } else ev.push({ kind: 'eat', level: 2, text: 'Comer ' + p.biteG + ' g', sub: Math.round(sinceEat) + ' min sem comer', speak: 'Hora de comer.' }); }
   // atrasado: ingestão 20 % abaixo do plano na hora corrida
   const hours = movingSec / 3600, planW = p.waterPerHour * hours, planC = p.carbsPerHour * hours;
   if (!f.events.length) return ev;                 // sem confirmação nenhuma, não cobra atraso nem garrafa
@@ -24,6 +24,7 @@ export function tick(f, p, movingSec, now, ctx) {
   return ev;
 }
 export function confirm(f, p, kind, movingSec, amount) {
+  f._dRep = 0; f._eRep = 0;
   if (kind === 'drink') { const ml = amount || p.sipMl; f.water += ml; f.sodium += ml * 0.4; f.bottleLeft = Math.max(0, f.bottleLeft - ml); f.lastDrink = movingSec; f.snoozed.drink = 0; }
   if (kind === 'eat') { const g = amount || p.biteG; f.carbs += g; f.sodium += 60; f.lastEat = movingSec; f.snoozed.eat = 0; }
   if (kind === 'refill') { f.bottleLeft = p.bottleMl * p.bottles; }

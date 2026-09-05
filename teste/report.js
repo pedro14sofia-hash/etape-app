@@ -29,7 +29,8 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
   let vsPlan = null;
   if (planArrival && sess.finishedAt) { const [h, m] = planArrival.split(/[h:]/).map(Number); const p = new Date(sess.finishedAt); p.setHours(h, m || 0, 0, 0); vsPlan = Math.round((sess.finishedAt - p) / 60000); }
   const first = log[0] || { dist: 0 }, ridden = Math.max(0, last.dist - first.dist);
-  return { stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };
+  const marks = (sess.marks || []).filter(m => m.kind === 'lugar').map(m => ({ lat: m.lat, lon: m.lon, km: m.dist != null ? m.dist / 1000 : null, at: m.at, note: m.note || '' }));
+  return { marks, stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };
 }
 
 // maillots por tipo de etapa (mesmo desenho do guia)
@@ -68,6 +69,7 @@ export function render(r, all) {
   <div class="grid"><div><b>${Math.round(r.maxEle)}</b><span>alt. máx</span></div><div><b>${vam}</b><span>VAM subidas</span></div><div class="hi"><b>${fmtH(r.finishedAt)}</b><span>chegada</span></div><div class="hi"><b>${r.vsPlan == null ? '–' : (r.vsPlan > 0 ? '+' : '−') + fmtMin(r.vsPlan)}</b><span>vs plano</span></div></div>
   ${r.climbs.length ? `<h4>Subidas</h4><table>${r.climbs.map(c => `<tr><td>${cat(c.cat)}${esc(c.name)}</td><td class="r">${n1(c.len / 1000)} km · ${n1(c.pct)} %</td><td class="r">${isFinite(c.time) ? fmtT(c.time) + ' · ' + c.vam + ' m/h' : '–'}</td></tr>`).join('')}</table>` : ''}
   ${r.stops.length ? `<h4>Paradas</h4><table>${r.stops.map(s => `<tr><td class="k">${s.km != null ? 'km ' + Math.round(s.km) : '–'}</td><td>${esc(s.place || s.kind)}</td><td class="r">${fmtMin(s.seconds / 60)}</td></tr>`).join('')}</table>` : ''}
+  ${r.marks && r.marks.length ? `<h4>Lugares marcados</h4><table>${r.marks.map(m => `<tr><td class="k">${m.km != null ? 'km ' + n1(m.km) : '–'}</td><td>${esc(m.note || 'lugar marcado')}</td><td class="r">${fmtH(m.at)} · ${m.lat.toFixed(5)}, ${m.lon.toFixed(5)}</td></tr>`).join('')}</table>` : ''}
   ${r.fuel ? `<h4>Abastecimento</h4>${bar('Água', r.fuel.water / 1000, r.fuel.waterPlan / 1000, ' L', n1)}${bar('Carbo', r.fuel.carbs, r.fuel.carbsPlan, ' g', Math.round)}${bar('Sódio', r.fuel.sodium / 1000, r.fuel.sodiumPlan / 1000, ' g', n1)}` : ''}
   ${geral}
   <h4>Plano</h4><table><tr><td>Distância</td><td class="r">${n1(r.km)} de ${n1(r.planKm)} km</td></tr><tr><td>Subida</td><td class="r">${Math.round(r.up)} de ${r.planUp} m</td></tr><tr><td>Bornes</td><td class="r">${r.cps.length}</td></tr><tr><td>Paradas de foto feitas</td><td class="r">${r.sights.filter(s => s.done).length} de ${r.sights.length}</td></tr></table>
@@ -75,7 +77,9 @@ export function render(r, all) {
 }
 export function share(r, log) {
   const text = `Étape ${r.name}\n${n1(r.km)} km · ${fmtT(r.moving)} em movimento · ${Math.round(r.up)} m de subida\nmédia ${n1(r.avg)} km/h · máx ${n1(r.vmax)} · alt. máx ${Math.round(r.maxEle)} m\nchegada ${fmtH(r.finishedAt)}${r.vsPlan != null ? ' (' + (r.vsPlan > 0 ? '+' : '−') + fmtMin(r.vsPlan) + ' vs plano)' : ''}`;
-  return { text, gpx: toGpx(log, { name: r.name }), json: JSON.stringify(r) };
+  let gpx = toGpx(log, { name: r.name });
+  if (r.marks && r.marks.length) { const w = r.marks.map(m => `<wpt lat="${m.lat}" lon="${m.lon}"><name>${esc(m.note || 'Lugar marcado')}</name><time>${new Date(m.at).toISOString()}</time></wpt>`).join(''); gpx = gpx.replace(/<trk>/, w + '<trk>'); }
+  return { text, gpx, json: JSON.stringify(r) };
 }
 export function list() { return store.reports(); }
 export function save(r) { store.setReport(r.stageKey, r); }

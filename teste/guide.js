@@ -1,7 +1,7 @@
 // Étape Navegar · guide.js
 // Orientação: transforma posição em eventos (curva, borne, fora de rota, chegada, parada, compra, subida, luz).
-import { haversine, sunTimes } from './geo.js';
-import { project, nextCheckpoint, climbAt, surfaceAt } from './track.js';
+import { haversine, sunTimes, bearing } from './geo.js';
+import { project, nextCheckpoint, climbAt, surfaceAt, pointAt } from './track.js';
 import { poisNear } from './data-mod.js';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -20,7 +20,7 @@ export function tick(S, fix, now) {
   // fora de rota
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
       if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
-      else ev.push({ kind: 'offRoute', off: pr.off, level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } }
+      else { const q = pointAt(st, S.proj.dist); const back = bearing(fix.lat, fix.lon, q[0], q[1]); ev.push({ kind: 'offRoute', off: pr.off, back, rel: ((back - (fix.head || 0)) + 540) % 360 - 180, level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } } }
   else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
   if (pr.off > 120 && !S.offSince) S.offSince = now;
   if (S.off) { S.offDist = pr.off; return ev; }
@@ -42,19 +42,29 @@ export function tick(S, fix, now) {
   }
   // subidas
   const cl = climbAt(st, dist);
-  if (cl && S.climbId !== cl.id) { S.climbId = cl.id; ev.push({ kind: 'climbStart', cat: cl.cat, level: 3, text: 'Subida · ' + cl.name, sub: (cl.len / 1000).toFixed(1).replace('.', ',') + ' km a ' + cl.pct.toFixed(1).replace('.', ',') + ' % · cat. ' + cl.cat, speak: 'Começa a subida de ' + cl.name + ', ' + Math.round(cl.len / 1000) + ' quilômetros.' }); }
-  if (!cl && S.climbId) { const done = st.climbs.find(c => c.id === S.climbId); S.climbId = null; if (done && dist >= done.to - 150) ev.push({ kind: 'summit', level: 3, text: 'Topo · ' + done.name, sub: Math.round(done.topEle) + ' m', speak: 'Topo. ' + done.name + '.' }); }
+  if (cl && S.climbId !== cl.id && !cl.done) { S.climbId = cl.id; ev.push({ kind: 'climbStart', cat: cl.cat, level: 3, text: 'Subida · ' + cl.name, sub: (cl.len / 1000).toFixed(1).replace('.', ',') + ' km a ' + cl.pct.toFixed(1).replace('.', ',') + ' % · cat. ' + cl.cat, speak: 'Começa a subida de ' + cl.name + ', ' + Math.round(cl.len / 1000) + ' quilômetros.' }); }
+  if (!cl && S.climbId) { const done = st.climbs.find(c => c.id === S.climbId); S.climbId = null; if (done && dist >= done.to - 150) done.done = true; if (done && dist >= done.to - 150 && S.prefs && S.prefs.camera !== false) ev.push({ kind: 'rec', level: 2, text: 'Grava agora', sub: 'descida · ' + done.name + ' · 3 min', speak: 'Grava agora. Descida.', voice: true }); if (done && dist >= done.to - 150) ev.push({ kind: 'summit', level: 3, text: 'Topo · ' + done.name, sub: Math.round(done.topEle) + ' m', speak: 'Topo. ' + done.name + '.' }); }
   // terreno
   const sf = surfaceAt(st, dist);
   if (sf && sf !== S.surface) { if (S.surface) ev.push({ kind: 'surface', level: 3, text: cap(sf), sub: 'mudança de terreno', speak: sf === 'asfalto' ? 'Volta ao asfalto.' : 'Trecho de ' + sf + '.' }); S.surface = sf; }
   // flamme rouge
-  if (st.total - dist < 1000 && !S.flamme) { S.flamme = true; ev.push({ kind: 'flamme', level: 2, text: 'Flamme rouge', sub: 'último quilômetro', speak: 'Último quilômetro.' }); }
+  if (st.total - dist < 1000 && !S.flamme) { S.flamme = true; ev.push({ kind: 'flamme', level: 2, text: 'Flamme rouge', sub: 'último quilômetro', speak: 'Último quilômetro.' }); if (S.prefs && S.prefs.camera !== false) ev.push({ kind: 'rec', level: 2, text: 'Grava agora', sub: 'chegada · ' + st.name.split('→').pop().trim(), speak: 'Grava agora. Chegada.' }); }
   // paradas e compras
   for (const p of S.paradas) {
     const ahead = p.km * 1000 - dist, near = p.kind === 'compras' ? 500 : 300;
     if (!p.warned && ahead > 0 && ahead < near) { p.warned = true; ev.push({ kind: p.kind === 'compras' ? 'shop' : 'sight', level: p.nivel, text: p.aviso, sub: p.kind === 'compras' ? p.horario : (p.min ? (p.min >= 60 ? Math.floor(p.min / 60) + 'h' + (p.min % 60 ? String(p.min % 60).padStart(2, '0') : '') : p.min + ' min') + ' previstos' : ''), speak: p.aviso.replace(/·/g, ','), parada: p }); }
     if (!p.passed && ahead < -300) { p.passed = true; }
   }
+  // serviços à frente: banheiro (a cada 30 min no máximo), bicicletaria (uma vez cada), calculados uma vez por etapa
+  if (!S.services || S.services.key !== st.key) S.services = servicesAlong(st, S.map);
+  for (const sv of S.services.list) {
+    const ahead = sv.dist - dist; if (ahead < -200) { sv.done = true; continue; } if (sv.done) continue;
+    if (sv.kind === 'toilets' && ahead < 400 && ahead > 0 && now - (S.toiletCueAt || 0) > 1800000) { sv.done = true; S.toiletCueAt = now; ev.push({ kind: 'toilets', level: 3, m: Math.round(ahead), text: 'Banheiro · ' + Math.round(ahead / 50) * 50 + ' m', sub: sv.name || 'banheiro público', speak: 'Banheiro em ' + Math.round(ahead / 50) * 50 + ' metros.' }); }
+    if (sv.kind === 'bike' && ahead < 2000 && ahead > 0) { sv.done = true; ev.push({ kind: 'bikeshop', level: 3, m: Math.round(ahead), text: 'Bicicletaria · ' + (ahead >= 1000 ? (ahead / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(ahead / 50) * 50 + ' m'), sub: sv.name || 'oficina de bikes', speak: 'Bicicletaria à frente, ' + (ahead >= 1000 ? (ahead / 1000).toFixed(1).replace('.', ',') + ' quilômetros' : Math.round(ahead / 50) * 50 + ' metros') + '.' }); }
+  }
+  // hotel na aproximação: 2,5 km antes da chegada
+  const day = (S.routes && S.routes.days || {})[st.key], hotel = day && day.hotel;
+  if (hotel && hotel.nome && !S.hotelCued && st.total - dist < 2500 && st.total - dist > 300) { S.hotelCued = true; ev.push({ kind: 'hotel', level: 3, km: (st.total - dist) / 1000, text: hotel.nome.split(' · ')[0].slice(0, 34), sub: [hotel.checkin ? 'check-in ' + hotel.checkin : '', hotel.bike ? 'bike: ' + hotel.bike : ''].filter(Boolean).join(' · ').slice(0, 70), speak: 'Hotel a ' + ((st.total - dist) / 1000).toFixed(1).replace('.', ',') + ' quilômetros. ' + (hotel.checkin ? 'Check-in ' + hotel.checkin + '.' : '') }); }
   // fonte à frente (POIs do mapa) para o abastecimento
   S.waterAhead = null;
   if (S.map && S.map.poiIndex) { const w = poisNear(S.map.poiIndex, fix.lat, fix.lon, 350, ['water']); if (w.length) S.waterAhead = w[0].d; }
@@ -125,4 +135,20 @@ export function ecart(S, speedMs, now, day) {
 export function nextCue(S) {
   const st = S.stage, d = S.proj.dist;
   return { cp: nextCheckpoint(st, d), turn: st.turns.find(t => t.dist > d) };
+}
+
+// serviços (banheiro, bicicletaria) até 120 m do traçado, com a distância ao longo da etapa
+export function servicesAlong(st, map) {
+  const list = [];
+  if (map && map.pois) {
+    const bb = st.pts.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [90, 180, -90, -180]);
+    for (const p of map.pois) {
+      if (p.k !== 'toilets' && p.k !== 'bike') continue;
+      if (p.lat < bb[0] - 0.002 || p.lat > bb[2] + 0.002 || p.lon < bb[1] - 0.003 || p.lon > bb[3] + 0.003) continue;
+      const pr = project(st, p.lat, p.lon, -1);
+      if (pr.off <= 120) list.push({ kind: p.k, name: p.n || '', dist: pr.dist, off: pr.off, lat: p.lat, lon: p.lon });
+    }
+  }
+  list.sort((a, b) => a.dist - b.dist);
+  return { key: st.key, list };
 }

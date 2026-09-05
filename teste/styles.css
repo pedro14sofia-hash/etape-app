@@ -268,3 +268,20 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 /* releitura Tour: cantos retos, sem vidro */
 .cue,#ctl button,.sbtn,.chip,.mini-btn,.podium .step,.pv-tabs button,.dlg-acts button,.pv .card,.pv li.n1,.brief .crit li,#prof,.ahead div,.foot .tools button,#btnTheme,.pv .trip .code,.pv .chipk,.fuel .acts button,.mini-acts button,.rep .cat,.pv canvas.prof,.grab,#speedo .spbar,#attr,.passages .catf,.pv .dio-ctl button{border-radius:0!important}
 .passages .catf{background:#E10D0D}
+
+/* SOS, tempo, marcar */
+#btnSos{background:#E10D0D!important;color:#fff!important;border-color:#E10D0D!important;font-size:1rem!important;letter-spacing:.06em}
+.sos-hd{background:#E10D0D;color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 12px}.sos-hd b{display:block;font-family:var(--fd);font-weight:900;font-size:2rem;line-height:.9;text-transform:uppercase}.sos-hd span{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;opacity:.9}
+.sos-nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 14px}
+.sos-nums a{display:block;background:#000;color:#fff;text-decoration:none;padding:12px 12px;border-left:8px solid #FFFF00}.sos-nums a b{display:block;font-family:var(--fd);font-weight:900;font-size:2.2rem;line-height:1}.sos-nums a span{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:#bbb}
+.sos-nums a.pri{background:#E10D0D;border-left-color:#fff}
+.sos-pos{margin:4px 14px 10px;border:2px solid var(--ink);padding:10px 12px}.sos-pos b{display:block;font-family:var(--fd);font-weight:900;font-size:1.5rem;line-height:1;font-variant-numeric:tabular-nums}.sos-pos span{display:block;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--muted);margin-top:4px}
+.sos-pos .acts{display:flex;gap:8px;margin-top:10px}.sos-pos .acts button{flex:1;border:2px solid var(--ink);padding:9px 6px;font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:1rem;letter-spacing:.06em;color:var(--ink)}
+.sos-card{margin:6px 14px;background:var(--pill);padding:10px 12px;font-size:.9rem}.sos-card b{display:block;font-family:var(--fd);font-weight:800;font-size:1.1rem;text-transform:uppercase}.sos-card a{color:var(--ink);font-weight:700}
+.wx{margin:10px 14px 0;border:2px solid var(--ink);font-size:.86rem}.wx.none{padding:10px 12px;color:var(--muted);border-style:dashed}
+.wxh{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;background:#000;color:#fff;padding:7px 12px}.wxh span:first-child{font-family:var(--fd);font-weight:800;letter-spacing:.14em;text-transform:uppercase;font-size:.8rem;color:#FFFF00}.wxh b{font-family:var(--fd);font-weight:900;font-size:1.6rem;line-height:1}.wxh span{font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:#ddd}
+.wxa{background:#E10D0D;color:#fff;padding:5px 12px;font-family:var(--fd);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.wxr{display:grid;grid-template-columns:repeat(3,1fr)}.wxr div{padding:8px 10px;border-right:1px solid var(--line)}.wxr div:last-child{border-right:0}.wxr small{display:block;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted)}.wxr b{display:block;font-family:var(--fd);font-weight:900;font-size:1.7rem;line-height:1;margin:2px 0}.wxr span{display:block;font-size:.72rem;color:var(--muted)}
+.wxs{display:flex;align-items:flex-end;gap:2px;height:24px;padding:4px 10px 0;border-top:1px solid var(--line)}.wxs i{flex:1;background:#3969B7;display:block}
+.wxf{padding:2px 10px 8px;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.foot .tools button.on{background:#FFFF00;color:#000}
