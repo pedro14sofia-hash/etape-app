@@ -32,6 +32,7 @@ let R, panelTimer = null;
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
+  if (document.fonts) Promise.all([document.fonts.load('700 16px Antonio'), document.fonts.load('600 13px "Work Sans"')]).then(() => { R.setTheme(S.theme); R.invalidate(); }).catch(() => { });   // rótulos do mapa na fonte do sistema
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
   if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos

@@ -73,7 +73,7 @@ body.full #speedo,body.full #grade,body.full #place{display:none!important}
 #grade .g.hard{color:var(--ocre)}#grade .g.wall{color:var(--rouge)}#grade .g.down{color:var(--ink)}   /* rampa: tinta até 6 %, ocre até 9 %, vermelho acima */
 #grade small{display:block;font-family:var(--fd);font-weight:600;font-size:14px;letter-spacing:.1em;text-transform:uppercase;text-shadow:var(--halo)}
 /* placa de lugar */
-#place{position:absolute;left:10px;z-index:4;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--fd);font-weight:700;font-size:18px;letter-spacing:.06em;text-transform:uppercase;line-height:1;padding:6px 10px 5px;border-left:6px solid var(--auto);max-width:62vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#place{position:absolute;left:10px;z-index:4;pointer-events:none;background:var(--ink);color:var(--paper);font-family:var(--fd);font-weight:700;font-size:18px;letter-spacing:.06em;text-transform:uppercase;line-height:1;padding:6px 10px 5px;max-width:62vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* ---------- controles do mapa (escondidos; um toque mostra) ---------- */
 #ctl{position:absolute;right:10px;top:calc(var(--fitaH) + 72px);display:grid;grid-template-columns:52px 52px;gap:6px;z-index:4;transition:top .2s}
 #ctl.hide{display:none}
@@ -215,7 +215,7 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .rep .grid div{padding:7px 4px;text-align:center;border-right:1px solid var(--line)}.rep .grid div:last-child{border-right:0}.rep .grid div.hi{background:var(--auto);color:var(--onyellow)}.rep .grid div.hi span{color:var(--onyellow);opacity:.85}
 .rep .grid b{display:block;font-family:var(--fd);font-weight:700;font-size:24px;line-height:1;font-variant-numeric:tabular-nums}.rep .grid span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;display:block;margin-top:2px}
 .rep h4,.brief h4,.pv h4{margin:14px 14px 4px;font-family:var(--fd);font-weight:700;font-size:16px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
-.rep h4::before,.brief h4::before,.pv h4::before{content:"";width:8px;height:15px;background:var(--auto);border-left:3px solid var(--ink);flex:none}
+.rep h4::before,.brief h4::before,.pv h4::before{content:"";width:8px;height:15px;background:var(--auto);flex:none}
 .rep h4::after,.brief h4::after,.pv h4::after{content:"";flex:1;height:1px;background:var(--ink)}
 .rep table{width:calc(100% - 28px);margin:0 14px;border-collapse:collapse;font-size:14px}
 .rep td{padding:5px 2px;border-bottom:1px solid var(--line);vertical-align:top}.rep td.k{font-family:var(--fd);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;width:56px;background:var(--auto);color:var(--onyellow);padding:1px 6px;text-align:center}.rep td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -369,3 +369,4 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 .catf.cat-2,#ctx .cat.cat-2,.cue .plate.cat-2,.rep .cat.cat-2,.pv .chipk.cat-2{background:var(--ocre);color:#fff;border-color:var(--ocre)}
 .catf.cat-3,.catf.cat-4,#ctx .cat.cat-3,#ctx .cat.cat-4,.cue .plate.cat-3,.cue .plate.cat-4,.rep .cat.cat-3,.rep .cat.cat-4,.pv .chipk.cat-3,.pv .chipk.cat-4{background:var(--auto);color:var(--onyellow);border-color:var(--ink)}
 .cue.l1 .plate.cat-3,.cue.l1 .plate.cat-4{background:var(--auto);color:var(--onyellow)}
+#place::before{content:"";display:inline-block;width:8px;height:14px;background:var(--auto);margin-right:8px;vertical-align:-1px}   /* regra 10: marca de lugar sem borda lateral */

@@ -24,6 +24,7 @@ const ARROW = {
 ARROW.direita = ARROW.acentuada; ARROW.esquerda = '<g transform="translate(24 0) scale(-1 1)">' + ARROW.acentuada + '</g>';
 // k: leve | acentuada | retorno | reto (ou direita/esquerda); dir espelha as classes desenhadas para a direita
 export const svgArrow = (k, dir) => { const g = ARROW[k] || ARROW.reto, mir = dir === 'esquerda' && (k === 'leve' || k === 'acentuada' || k === 'retorno'); return `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${mir ? '<g transform="translate(24 0) scale(-1 1)">' + g + '</g>' : g}</svg>`; };
+const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 export const catCls = c => 'cat-' + String(c || '').toLowerCase();
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : (k === 'ciclovia' || k === 'faixa') ? 'bike' : k === 'rua' ? 'asf' : 'trl'}">${k}</i>` : '';
 
@@ -153,7 +154,7 @@ export function panel(S) {
   // números soltos sobre o mapa (F2): velocidade à esquerda, rampa à direita, sempre visíveis
   const sp = $('speedo'), gr = $('grade'); sp.hidden = !L; if (gr) gr.hidden = !L;
   if (L) { initSpeedo(); const v = L.v < 2 ? 0 : L.v; $('spV').textContent = Math.round(v); const nd = $('spNeedle'); if (nd) nd.setAttribute('transform', 'rotate(' + spAngle(v).toFixed(1) + ' 60 60)'); const pk = $('spPlan'); if (pk) { if (S.planSpeed > 0) { pk.removeAttribute('hidden'); pk.setAttribute('transform', 'rotate(' + spAngle(S.planSpeed).toFixed(1) + ' 60 60)'); } else pk.setAttribute('hidden', ''); } /* elemento SVG não tem .hidden */ const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= GRADE.wall ? ' wall' : L.grade >= GRADE.hard ? ' hard' : L.grade <= -GRADE.hard ? ' down' : ''); /* tinta até 6 %, ocre até 9 %, vermelho acima */ sp.style.bottom = (S.scaleBottom + 22) + 'px'; if (gr) gr.style.bottom = (S.scaleBottom + 26) + 'px'; }
-  const plc = $('place'); if (plc) { plc.textContent = S.place || ''; plc.hidden = !S.place; plc.style.bottom = (S.scaleBottom + 150) + 'px'; }   // acima do velocímetro (118 px)
+  const plc = $('place'); if (plc) { const cpn = S.next && S.next.cp ? normTxt(S.next.cp.name) : '', pn = normTxt(S.place), dup = !!(pn && cpn && (cpn.includes(pn) || pn.includes(cpn))); plc.textContent = S.place || ''; plc.hidden = !S.place || dup;   /* regra 06: lugar dito uma vez só */ plc.style.bottom = (S.scaleBottom + 150) + 'px'; }   // acima do velocímetro (118 px)
   $('gpsSt').textContent = S.gpsMsg || '';
   $('clock').textContent = fmtH(new Date());
 }

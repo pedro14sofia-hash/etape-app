@@ -49,7 +49,7 @@ export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
     ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw, fy + fh); ctx.lineTo(fx + fw * .12, fy + fh); ctx.lineTo(fx, fy + fh * .55); ctx.closePath(); ctx.fill(); if (kind === 'start') ctx.stroke();
     if (kind === 'start') { ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.moveTo(fx + fw * .32, fy + fh * .2); ctx.lineTo(fx + fw * .32, fy + fh * .8); ctx.lineTo(fx + fw * .78, fy + fh * .5); ctx.closePath(); ctx.fill(); }
     else if (kind === 'sight') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + fw * .3, fy + fh * .3, fw * .42, fh * .42); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(fx + fw * .51, fy + fh * .51, fh * .13, 0, 7); ctx.fill(); }
-    else if (text) { ctx.fillStyle = kind === 'cat' ? catInk(text) : '#FFFFFF'; ctx.font = '800 ' + Math.round(11 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
+    else if (text) { ctx.fillStyle = kind === 'cat' ? catInk(text) : '#FFFFFF'; ctx.font = '700 ' + Math.round(11 * sz) + 'px Antonio, "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
   }
   ctx.restore();
 }
@@ -134,7 +134,7 @@ export function createRenderer(canvas, overlay) {
     S3.noOcclude = false;
   }
   const inter = (b, box) => !(b[2] < box[0] || b[0] > box[2] || b[3] < box[1] || b[1] > box[3]);
-  function label(txt, x, y, align = 'left', font = '600 13px Barlow, sans-serif', color = theme.label) {
+  function label(txt, x, y, align = 'left', font = '600 13px "Work Sans", sans-serif', color = theme.label) {
     ctx.font = font; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = theme.halo; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillStyle = color; ctx.fillText(txt, x, y); ctx.textAlign = 'left';
   }
   // escala de tamanho para ícones e rótulos em 3D (1 na linha do ciclista), com corte de distância
@@ -213,7 +213,7 @@ export function createRenderer(canvas, overlay) {
   }
   // bornes de km a cada 5 km (placa branca pequena), fora das bornes nomeadas
   function drawKmMarks(st, fromDist) {
-    const f = '900 12px "Barlow Condensed", "Arial Narrow", sans-serif';
+    const f = '700 12px Antonio, "Arial Narrow", sans-serif';
     for (let km = 5; km * 1000 < st.total - 500; km += 5) {
       const d = km * 1000; if (d < fromDist - 300) continue;
       if (st.cps.some(c => Math.abs(c.dist - d) < 250)) continue;
@@ -327,7 +327,7 @@ export function createRenderer(canvas, overlay) {
         if (!major && !near) continue;
         const q = mid; if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue;
         if (crowded(q[0], q[1], 70)) continue; seen.add(w.n); nlab++;
-        label(w.n, q[0], q[1], 'center', (major ? '800 ' : '600 ') + Math.round((major ? 15 : 13) * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.roadLabel); } }
+        label(w.n, q[0], q[1], 'center', (major ? '700 ' : '600 ') + Math.round((major ? 15 : 13) * Math.max(.8, sz)) + 'px Antonio, "Arial Narrow", sans-serif', th.roadLabel); } }
     // POIs
     // POIs: cols e cumes sempre; água, WC, bicicletaria, farmácia à frente; padaria, loja e café só de perto e quando a situação permite. Teto de 12 visíveis.
     let npoi = 0;
@@ -335,13 +335,13 @@ export function createRenderer(canvas, overlay) {
     // paradas do plano como bandeirinhas do Tour: vermelha visita, verde foto, ocre compras
     if (zBase >= 12 && rules.flags && !cam) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; paradaFlag(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if ((t === 'hamlet' || t === 'village') && !rules.names) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
+    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if ((t === 'hamlet' || t === 'village') && !rules.names) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' Antonio, "Arial Narrow", sans-serif'); }
     // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
     if (cam) for (const f of stageFlags(st, S.paradas)) {
       if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
       const sz = sizeAt(q); if (sz < .3) continue; const hgt = 62 * sz;
       flagAt(ctx, q[0], q[1] - hgt, q[1], f.kind, f.text, Math.max(.6, sz));
-      if (f.name && sz > .6) label(f.name.split(' · ')[0], q[0] + 30 * sz, q[1] - hgt + 8 * sz, 'left', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+      if (f.name && sz > .6) label(f.name.split(' · ')[0], q[0] + 30 * sz, q[1] - hgt + 8 * sz, 'left', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px Antonio, "Arial Narrow", sans-serif');
     }
     // bornes
     for (const c of st.cps) { const q = proj(c.lat, c.lon); if (!q[3] || q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, zBase); }
@@ -354,13 +354,13 @@ export function createRenderer(canvas, overlay) {
       const pp = S.pos || S.fix, q0 = proj(pp.lat, pp.lon), tp = pointAt(S.stage, S.proj.dist || 0), q1 = proj(tp[0], tp[1]);
       ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E10D0D'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
       const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E10D0D'; ctx.fill(); ctx.restore();
-      const mx = (q0[0] + q1[0]) / 2, my = (q0[1] + q1[1]) / 2; label(Math.round(S.proj.off) + ' m', mx + 8, my - 8, 'left', '900 14px "Barlow Condensed", sans-serif', '#E10D0D');
+      const mx = (q0[0] + q1[0]) / 2, my = (q0[1] + q1[1]) / 2; label(Math.round(S.proj.off) + ' m', mx + 8, my - 8, 'left', '700 14px Antonio, "Arial Narrow", sans-serif', '#E10D0D');
     }
     // lugares marcados
     if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFFF00'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
     // posição
     if ((!S.fix || (S.proj && S.proj.off > 50000)) && S.stage.cps.length) {
-      for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 44); const sz = 44 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
+      for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 44, theme.label, theme.poiBg); const sz = 44 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
       if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = proj(p[0], p[1]); placeRider(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
     if (S.fix && (S.pos || (S.proj && S.proj.off <= 50000))) { const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (!cam && accPx > 40) { const qa = proj(S.fix.lat, S.fix.lon); ctx.beginPath(); ctx.arc(qa[0], qa[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); }
@@ -378,8 +378,8 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q), w = 32 * sz, h = 36 * sz, x = q[0] - w / 2, y = q[1] - h;
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x, y + 5 * sz); ctx.arc(q[0], y + 16 * sz, 16 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 12 * sz); ctx.lineTo(x, y + 12 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
-    ctx.fillStyle = '#000000'; ctx.font = '900 ' + Math.round(16 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 25 * sz); ctx.textAlign = 'left';
-    if (z >= 12 && sz > .5) label(c.name, q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(16 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    ctx.fillStyle = '#000000'; ctx.font = '700 ' + Math.round(16 * sz) + 'px Antonio, "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 25 * sz); ctx.textAlign = 'left';
+    if (z >= 12 && sz > .5) label(c.name, q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(16 * Math.max(.8, sz)) + 'px Antonio, "Arial Narrow", sans-serif');
   }
   // disco atrás do ícone (estilo Apple Maps): branco de dia, preto à noite; amarelo para as paradas da viagem
   function maxZ() { if (!(view.sat && sat.available())) return 19; const lv = sat.detailLevels(); return lv.length ? Math.min(19, lv[lv.length - 1] + 2) : 17; }
@@ -392,22 +392,22 @@ export function createRenderer(canvas, overlay) {
     const sz = z >= 14.5 ? 1 : z >= 13 ? .8 : .6, h = 30 * sz;
     ctx.globalAlpha = p.done ? .45 : 1;
     flagAt(ctx, q[0], q[1] - h, q[1], kind, '', sz);
-    if (z >= 13.5 && !p.done && !crowded(q[0] + 30 * sz, q[1] - h + 8 * sz, 60)) label(p.nome.split(' · ')[0], q[0] + 30 * sz, q[1] - h + 8 * sz, 'left', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    if (z >= 13.5 && !p.done && !crowded(q[0] + 30 * sz, q[1] - h + 8 * sz, 60)) label(p.nome.split(' · ')[0], q[0] + 30 * sz, q[1] - h + 8 * sz, 'left', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px Antonio, "Arial Narrow", sans-serif');
     ctx.globalAlpha = 1;
   }
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 14.5 ? 48 : 36, im = icon(SIGHT_ICON[p.kind] || 'camera', base);
-    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(15 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
+    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(15 * Math.max(.85, sz)) + 'px Antonio, "Arial Narrow", sans-serif'); return; }
     const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#E10D0D';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
   function poiIcon(p, q, z) {
     const s = POI[p.k]; if (!s) return;
     const sz = sizeAt(q); if (sz < .35) return;
-    const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
+    const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base, theme.label, theme.poiBg) : null;
     if (crowded(q[0], q[1], base * 0.9)) return;
-    if (ready(im)) { const s2 = base * sz; if (im.png) { ctx.drawImage(im, q[0] - s2 * .55, q[1] - s2 * .6, s2 * 1.1, s2 * 1.1); } else { disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); } if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n, q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
+    if (ready(im)) { const s2 = base * sz; if (im.png) { ctx.drawImage(im, q[0] - s2 * .55, q[1] - s2 * .6, s2 * 1.1, s2 * 1.1); } else { disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); } if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n, q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px Antonio, "Arial Narrow", sans-serif', th.poiLabel); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {
@@ -466,7 +466,7 @@ export function drawFita(canvas, stage, dist, theme, opts = {}) {
   ctx.strokeStyle = night ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.4)'; ctx.lineWidth = 1;
   for (let k = 10; k < km; k += 10) { const x = X(k); ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, h - 1); ctx.stroke(); }
   for (const s of opts.paradas || []) { if (s.done) continue; const x = X(s.km); ctx.fillStyle = s.kind === 'compras' ? FLAG.shop : s.kind === 'visita' ? FLAG.visit : s.kind === 'opcional' ? FLAG.feed : FLAG.sight; ctx.fillRect(x - 1.5, h - bottom - 9, 3, 9); }
-  ctx.font = '900 11px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '700 11px Antonio, "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Math.max(8, Y(c.topEle) - 11); ctx.fillStyle = catCol(c.cat); ctx.fillRect(x - 9, y - 7, 18, 14); ctx.fillStyle = catInk(c.cat); ctx.fillText(c.cat, x, y + .5); }
   if (!stage.free) { const xf = X(km), cw = 4, ch = 4; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#1B1815' : '#FFFFFF'; ctx.fillRect(xf - 16 + i * cw, 2 + j * ch, cw, ch); } ctx.strokeStyle = '#1B1815'; ctx.lineWidth = 1; ctx.strokeRect(xf - 16.5, 1.5, 17, 9); ctx.fillStyle = '#1B1815'; ctx.fillRect(xf - 17.5, 1, 1.5, h - bottom - 1); }   // chegada quadriculada com haste
   if (opts.arrived) return;
@@ -495,9 +495,9 @@ export function drawProfile(canvas, stage, dist, theme, opts = {}) {
   }
   ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), big ? 5 : 3.5, 0, 7); ctx.fillStyle = '#000000'; ctx.fill(); ctx.lineWidth = big ? 2 : 1.2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
   if (big) {
-    ctx.font = '600 10px "Barlow Condensed", Barlow, sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#FFFFFF';
+    ctx.font = '600 10px Antonio, "Arial Narrow", sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#FFFFFF';
     const a = stage.cps[0], b = stage.cps[stage.cps.length - 1]; ctx.textAlign = 'left'; ctx.fillText(a.name + ' ' + Math.round(elevationAt(stage, 0)) + ' m', 8, h - 7); ctx.textAlign = 'right'; ctx.fillText(b.name + ' ' + Math.round(elevationAt(stage, stage.total)) + ' m', w - 6, h - 7);
-    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '700 9px Barlow, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = '700 9px "Work Sans", sans-serif'; ctx.textAlign = 'left';
     for (const c of stage.climbs) { const x = Math.min(w - 16, Math.max(8, X(c.to / 1000))); const nm = (c.name.length > 16 ? c.name.slice(0, 15) + '…' : c.name).toUpperCase(); ctx.fillText(nm, x + 4, Math.max(20, Y(c.topEle) - 26) + 4 + 16 + 7); }
     ctx.textAlign = 'left';
   }
