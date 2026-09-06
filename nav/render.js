@@ -322,6 +322,7 @@ export function createRenderer(canvas, overlay) {
   }
   // camadas estáticas: fundo, satélite, polígonos, água, ferrovias, estradas, outras etapas, fita, curvas, rótulos, POIs, paradas, lugares, bandeiras, bornes
   function drawStatic(S) {
+    placed = [];
     const M = S.map, st = S.stage, z = view.z, box = visibleBox(), th = theme;
     if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -385,7 +386,7 @@ export function createRenderer(canvas, overlay) {
     if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFFF00'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
     // posição
     if (!S.fix && S.stage.cps.length) {
-      for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 30); const sz = 30 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
+      for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 44); const sz = 44 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
       if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = proj(p[0], p[1]); placeRider(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
     if (S.fix) { const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (!cam && accPx > 40) { const qa = proj(S.fix.lat, S.fix.lon); ctx.beginPath(); ctx.arc(qa[0], qa[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); }
@@ -412,24 +413,29 @@ export function createRenderer(canvas, overlay) {
   }
   function sliceByDist(st, a, b) { const out = []; for (let i = 0; i < st.pts.length; i++) if (st.cum[i] >= a && st.cum[i] <= b) out.push(st.pts[i]); return out.length > 1 ? out : []; }
   function borne(c, q, z) {
-    const sz = sizeAt(q), w = 26 * sz, h = 30 * sz, x = q[0] - w / 2, y = q[1] - h;
+    const sz = sizeAt(q), w = 32 * sz, h = 36 * sz, x = q[0] - w / 2, y = q[1] - h;
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, y + 4 * sz); ctx.arc(q[0], y + 13 * sz, 13 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 10 * sz); ctx.lineTo(x, y + 10 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
-    ctx.fillStyle = '#000000'; ctx.font = '800 ' + Math.round(13 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 22 * sz); ctx.textAlign = 'left';
-    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 17 * sz, q[1] - 8 * sz, 'left', '600 ' + Math.round(13 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    ctx.beginPath(); ctx.moveTo(x, y + 5 * sz); ctx.arc(q[0], y + 16 * sz, 16 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 12 * sz); ctx.lineTo(x, y + 12 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
+    ctx.fillStyle = '#000000'; ctx.font = '900 ' + Math.round(16 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 25 * sz); ctx.textAlign = 'left';
+    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(14 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
+  // disco atrás do ícone (estilo Apple Maps): branco de dia, preto à noite; amarelo para as paradas da viagem
+  let placed = [];
+  function disc(x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme === THEMES.night ? '#FFFFFF' : '#000000'; ctx.stroke(); }
+  function crowded(x, y, r) { for (const q of placed) if (Math.abs(q[0] - x) < r && Math.abs(q[1] - y) < r) return true; placed.push([x, y]); return false; }
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
-    const im = icon(SIGHT_ICON[p.kind] || 'camera', z >= 14.5 ? 34 : 26);
-    if (ready(im)) { const s = (z >= 14.5 ? 34 : 26) * sz; ctx.globalAlpha = p.done ? .45 : 1; ctx.drawImage(im, q[0] - s / 2, q[1] - s * .78, s, s); ctx.globalAlpha = 1; if (z >= 14 && sz > .55) label(p.nome.split(' · ')[0], q[0], q[1] + 12 * sz, 'center', '600 12px "Barlow Condensed", Barlow, sans-serif'); return; }
+    const base = z >= 14.5 ? 48 : 36, im = icon(SIGHT_ICON[p.kind] || 'camera', base);
+    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(13 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
     const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#E10D0D';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
   function poiIcon(p, q, z) {
     const s = POI[p.k]; if (!s) return;
     const sz = sizeAt(q); if (sz < .35) return;
-    const nm = KIND_ICON[p.k], im = nm ? icon(nm, z >= 15 ? 28 : 22) : null;
-    if (ready(im)) { const s2 = (z >= 15 ? 28 : 22) * sz; ctx.drawImage(im, q[0] - s2 / 2, q[1] - s2 * .78, s2, s2); if (sz > .6 && (z >= 16 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike') && z >= 14.5)) && p.n) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0] + s2 / 2 + 1, q[1] - 3, 'left', '600 11px "Barlow Condensed", Barlow, sans-serif'); return; }
+    const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
+    if (crowded(q[0], q[1], base * 0.9)) return;
+    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(12 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {

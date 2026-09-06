@@ -30,7 +30,13 @@ export function init() {
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
   if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide };
-  if (/[?&]r3d=1/.test(location.search)) import('./rider3d.js').then(m => { if (m.init($('rider3d'))) { rider3d = m; R.setRiderExternal(true); size3d(); } });
+  // avatar 3D (models/avatar.glb com rig procedural) por padrão; ?r3d=0 desliga, ?r3d=1 força o ciclista procedural de tubos
+  const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
+  if (r3dq !== '0') import('./rider3d.js').then(async m => {
+    if (!m.init($('rider3d'))) return;
+    const okModel = r3dq === '1' ? false : await m.loadModel('./models/avatar.glb');
+    if (okModel || r3dq === '1') { rider3d = m; R.setRiderExternal(true); size3d(); R.invalidate(); }
+  });
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
   ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); if (R.view.mode === '2d') R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); }, () => { S.rotLock = true; $('btnFollow').classList.add('pulse'); });
@@ -129,7 +135,7 @@ export function selectStage(key) {
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
 function setCam(c) { S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); $('btnCam').textContent = c === '2d' ? '2D' : c === 'tp' ? '3ª' : '1ª'; $('btnCam').classList.toggle('on', c !== '2d'); if (c !== '2d') { S.follow = true; $('btnFollow').classList.add('on'); if (S.fix) R.centerOn(S.fix.lat, S.fix.lon); R.setView(null, null, 16, S.fix ? -(S.fix.head || 0) * Math.PI / 180 : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
-function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
+function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
 export function startNavigation(silent) {
@@ -238,7 +244,7 @@ function showSos() {
   $('sosBody').innerHTML = '<div class="sos-nums"><a class="pri" href="tel:112"><b>112</b><span>Emergência europeia</span></a><a href="tel:15"><b>15</b><span>SAMU · médico</span></a><a href="tel:18"><b>18</b><span>Bombeiros</span></a><a href="tel:17"><b>17</b><span>Polícia</span></a></div>' +
     '<div class="sos-pos"><b>' + pos + '</b><span>km ' + km + ' da ' + S.stage.name.replace(/^E\S+ /, '') + ' · ' + (cp ? 'perto de ' + cp.name : '') + ' · ' + ele + ' m</span><div class="acts"><button id="sosCopy">Copiar posição</button><button id="sosShare">Compartilhar</button></div></div>' +
     '<div class="sos-card"><b>Diga ao operador</b>"Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>' +
-    (hotel.nome ? '<div class="sos-card"><b>Hotel de hoje</b>' + hotel.nome + '<br>' + (hotel.end || '') + (hotel.tel ? '<br><a href="tel:' + hotel.tel.replace(/[^+\d]/g, '') + '">' + hotel.tel + '</a>' : '') + '</div>' : '') +
+    (hotel.nome ? '<div class="sos-card"><b>Hotel de hoje</b>' + hotel.nome + '<br>' + (hotel.end || '') + (hotel.tel ? '<br>' + (hotel.tel.replace(/[^\d]/g, '').length >= 8 ? '<a href="tel:' + hotel.tel.split('·')[0].replace(/[^+\d]/g, '') + '">' + hotel.tel + '</a>' : hotel.tel) : '') + '</div>' : '') +
     (d.hospital ? '<div class="sos-card"><b>Hospital mais perto</b>' + d.hospital + '</div>' : '');
   $('sosCopy').onclick = async () => { try { await navigator.clipboard.writeText(pos + ' ' + maps); voice.banner('Posição copiada', 3); } catch (e) { } };
   $('sosShare').onclick = async () => { try { if (navigator.share) await navigator.share({ title: 'Minha posição', text: 'Estou aqui: ' + pos + ' (km ' + km + ') ' + maps }); } catch (e) { } };

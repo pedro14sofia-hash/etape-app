@@ -6,7 +6,7 @@
 import * as r3d from './rider3d.js';
 const c = document.getElementById('c'), q = new URLSearchParams(location.search);
 const v = (+q.get('v') || 24) / 3.6; let az = +q.get('az') || 0.9, el = +q.get('el') || 0.35, dist = +q.get('d') || 3.4, drag = null;
-r3d.init(c); const fit = () => r3d.resize(innerWidth, innerHeight, Math.min(devicePixelRatio || 1, 2)); fit(); addEventListener('resize', fit);
+r3d.init(c); if (!q.has('proc')) r3d.loadModel('./models/avatar.glb').then(okm => { console.info('avatar', okm); if (q.has('rig')) r3d.debugRig(true); }); const fit = () => r3d.resize(innerWidth, innerHeight, Math.min(devicePixelRatio || 1, 2)); fit(); addEventListener('resize', fit);
 c.addEventListener('pointerdown', e => drag = [e.clientX, e.clientY]); addEventListener('pointerup', () => drag = null);
 addEventListener('pointermove', e => { if (!drag) return; az += (e.clientX - drag[0]) * 0.01; el = Math.max(0.05, Math.min(1.4, el + (e.clientY - drag[1]) * 0.01)); drag = [e.clientX, e.clientY]; });
 addEventListener('wheel', e => dist = Math.max(1.2, Math.min(8, dist + e.deltaY * 0.002)));

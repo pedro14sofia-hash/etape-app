@@ -1,14 +1,18 @@
 // Étape Navegar · rider3d.js
-// Ciclista e bike em 3D de verdade (WebGL, three.js), no estilo dos apps de pedal indoor: quadro em tubos com a geometria
-// da Cannondale, rodas com pneu, aro e raios, pedivela girando, guidão de estrada, ciclista de maillot jaune com pernas
-// que dobram na pedalada (IK de dois ossos), iluminação e sombra. Renderizado numa camada própria sobre o mapa.
-// Se o WebGL falhar, o app volta ao desenho 2D. Um modelo glb externo pode substituir o procedural (loadModel).
+// Ciclista e bike em 3D de verdade (WebGL, three.js), numa camada própria sobre o mapa.
+// Modo principal: avatar do Pedro (models/avatar.glb, malha texturizada gerada por imagem-para-3D a partir das fotos dele
+// na Cannondale). A malha vem fundida e sem esqueleto, então o rig é procedural, montado na carga: rodas giram no cubo,
+// pedivela e coroa giram no movimento central, pés seguem os pedais e as pernas dobram com IK de dois ossos; os pesos
+// por vértice são calculados por região da malha. Sem modelo (ou sem WebGL), fica o desenho 2D do render.js.
+// Modo secundário (página rider3d.html): ciclista procedural em tubos, mantido para testes.
 import * as THREE from './vendor/three.module.min.js';
+import { GLTFLoader } from './vendor/GLTFLoader.js';
 
 const C = { ink: 0x17191c, paper: 0xf7f5ee, green: 0x2f8f46, yellow: 0xffd100, skin: 0xe0b08a, helmet: 0xffffff, silver: 0xc9c9c9, tire: 0x1a1b1e, rim: 0x9a9fa6, dark: 0x3c4045 };
 let renderer = null, scene, camera, dpr = 1, W = 0, H = 0, ok = false;
 let bike, riderG, wheelF, wheelR, crank, legs = [], arms = [], crankAngle = 0, wheelAngle = 0, lastT = 0, ground, sun;
 const R_WHEEL = 0.34;
+let model = null;   // avatar glb com rig procedural: { group, rig }
 
 function mat(color, opts = {}) { return new THREE.MeshStandardMaterial({ color, roughness: opts.rough ?? 0.55, metalness: opts.metal ?? 0.05, ...opts.extra }); }
 // cilindro entre dois pontos (metros), eixo three: x direita, y cima, z para trás (frente = -z)
@@ -109,14 +113,157 @@ function updateLegs() {
     const pedal = new THREE.Vector3(bb.x + leg.s * 0.13, bb.y + Math.sin(a) * 0.17, bb.z - Math.cos(a) * 0.17);
     const hip = leg.hip, d = new THREE.Vector3().subVectors(pedal, hip), dist = Math.min(d.length(), L1 + L2 - 0.01);
     const cosA = (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist), ang = Math.acos(Math.max(-1, Math.min(1, cosA)));
-    const dir = d.clone().normalize(), fwd = new THREE.Vector3(0, 0, -1), side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(1, 0, 0)).normalize();
-    // joelho para a frente e para cima do segmento quadril–pedal
+    const dir = d.clone().normalize(), fwd = new THREE.Vector3(0, 0, -1);
     const perp = new THREE.Vector3().crossVectors(new THREE.Vector3(1, 0, 0), dir).normalize(); if (perp.dot(fwd) < 0) perp.negate();
     const knee = hip.clone().addScaledVector(dir, Math.cos(ang) * L1).addScaledVector(perp, Math.sin(ang) * L1);
     placeCapsule(leg.thigh, hip, knee); placeCapsule(leg.shin, knee, pedal); leg.knee.position.copy(knee);
     leg.foot.position.copy(pedal).add(new THREE.Vector3(0, 0.03, -0.03));
     const ped = crank.pedals.find(p => p.s === leg.s); if (ped) { ped.mesh.position.set(leg.s * 0.13, Math.sin(a) * 0.17, -Math.cos(a) * 0.17); ped.mesh.rotation.set(0, 0, 0); }
   }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Avatar glb + rig procedural. Coordenadas do modelo: frente = -x, cima = +y, lateral = z (chão em y mínimo). Todas as
+// medidas abaixo são em "metros do modelo" (k = raio da roda / 0,34 corrige a escala do gerador).
+// ---------------------------------------------------------------------------------------------------------------------
+const RIG = { hipBack: 0.15, hipUp: 0.66, hipSide: 0.09, thigh: 0.44, shin: 0.44, crank: 0.17, bbBack: 0.41, bbDrop: 0.07, legZ: [0.045, 0.24], legR: 0.15, footR: 0.15, wheelZ: 0.035, crankZ: [0.04, 0.078], blend: 0.06 };
+function analyseMesh(pos) {
+  const n = pos.length / 3; let ymin = Infinity, xmin = Infinity, xmax = -Infinity;
+  for (let i = 0; i < n; i++) { const x = pos[3 * i], y = pos[3 * i + 1]; if (y < ymin) ymin = y; if (x < xmin) xmin = x; if (x > xmax) xmax = x; }
+  // cubos das rodas: pontos mais baixos, separados pelo meio; frente = -x
+  const lo = []; for (let i = 0; i < n; i++) if (pos[3 * i + 1] < ymin + 0.03) lo.push(pos[3 * i]);
+  const mid = (xmin + xmax) / 2; const rear = lo.filter(x => x > mid), front = lo.filter(x => x < mid);
+  const avg = a => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
+  const rearX = avg(rear), frontX = avg(front);
+  // raio: candidato com mais vértices no anel do pneu (|z| pequeno)
+  let bestR = 0.34, bestN = -1;
+  for (let R = 0.26; R <= 0.46; R += 0.005) {
+    let c = 0; for (let i = 0; i < n; i++) { const z = pos[3 * i + 2]; if (Math.abs(z) > 0.03) continue; const dx = pos[3 * i] - frontX, dy = pos[3 * i + 1] - (ymin + R); const r = Math.hypot(dx, dy); if (Math.abs(r - R) < 0.02) c++; }
+    if (c > bestN) { bestN = c; bestR = R; }
+  }
+  return { ymin, rearX, frontX, R: bestR };
+}
+// dois ossos no plano x-y: quadril H, alvo P, comprimentos → joelho à frente (-x)
+function ik(H, Pt, L1, L2) {
+  const d = new THREE.Vector3().subVectors(Pt, H); const dist = Math.min(d.length(), L1 + L2 - 0.005); d.normalize();
+  const cosA = Math.max(-1, Math.min(1, (L1 * L1 + dist * dist - L2 * L2) / (2 * L1 * dist))), a = Math.acos(cosA);
+  const perp = new THREE.Vector3(-d.y, d.x, 0); if (perp.x > 0) perp.negate();   // joelho para a frente (-x)
+  return H.clone().addScaledVector(d, Math.cos(a) * L1).addScaledVector(perp, Math.sin(a) * L1);
+}
+function segDist(p, a, b) { const ab = new THREE.Vector3().subVectors(b, a), ap = new THREE.Vector3().subVectors(p, a); const t = Math.max(0, Math.min(1, ap.dot(ab) / ab.lengthSq())); return { d: ap.addScaledVector(ab, -t).length(), t }; }
+
+function buildRig(mesh) {
+  const geo = mesh.geometry; const pos = geo.attributes.position.array; const n = pos.length / 3;
+  const A = analyseMesh(pos); const k = A.R / 0.34;
+  const BB = new THREE.Vector3(A.rearX - RIG.bbBack * k, A.ymin + A.R - RIG.bbDrop * k, 0);
+  const Lc = RIG.crank * k, L1 = RIG.thigh * k, L2 = RIG.shin * k;
+  const pedalAt = (th, s) => new THREE.Vector3(BB.x + Lc * Math.cos(th), BB.y + Lc * Math.sin(th), s * 0.11 * k);
+  // ângulo de repouso do pedal de cada lado, pela posição dos pés na malha
+  const th0 = {}, feet = {};
+  for (const s of [1, -1]) {
+    let sx = 0, sy = 0, c = 0;
+    for (let i = 0; i < n; i++) {
+      const x = pos[3 * i], y = pos[3 * i + 1], z = pos[3 * i + 2] * s; if (z < 0.07 * k || z > 0.17 * k) continue;
+      const r = Math.hypot(x - BB.x, y - BB.y); if (r < 0.10 * k || r > 0.30 * k || y > BB.y + 0.22 * k) continue;
+      sx += x; sy += y; c++;
+    }
+    feet[s] = c; th0[s] = c > 20 ? Math.atan2(sy / c - BB.y, sx / c - BB.x) : (s > 0 ? -1.1 : Math.PI - 1.1);
+  }
+  const bones = {}, list = [];
+  const mk = (name, p) => { const b = new THREE.Bone(); b.name = name; b.position.copy(p); bones[name] = b; list.push(b); return b; };
+  const root = mk('root', new THREE.Vector3());
+  mk('wheelR', new THREE.Vector3(A.rearX, A.ymin + A.R, 0)); mk('wheelF', new THREE.Vector3(A.frontX, A.ymin + A.R, 0)); mk('crank', BB);
+  const side = {};
+  for (const s of [1, -1]) {
+    const tag = s > 0 ? 'R' : 'L';
+    const H = new THREE.Vector3(BB.x + RIG.hipBack * k, BB.y + RIG.hipUp * k, s * RIG.hipSide * k);
+    const P0 = pedalAt(th0[s], s); const K0 = ik(H, P0, L1, L2);
+    mk('thigh' + tag, H); mk('shin' + tag, K0); mk('pedal' + tag, P0);
+    side[s] = { tag, H, K0, P0 };
+  }
+  for (const b of list) if (b !== root) root.add(b);
+  // pesos por vértice
+  const idx = new Float32Array(n * 4), wgt = new Float32Array(n * 4); const bi = name => list.indexOf(bones[name]);
+  const set = (i, a, wa, b = 0, wb = 0) => { idx[4 * i] = a; wgt[4 * i] = wa; idx[4 * i + 1] = b; wgt[4 * i + 1] = wb; };
+  const v = new THREE.Vector3(); let counts = { wheel: 0, crank: 0, leg: 0, foot: 0 };
+  for (let i = 0; i < n; i++) {
+    v.set(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2]); set(i, 0, 1);
+    const az = Math.abs(v.z);
+    if (az < RIG.wheelZ * k) {
+      const rr = Math.hypot(v.x - A.rearX, v.y - (A.ymin + A.R)), rf = Math.hypot(v.x - A.frontX, v.y - (A.ymin + A.R));
+      // só o interior do aro (raios e cubo) gira: pneu e aro são simétricos e o quadro/garfo passam rente ao pneu
+      if (rr < A.R - 0.06 * k) { set(i, bi('wheelR'), 1); counts.wheel++; continue; }
+      if (rf < A.R - 0.06 * k) { set(i, bi('wheelF'), 1); counts.wheel++; continue; }
+    }
+    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && Math.hypot(v.x - BB.x, v.y - BB.y) < Lc + 0.04 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
+    const s = v.z > 0 ? 1 : -1; const S = side[s]; const z = az;
+    if (z < RIG.legZ[0] * k || z > RIG.legZ[1] * k || v.y > S.H.y + 0.05 * k || v.x < BB.x - 0.32 * k || v.x > S.H.x + 0.16 * k) continue;
+    const dFoot = v.distanceTo(S.P0);
+    const t1 = segDist(v, S.H, S.K0), t2 = segDist(v, S.K0, S.P0);
+    const dLeg = Math.min(t1.d, t2.d);
+    if (dFoot < RIG.footR * k) {   // pé e pedal: seguem o pedal; transição para a canela
+      const w = Math.max(0, Math.min(1, (RIG.footR * k - dFoot) / (RIG.blend * k)));
+      set(i, bi('pedal' + S.tag), w, bi('shin' + S.tag), 1 - w); counts.foot++; continue;
+    }
+    if (dLeg > RIG.legR * k) continue;
+    // coxa ou canela, com mistura perto do joelho
+    const dK = v.distanceTo(S.K0);
+    if (dK < RIG.blend * k) { const w = 0.5 + 0.5 * (t1.d < t2.d ? 1 : -1) * (1 - dK / (RIG.blend * k)); set(i, bi('thigh' + S.tag), w, bi('shin' + S.tag), 1 - w); }
+    else if (t1.d <= t2.d) set(i, bi('thigh' + S.tag), 1); else set(i, bi('shin' + S.tag), 1);
+    counts.leg++;
+  }
+  geo.setAttribute('skinIndex', new THREE.BufferAttribute(idx, 4)); geo.setAttribute('skinWeight', new THREE.BufferAttribute(wgt, 4));
+  const skinned = new THREE.SkinnedMesh(geo, mesh.material); skinned.add(root); skinned.updateMatrixWorld(true); skinned.bind(new THREE.Skeleton(list)); skinned.castShadow = true; skinned.frustumCulled = false;
+  console.info('rider3d: rig ' + JSON.stringify({ R: +A.R.toFixed(3), k: +k.toFixed(2), rearX: +A.rearX.toFixed(2), frontX: +A.frontX.toFixed(2), BB: BB.toArray().map(x => +x.toFixed(2)), th0R: +(th0[1] * 180 / Math.PI).toFixed(0), th0L: +(th0[-1] * 180 / Math.PI).toFixed(0), feet, ...counts }));
+  return { skinned, bones, A, k, BB, Lc, L1, L2, th0, side, pedalAt };
+}
+function animateRig(rig) {
+  const { bones, side, th0, pedalAt, L1, L2 } = rig;
+  bones.wheelR.rotation.z = wheelAngle; bones.wheelF.rotation.z = wheelAngle;   // frente = -x: giro positivo leva o topo para a frente
+  bones.crank.rotation.z = crankAngle;
+  const q = new THREE.Quaternion(), a = new THREE.Vector3(), b = new THREE.Vector3();
+  for (const s of [1, -1]) {
+    const S = side[s]; const Pn = pedalAt(th0[s] + crankAngle, s); const K = ik(S.H, Pn, L1, L2);
+    bones['pedal' + S.tag].position.copy(Pn);
+    a.subVectors(S.K0, S.H).normalize(); b.subVectors(K, S.H).normalize(); bones['thigh' + S.tag].quaternion.copy(q.setFromUnitVectors(a, b));
+    a.subVectors(S.P0, S.K0).normalize(); b.subVectors(Pn, K).normalize(); bones['shin' + S.tag].position.copy(K); bones['shin' + S.tag].quaternion.copy(q.setFromUnitVectors(a, b));
+  }
+}
+// carrega models/avatar.glb; resolve true se o avatar substituiu o procedural
+export function loadModel(url) {
+  if (!ok) return Promise.resolve(false);
+  return new Promise(resolve => {
+    new GLTFLoader().load(url, gltf => {
+      try {
+        let mesh = null; gltf.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
+        if (!mesh) return resolve(false);
+        mesh.updateMatrixWorld(true); mesh.geometry.applyMatrix4(mesh.matrixWorld);
+        if (mesh.material && mesh.material.map) { mesh.material.map.colorSpace = THREE.SRGBColorSpace; mesh.material.roughness = 0.8; mesh.material.metalness = 0; }
+        const rig = buildRig(mesh);
+        const group = new THREE.Group(); group.add(rig.skinned);
+        // modelo: frente -x, chão em ymin, meio das rodas em x → three: frente -z, chão y=0, origem sob o centro das rodas
+        const sc = 0.34 / rig.A.R; group.scale.setScalar(sc); group.rotation.y = -Math.PI / 2;
+        const cx = (rig.A.rearX + rig.A.frontX) / 2; group.position.set(0, -rig.A.ymin * sc, 0);
+        rig.skinned.position.set(-cx, 0, 0);
+        scene.add(group); if (bike) bike.visible = false;
+        model = { group, rig }; resolve(true);
+      } catch (e) { console.error('rider3d: rig falhou', e); resolve(false); }
+    }, undefined, err => { console.warn('rider3d: sem modelo', err && err.message); resolve(false); });
+  });
+}
+export function hasModel() { return !!model; }
+// marcadores: quadril (vermelho), joelho (verde), pedal (azul), movimento central e cubos (amarelo) — página rider3d.html?rig=1
+let dbg = null;
+export function debugRig(on) {
+  if (!model) return; if (dbg) { model.group.remove(dbg); dbg = null; } if (!on) return;
+  dbg = new THREE.Group(); const { rig } = model; const mk = (c, r = 0.03) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r * rig.k, 10, 8), new THREE.MeshBasicMaterial({ color: c, depthTest: false })); dbg.add(m); return m; };
+  dbg.marks = { hipR: mk(0xff0000), hipL: mk(0xff0000), kneeR: mk(0x00cc00), kneeL: mk(0x00cc00), pedR: mk(0x0044ff), pedL: mk(0x0044ff), bb: mk(0xffcc00), hubR: mk(0xffcc00), hubF: mk(0xffcc00) };
+  dbg.position.copy(rig.skinned.position); model.group.add(dbg);
+}
+function updateDebug() {
+  if (!dbg || !model) return; const { rig } = model; const m = dbg.marks, b = rig.bones;
+  m.hipR.position.copy(rig.side[1].H); m.hipL.position.copy(rig.side[-1].H); m.kneeR.position.copy(b.shinR.position); m.kneeL.position.copy(b.shinL.position);
+  m.pedR.position.copy(b.pedalR.position); m.pedL.position.copy(b.pedalL.position); m.bb.position.copy(rig.BB); m.hubR.position.copy(b.wheelR.position); m.hubF.position.copy(b.wheelF.position);
 }
 
 export function init(canvas) {
@@ -127,8 +274,8 @@ export function init(canvas) {
   } catch (e) { renderer = null; ok = false; return false; }
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
-  scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a7a5a, 0.9));
-  sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-1.5, 3.2, -1.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a7a5a, 1.1));
+  sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-1.5, 3.2, -1.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -1.5; sun.shadow.camera.right = 1.5; sun.shadow.camera.top = 1.5; sun.shadow.camera.bottom = -1.5; sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 8; sun.shadow.bias = -0.002; scene.add(sun);
   bike = new THREE.Group(); bike.add(buildBike()); riderG = buildRider(); bike.add(riderG);
   bike.position.set(0, 0, 0.5);   // centro do modelo na origem (rodas em z=+0.5 atrás … -0.49 à frente)
@@ -139,32 +286,36 @@ export function init(canvas) {
 export function isReady() { return ok; }
 export function resize(w, h, ratio) { if (!ok) return; W = w; H = h; dpr = ratio; renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
 
+function step(v, t) {
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
+  if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; }
+  if (model) { animateRig(model.rig); updateDebug(); return; }
+  wheelF.rotation.x = wheelR.rotation.x = -wheelAngle; crank.rotation.x = -crankAngle; updateLegs();
+}
+function yaw(rot) { if (model) model.group.rotation.y = -Math.PI / 2 - (rot || 0); else bike.rotation.y = -(rot || 0); }
+
 // r: {x, y, rot, scale, show, mode: '2d'|'tp'|'fp'}; v em m/s; t em ms
 export function render(r, v, t) {
   if (!ok) return;
-  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
-  if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; }
-  wheelF.rotation.x = wheelR.rotation.x = -wheelAngle; crank.rotation.x = -crankAngle; updateLegs();
+  step(v, t);
   renderer.setScissorTest(true); renderer.clear(true, true, true);
   if (!r || !r.show) { renderer.setScissorTest(false); return; }
-  const size = Math.round((r.mode === 'tp' ? 210 : 150) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.5);
+  const size = Math.round((r.mode === 'tp' ? 230 : 160) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.5);
   renderer.setViewport(x0, y0, size, size); renderer.setScissor(x0, y0, size, size);
   camera.aspect = 1;
-  if (r.mode === 'tp') { camera.position.set(0.05, 1.3, 3.1); camera.fov = 30; }     // atrás e um pouco acima, como a câmera do mapa
+  if (r.mode === 'tp') { camera.position.set(0.0, 1.15, 2.7); camera.fov = 30; }     // de trás e um pouco acima, como a câmera do mapa
   else { camera.position.set(-1.0, 3.2, 2.2); camera.fov = 26; }                     // 2D: de cima, três quartos, de trás
-  camera.lookAt(0, 0, 0); camera.updateProjectionMatrix();                           // origem = chão sob o pedivela, no centro do viewport
-  bike.rotation.y = -(r.rot || 0);                                                   // rumo: o mapa gira, a bike acompanha
+  camera.lookAt(0, 0.55, 0); camera.updateProjectionMatrix();                        // origem = chão sob o centro das rodas
+  yaw(r.rot);                                                                        // rumo: o mapa gira, a bike acompanha
   renderer.render(scene, camera); renderer.setScissorTest(false);
 }
 // vista livre (página rider3d.html): azimute/elevação/distância, quadrado de lado size no canto inferior esquerdo
 export function renderFree(o, v, t) {
   if (!ok) return;
-  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
-  if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; }
-  wheelF.rotation.x = wheelR.rotation.x = -wheelAngle; crank.rotation.x = -crankAngle; updateLegs();
+  step(v, t);
   renderer.setScissorTest(false); renderer.clear(true, true, true);
   const size = o.size; renderer.setViewport((W - size) / 2, (H - size) / 2, size, size); camera.aspect = 1; camera.fov = 30;
   camera.position.set(Math.sin(o.az) * Math.cos(o.el) * o.dist, Math.sin(o.el) * o.dist + 0.6, Math.cos(o.az) * Math.cos(o.el) * o.dist);
-  camera.lookAt(0, 0.6, 0); camera.updateProjectionMatrix(); bike.rotation.y = 0;
+  camera.lookAt(0, 0.6, 0); camera.updateProjectionMatrix(); yaw(0);
   renderer.render(scene, camera);
 }

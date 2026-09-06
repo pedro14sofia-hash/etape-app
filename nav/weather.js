@@ -41,7 +41,7 @@ export function summary(wx, stage, saidaH, chegadaH) {
   const hs = [saidaH || 8, Math.round(((saidaH || 8) + (chegadaH || 16)) / 2), chegadaH || 16];
   const mb = meanBearing(stage);
   const cols = wx.points.map((p, i) => { const h = p.hours.find(x => x.h === hs[i]) || p.hours[hs[i]] || p.hours[0]; const wr = windRelative(mb, h.wd, h.ws); return { name: p.name, h: hs[i], t: h.t, pp: h.pp, mm: h.mm, ws: h.ws, wd: h.wd, dir: dirLabel(h.wd), rel: wr.label, code: h.code, desc: CODES[h.code] || '' }; });
-  const day = wx.points[1].hours.filter(x => x.h >= (saidaH || 8) && x.h <= (chegadaH || 17));
+  let day = wx.points[1].hours.filter(x => x.h >= (saidaH || 8) && x.h <= (chegadaH || 17)); if (!day.length) day = wx.points[1].hours.slice(7, 19); if (!day.length) return null;
   const ppMax = Math.max(...day.map(x => x.pp || 0)), mm = day.reduce((a, x) => a + (x.mm || 0), 0), tmin = Math.min(...day.map(x => x.t)), tmax = Math.max(...day.map(x => x.t));
   const rainAt = day.find(x => (x.pp || 0) >= 50);
   return { cols, ppMax, mm: Math.round(mm * 10) / 10, tmin, tmax, rainAt: rainAt ? rainAt.h : null, wind: cols[1].ws, windDir: cols[1].dir, windRel: cols[1].rel, hours: day, at: wx.at };
