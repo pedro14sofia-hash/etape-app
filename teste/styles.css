@@ -323,3 +323,30 @@ body.full #ctl #zin,body.full #ctl #zout{display:none}
 #panel.resumo .tabs div{flex-direction:column;gap:2px;padding:6px 0 5px;font-size:.72rem;letter-spacing:.12em}
 #panel.resumo .tabs div svg{width:28px;height:28px}
 #panel.resumo .tabs div.on{background:#FFFF00;color:#000}
+
+/* cards do resumo: mesma gramática do painel completo (número grande + unidade + rótulo), células iguais, sem apertos */
+#panel.resumo .fixed{grid-template-columns:1.15fr 1fr auto}
+#panel.resumo .fixed>div{padding:10px 12px 9px}
+#panel.resumo .fixed b{font-size:2.7rem}
+#panel.resumo .fixed span{white-space:normal;line-height:1.15;letter-spacing:.06em}
+#panel.resumo .sbtn{min-width:104px;font-size:1.4rem}
+.mini.ab{display:grid;grid-template-columns:1.7fr 1fr 1fr;min-height:72px}
+.mini.ab>div{padding:9px 12px 8px;border-right:1.5px solid var(--line);display:flex;flex-direction:column;justify-content:center;min-width:0}
+.mini.ab>div:last-child{border-right:0}
+.mini em{font-size:1.5rem;letter-spacing:.01em}
+.mini.ab span{margin-top:5px;font-size:.8rem;letter-spacing:.08em}
+.mini .kv{align-items:flex-start;padding-right:8px!important;white-space:nowrap}
+.mini .kv b{font-size:2rem;line-height:.95;display:flex;align-items:baseline;gap:4px}
+.mini .kv b small{font-size:1rem;color:var(--muted);margin:0}
+.mini .kv>span{font-size:.78rem;letter-spacing:.1em;margin-top:4px}
+.mini.fu{min-height:72px}
+.mini.fu>div{padding:9px 12px 8px;border-right:1.5px solid var(--line)}
+.mini.fu .l{font-size:.8rem}.mini.fu .l b{font-size:1.6rem}.mini.fu .l i{font-size:1.2rem}
+.mini.fu .fbar{height:14px;margin-top:6px}
+.mini-acts button{padding:7px;font-size:1.05rem}
+.mini.pr{padding:8px 12px 10px}
+.spark{height:56px}
+.mini .cs{font-size:.8rem;margin-top:6px}.mini .cs b{font-size:1.3rem}
+:root[data-theme="night"] .mini.ab>div,:root[data-theme="night"] .mini.fu>div{border-right-color:#2A2A2A}
+
+.mini .kv b span{display:inline;font-size:inherit;color:inherit;letter-spacing:0;text-transform:none;margin:0;font-weight:inherit;font-family:inherit}
