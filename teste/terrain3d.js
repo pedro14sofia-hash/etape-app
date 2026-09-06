@@ -9,6 +9,9 @@ import * as sat from './sat.js';
 import { mercX, mercY } from './geo.js';
 import { pointAt } from './track.js';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
+import * as icons from './icons3d.js';
+import { poisNear } from './data-mod.js';
+import { stageFlags } from './render.js';
 
 // anéis: meio-lado (m), passo da malha (m), textura (px) e níveis do satélite (de baixo para cima), rebuild ao andar `move` m
 const RINGS = [
@@ -29,6 +32,44 @@ export function orbit(dAz, dEl) { orb.az += dAz; orb.el = Math.max(-0.25, Math.m
 export function zoomBy(f) { orb.dist = Math.max(22, Math.min(120, orb.dist / f)); orb.touching = true; }
 export function release() { orb.touching = false; orb.releasedAt = performance.now(); }
 export function recenter() { orb.az = 0; orb.el = 0; orb.dist = CAM.dist; orb.touching = false; }
+// ---------- ícones e bandeiras ----------
+// tipos do mapa → ícone 3D e rótulo; raio de revelação (m): essenciais 900, comércio 300
+const ICON_OF = { water: ['water'], toilets: ['toilets'], bakery: ['bakery'], shop: ['feed', 'MERCADO', '#B8720A'], cafe: ['bakery', 'CAFÉ'], bike: ['bike'], pharmacy: ['pharmacy'], hospital: ['hospital'], pass: ['pass'], peak: ['peak'], viewpoint: ['viewpoint'], castle: ['castle'], church: ['church'], picnic: ['picnic'], hotel: ['hotel'] };
+const RADIUS = { bakery: 300, shop: 300, cafe: 300 }, ICON_MAX = 12, ICON_SEP = 25;
+const iconPool = new Map(); let iconsAt = 0, flagCache = null, flagStage = null;
+function iconLabel(p) {
+  const [kind, lab, col] = ICON_OF[p.k]; let txt = p.n && p.n.length <= 26 ? p.n : (lab || '');
+  if ((p.k === 'pass' || p.k === 'peak') && p.e) txt = (p.n || (p.k === 'pass' ? 'Col' : 'Cume')) + ' · ' + Math.round(+p.e) + ' m';
+  return { kind, txt, col };
+}
+function updateIcons(S, now, x, z, p) {
+  if (now - iconsAt < 600 || !S.map || !S.map.poiIndex) return; iconsAt = now;
+  const wanted = [];
+  const hd = S.pos ? S.pos.head : ((p.head || 0) * Math.PI / 180), fx = Math.sin(hd), fz = -Math.cos(hd);   // só o que está à frente (ou até 60 m atrás)
+  for (const c of poisNear(S.map.poiIndex, p.lat, p.lon, 900, Object.keys(ICON_OF))) { if (c.d > (RADIUS[c.poi.k] || 900)) continue; const [ix, iz] = toXZ(c.poi.lat, c.poi.lon); if ((ix - x) * fx + (iz - z) * fz < -60) continue; wanted.push({ key: 'p:' + c.poi.lat + ',' + c.poi.lon, d: c.d, x: ix, z: iz, poi: c.poi }); }
+  if (stage) {
+    if (flagStage !== stage) { flagStage = stage; flagCache = stageFlags(stage, S.paradas || []).map(f => { const q = pointAt(stage, f.dist); const [fx, fz] = toXZ(q[0], q[1]); return { ...f, x: fx, z: fz }; }); }
+    const dist = S.proj ? S.proj.dist : 0;
+    for (const f of flagCache) { const dd = Math.hypot(f.x - x, f.z - z); if (dd > 900 || (f.dist < dist - 150 && f.kind !== 'finish') || (f.x - x) * fx + (f.z - z) * fz < -60) continue; wanted.push({ key: 'f:' + f.kind + ':' + Math.round(f.dist), d: dd, x: f.x, z: f.z, flag: f }); }
+  }
+  wanted.sort((a, b) => a.d - b.d);
+  const chosen = []; for (const w of wanted) { if (chosen.length >= ICON_MAX) break; if (chosen.some(c => Math.hypot(c.x - w.x, c.z - w.z) < ICON_SEP)) continue; chosen.push(w); }
+  const keep = new Set(chosen.map(c => c.key));
+  for (const [k, e] of iconPool) if (!keep.has(k)) { scene.remove(e.obj); iconPool.delete(k); }
+  for (const w of chosen) {
+    let e = iconPool.get(w.key);
+    if (!e) {
+      let obj; if (w.flag) { obj = w.flag.kind === 'finish' ? icons.make('finish', 'CHEGADA') : icons.flag(w.flag.kind, w.flag.text || '', 14); }
+      else { const { kind, txt, col } = iconLabel(w.poi); obj = icons.make(kind, txt); if (col) { const s = obj.children.find(c => c.isSprite); if (s) { obj.remove(s); const s2 = icons.plate(txt.toUpperCase(), col); s2.position.copy(s.position); obj.add(s2); } } }
+      e = { obj, x: w.x, z: w.z, y: null }; iconPool.set(w.key, e); scene.add(obj);
+    }
+    { const gy = height(e.x, e.z); if (gy != null) e.y = gy; else if (e.y == null) e.y = lastGround != null ? lastGround : 0; }   // refeito a cada volta: o DEM pode chegar depois
+    e.obj.position.set(e.x, e.y, e.z); if (!w.flag) e.obj.rotation.y = Math.atan2(x - e.x, z - e.z);   // a frente do objeto olha para o ciclista
+  }
+}
+function scaleIcons() {   // longe, o ícone cresce para nunca sumir na tela (1× até 70 m, até 3,5×)
+  for (const e of iconPool.values()) { const d = camPos ? Math.hypot(e.x - camPos.x, e.z - camPos.z) : 100; const s = Math.max(1, Math.min(4.5, d / 70)); e.obj.scale.setScalar(s); }
+}
 let nRebuild = 0, nTex = 0, tm = {}, lastGround = null, texDirty = 0, demDirty = false, lastRender = 0, frameMs = [], camHead = null, camPos = null, camTgt = null, stats = { tri: 0, calls: 0, dpr: 1, ms: 0 };
 
 const toXZ = (lat, lon) => [(lon - lon0) * kx, -(lat - lat0) * ky];
@@ -72,7 +113,7 @@ export function setVisible(hv) { if (ok && W) resize(W, H, dpr, hv); }
 export function setTheme(n) {
   if (!ok) return; night = !!n;
   scene.background = new THREE.Color(night ? 0x0A0C12 : 0xBFD8F0); scene.fog = new THREE.Fog(night ? 0x14161C : 0xE6E2D8, RINGS[2].half * 0.45, RINGS[2].half * 1.05);
-  hemi.color.set(night ? 0x7A86A8 : 0xFFFFFF); hemi.groundColor.set(night ? 0x202020 : 0x8A8070); hemi.intensity = night ? 1.9 : 1.0;
+  hemi.color.set(night ? 0x7A86A8 : 0xFFFFFF); hemi.groundColor.set(night ? 0x202020 : 0x8A8070); hemi.intensity = night ? 2.4 : 1.0;
   sun.color.set(night ? 0x6070A0 : 0xFFF4E0); sun.intensity = night ? 0.35 : 1.6;
   ribMat.uniforms.fogColor.value.copy(scene.fog.color); ribMat.uniforms.fogNear.value = scene.fog.near; ribMat.uniforms.fogFar.value = scene.fog.far;
   for (const r of rings) r.texStamp = -1;   // textura refeita (véu da noite)
@@ -90,7 +131,8 @@ export function loadAvatar(url) {
 }
 export function setAvatar(group) { if (avatar) scene.remove(avatar); avatar = group || null; if (avatar) scene.add(avatar); }
 export function setStage(st) {
-  stage = st; ribbons.forEach(r => { scene.remove(r.rib); scene.remove(r.cas); r.rib.geometry.dispose(); r.cas.geometry.dispose(); }); ribbons.clear();
+  stage = st; for (const e of iconPool.values()) scene.remove(e.obj); iconPool.clear(); flagStage = null; iconsAt = 0;
+  ribbons.forEach(r => { scene.remove(r.rib); scene.remove(r.cas); r.rib.geometry.dispose(); r.cas.geometry.dispose(); }); ribbons.clear();
   for (const r of rings) { if (r.mesh) { scene.remove(r.mesh); r.mesh.geometry.dispose(); if (r.mesh.material.map) r.mesh.material.map.dispose(); r.mesh.material.dispose(); } }
   rings = RINGS.map(cfg => ({ cfg, mesh: null, cx: null, cz: null, texStamp: -1 }));
   if (!st) { road = null; return; }
@@ -149,7 +191,7 @@ function buildTexture(r) {
         g.drawImage(im, X, Y, S + 0.5, S + 0.5);
       }
     }
-    if (night) { g.fillStyle = 'rgba(10,12,18,.30)'; g.fillRect(0, 0, tex, tex); }
+    if (night) { g.fillStyle = 'rgba(10,12,18,.18)'; g.fillRect(0, 0, tex, tex); }
   } else { g.fillStyle = night ? '#2A3028' : '#B8B090'; g.fillRect(0, 0, tex, tex); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.generateMipmaps = OPT.mip; t.minFilter = OPT.mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
   const m = r.mesh.material; if (m.map) m.map.dispose(); m.map = t; m.color.set(0xFFFFFF); m.needsUpdate = true;
@@ -227,7 +269,7 @@ export function update(S, now) {
   const dist = S.proj ? S.proj.dist : 0; ribbonChunks(dist, redo); ribMat.uniforms.uDone.value = dist;
   // ciclista e câmera
   let gy = height(x, z); if (gy == null) { const nr = nearRoad(x, z); gy = nr ? roadY(nr.i) : NaN; if (isNaN(gy)) gy = lastGround != null ? lastGround : (p.alt || 0); } lastGround = gy;
-  rerouteStrip(S, redo, gy); tm.rib = performance.now() - tB;
+  rerouteStrip(S, redo, gy); updateIcons(S, now, x, z, p); tm.rib = performance.now() - tB;
   const ry = gy + RIB_Y;
   if (avatar) { avatar.position.set(x, ry, z); avatar.rotation.y = -head; avatar.scale.setScalar(CAM.rider); }
   if (camHead == null) camHead = head; else { let d = head - camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); camHead += d * Math.min(1, (now - lastRender) / 350); }
@@ -241,14 +283,14 @@ export function update(S, now) {
   if (!camPos) { camPos = want.clone(); camTgt = tgt.clone(); } else { const k = Math.min(1, (now - lastRender) / 250); camPos.lerp(want, k); camTgt.lerp(tgt, k); }
   // a câmera nunca entra no relevo: fica 4 m acima do chão
   const gc = height(camPos.x, camPos.z); if (gc != null && camPos.y < gc + 4) camPos.y = gc + 4;
-  camera.position.copy(camPos); camera.lookAt(camTgt);
+  camera.position.copy(camPos); camera.lookAt(camTgt); scaleIcons();
   sun.target.position.set(x, gy, z); sun.position.set(x - 900, gy + 1200, z + 400);
   const t0 = performance.now(); renderer.render(scene, camera); const ms = performance.now() - t0; stats.upd = +(t0 - tUpd).toFixed(1);
   frameMs.push(ms); if (frameMs.length > 40) frameMs.shift(); lastRender = now;
   const avg = frameMs.reduce((a, b) => a + b, 0) / frameMs.length; if (frameMs.length >= 40 && avg > 42 && dpr > 1) { resize(W, H, 1, HV); frameMs = []; }
-  stats = { upd: stats.upd, tri: renderer.info.render.triangles, calls: renderer.info.render.calls, dpr, ms: +avg.toFixed(1), holes: rings.map(r => r.holes).join('/'), miss: rings.map(r => r.miss).join('/'), low: rings.map(r => r.low).join('/'), rebuilds: nRebuild, textures: nTex, t: { rings: +tm.rings.toFixed(1), tex: +tm.tex.toFixed(1), rib: +tm.rib.toFixed(1) } };
+  stats = { icons: iconPool.size, upd: stats.upd, tri: renderer.info.render.triangles, calls: renderer.info.render.calls, dpr, ms: +avg.toFixed(1), holes: rings.map(r => r.holes).join('/'), miss: rings.map(r => r.miss).join('/'), low: rings.map(r => r.low).join('/'), rebuilds: nRebuild, textures: nTex, t: { rings: +tm.rings.toFixed(1), tex: +tm.tex.toFixed(1), rib: +tm.rib.toFixed(1) } };
   return true;
 }
 export function getStats() { return stats; }
-export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; return { orb: { az: +orb.az.toFixed(3), el: +orb.el.toFixed(3), dist: +orb.dist.toFixed(1), touching: orb.touching }, reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
+export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; const ic = []; for (const [k, e] of iconPool) { const v = new THREE.Vector3(e.x, e.y + 3, e.z).project(camera); ic.push([k.slice(0, 18), +Math.hypot(e.x - (avatar ? avatar.position.x : 0), e.z - (avatar ? avatar.position.z : 0)).toFixed(0), +e.obj.scale.x.toFixed(2), +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3), e.obj.visible, e.obj.children.length]); } return { icons: ic, orb: { az: +orb.az.toFixed(3), el: +orb.el.toFixed(3), dist: +orb.dist.toFixed(1), touching: orb.touching }, reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
 export function dispose() { if (!ok) return; setStage(null); renderer.dispose(); ok = false; }

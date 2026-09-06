@@ -386,7 +386,7 @@ function perfHud(ts, ms) {
   if (ts - PERF.last < 500) return; PERF.last = ts;
   if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFFF00;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
   const st = R.stats(), mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '';
-  if (S.cam3d && t3d) { const g = t3d.getStats(); PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · 3D ' + g.ms + ' ms (+' + g.upd + ' prep) · ' + g.tri + ' tri · ' + g.calls + ' calls · dpr ' + g.dpr + ' · buracos ' + g.holes + ' · sat faltando ' + g.miss + ' ' + mem; PERF.n = 0; PERF.ms = 0; return; }
+  if (S.cam3d && t3d) { const g = t3d.getStats(); PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · 3D ' + g.ms + ' ms (+' + g.upd + ' prep) · ' + g.icons + ' ícones · ' + g.tri + ' tri · ' + g.calls + ' calls · dpr ' + g.dpr + ' · buracos ' + g.holes + ' · sat faltando ' + g.miss + ' ' + mem; PERF.n = 0; PERF.ms = 0; return; }
   PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem;
   PERF.n = 0; PERF.ms = 0;
 }

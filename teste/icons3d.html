@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Étape · line-up dos ícones 3D (F3)</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+html,body{margin:0;background:#0A0A0A;color:#fff;font-family:"Barlow Condensed","Arial Narrow",sans-serif}
+h1{margin:14px 16px 6px;font-size:22px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
+h1 b{background:#FFFF00;color:#000;padding:2px 8px;margin-right:8px}
+p{margin:0 16px 10px;font-family:"Open Sans",sans-serif;font-size:13px;color:#bbb}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px 16px}
+.cell{background:#151515;position:relative;aspect-ratio:1/1.05}
+.cell canvas{width:100%;height:100%;display:block}
+.cell span{position:absolute;left:6px;bottom:6px;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;background:#000;padding:2px 6px;border-left:4px solid #FFFF00}
+</style></head><body>
+<h1><b>F3</b>Ícones 3D · line-up para aprovação</h1>
+<p>15 objetos procedurais na paleta do Tour, disco amarelo com borda preta e placa de texto; abaixo, as bandeiras. Vista a 25 m, mesma luz da cena.</p>
+<div class="grid" id="grid"></div>
+<script type="module">
+import * as THREE from './vendor/three.module.min.js';
+import * as I from './icons3d.js';
+const night = /theme=night/.test(location.search);
+const grid = document.getElementById('grid');
+const items = I.KINDS.map(k => ({ kind: k, txt: k === 'pass' ? 'Col de Serre · 1335 m' : k === 'peak' ? 'Puy Mary · 1787 m' : '' }));
+const flags = [['start', ''], ['cat', 'HC'], ['cat', '1'], ['sprint', ''], ['feed', ''], ['sight', ''], ['flamme', '1'], ['finish', '']];
+function cell(label) { const d = document.createElement('div'); d.className = 'cell'; const c = document.createElement('canvas'); d.appendChild(c); const s = document.createElement('span'); s.textContent = label; d.appendChild(s); grid.appendChild(d); return c; }
+const off = document.createElement('canvas'); const R = new THREE.WebGLRenderer({ canvas: off, antialias: true, preserveDrawingBuffer: true }); R.outputColorSpace = THREE.SRGBColorSpace; R.shadowMap.enabled = true;
+function render(canvas, obj, dist = 17, h = 7.5) {   // um só contexto WebGL: renderiza fora da tela e copia para o canvas 2D da célula
+  const dpr = Math.min(devicePixelRatio, 2), W = canvas.clientWidth, H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr;
+  R.setPixelRatio(dpr); R.setSize(W, H, false);
+  const sc = new THREE.Scene(); sc.background = new THREE.Color(night ? 0x14161C : 0xE6E2D8);
+  sc.add(new THREE.HemisphereLight(night ? 0x7A86A8 : 0xFFFFFF, night ? 0x202020 : 0x8A8070, night ? 1.9 : 1.0));
+  const sun = new THREE.DirectionalLight(night ? 0x6070A0 : 0xFFF4E0, night ? 0.35 : 1.6); sun.position.set(-30, 40, 15); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 120 }); sc.add(sun);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshLambertMaterial({ color: night ? 0x2A3028 : 0xB8B090 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+  sc.add(obj);
+  const cam = new THREE.PerspectiveCamera(40, W / H, 0.5, 300); cam.position.set(dist * 0.6, h, dist * 0.8); cam.lookAt(0, 3.6, 0);
+  R.render(sc, cam); canvas.getContext('2d').drawImage(off, 0, 0, canvas.width, canvas.height);
+}
+for (const it of items) render(cell(I.LABEL[it.kind][0].toLowerCase()), I.make(it.kind, it.txt));
+for (const [k, t] of flags) { const g = new THREE.Group(); g.add(I.flag(k, t, 12)); render(cell('bandeira ' + k + (t ? ' ' + t : '')), g, 20, 8); }
+window.__lineup = { n: items.length + flags.length };
+</script>
+</body></html>
