@@ -1,0 +1,16 @@
+<!doctype html><meta charset="utf-8"><title>sw-wait</title><pre id="o">start</pre>
+<script>
+(async () => {
+  const o = document.getElementById('o'); const log = s => { o.textContent += '\n' + s; };
+  try { const r = await navigator.serviceWorker.register('sw.js'); log('registered'); } catch (e) { log('register error: ' + e.message); return; }
+  for (let i = 0; i < 90; i++) {
+    await new Promise(res => setTimeout(res, 1000));
+    const ks = await caches.keys(); let s = '';
+    for (const k of ks) s += k + '=' + (await (await caches.open(k)).keys()).length + ' ';
+    const reg = await navigator.serviceWorker.getRegistration();
+    log(i + 's ' + s + ' | ' + (reg ? ['installing','waiting','active'].filter(x => reg[x]).join(',') : 'noreg'));
+    if (navigator.serviceWorker.controller && /etape-sat=\d{3,}/.test(s)) break;
+  }
+  document.title = 'done';
+})();
+</script>

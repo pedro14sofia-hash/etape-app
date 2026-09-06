@@ -247,7 +247,11 @@ export function loadModel(url) {
         let mesh = null; gltf.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
         if (!mesh) return resolve(false);
         mesh.updateMatrixWorld(true); mesh.geometry.applyMatrix4(mesh.matrixWorld);
-        if (mesh.material && mesh.material.map) { mesh.material.map.colorSpace = THREE.SRGBColorSpace; mesh.material.roughness = 0.8; mesh.material.metalness = 0; }
+        if (mesh.material && mesh.material.map) {
+          // a textura já traz a luz do gerador: brilho próprio (emissive) + luz forte, para o branco do maillot não virar cinza
+          const mm = mesh.material; mm.map.colorSpace = THREE.SRGBColorSpace; mm.roughness = 0.85; mm.metalness = 0;
+          mm.emissive = new THREE.Color(0xffffff); mm.emissiveMap = mm.map; mm.emissiveIntensity = 0.45; mm.needsUpdate = true;
+        }
         const rig = buildRig(mesh);
         const group = new THREE.Group(); group.add(rig.skinned);
         // modelo: frente -x, chão em ymin, meio das rodas em x → three: frente -z, chão y=0, origem sob o centro das rodas
@@ -283,7 +287,7 @@ export function init(canvas) {
   } catch (e) { renderer = null; ok = false; return false; }
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
-  scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a7a5a, 1.1));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8b0a0, 1.6));
   sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-0.6, 4.5, 0.4);   // quase a pino: a sombra fica sob a bike, não um borrão ao lado sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -1.5; sun.shadow.camera.right = 1.5; sun.shadow.camera.top = 1.5; sun.shadow.camera.bottom = -1.5; sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 8; sun.shadow.bias = -0.002; scene.add(sun);
   bike = new THREE.Group(); bike.add(buildBike()); riderG = buildRider(); bike.add(riderG);
