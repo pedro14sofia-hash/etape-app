@@ -68,13 +68,15 @@
     <div id="ctx" hidden></div>
   </section>
   <section class="pane" data-tab="fuel" hidden>
-    <div class="fuel">
-      <div class="row"><div class="lab">Água</div><div class="bar"><i id="fWBar"></i><em id="fWMark"></em></div><div class="val" id="fWv">–</div></div>
-      <div class="row"><div class="lab">Carbo</div><div class="bar"><i id="fCBar"></i><em id="fCMark"></em></div><div class="val" id="fCv">–</div></div>
-      <div class="row"><div class="lab">Sódio</div><div class="bar"><i id="fSBar"></i><em id="fSMark"></em></div><div class="val" id="fSv">–</div></div>
-      <div class="acts"><button id="fDrink">Bebi<small>150 ml</small></button><button id="fEat">Comi<small>30 g</small></button><button id="fSnooze">Depois<small>+10 min</small></button></div>
-      <div class="nxt" id="fNext"></div>
+    <div class="fuel2">
+      <div class="fcard" id="fcD"><div class="fh"><span>Beber</span><b id="fDn">–</b></div><div class="fint"><i id="fDBar"></i></div><button id="fDrink">Bebi<small>150 ml</small></button></div>
+      <div class="fcard" id="fcE"><div class="fh"><span>Comer</span><b id="fEn">–</b></div><div class="fint"><i id="fEBar"></i></div><button id="fEat">Comi<small>30 g</small></button></div>
     </div>
+    <div class="ftot">
+      <div><span>Água hoje</span><b id="fWv">–</b><div class="fbar"><i id="fWBar"></i><em id="fWMark"></em></div></div>
+      <div><span>Carbo hoje</span><b id="fCv">–</b><div class="fbar"><i id="fCBar"></i><em id="fCMark"></em></div></div>
+    </div>
+    <div class="fnote"><span id="fNext"></span><button id="fSnooze">Adiar 10 min</button></div>
   </section>
   <section class="pane" data-tab="prof" hidden>
     <div class="prof">
@@ -92,8 +94,8 @@
     <div class="kv"><b><span id="mG">–</span><small id="mGu">m</small></b><span id="mGl">a subir</span></div>
   </div>
   <div class="mini fu" data-tab="fuel" hidden>
-    <div><div class="l"><span>Água</span><b id="mWv">–</b><i id="mWn">–</i></div><div class="fbar"><i id="mWBar"></i><em id="mWMark"></em></div><div class="mini-acts"><button id="mDrink">Bebi</button></div></div>
-    <div><div class="l"><span>Carbo</span><b id="mCv">–</b><i id="mCn">–</i></div><div class="fbar"><i id="mCBar"></i><em id="mCMark"></em></div><div class="mini-acts"><button id="mEat">Comi</button></div></div>
+    <div class="fcard" id="mcD"><div class="fh"><span>Beber</span><b id="mWn">–</b></div><div class="fint"><i id="mDBar"></i></div><button id="mDrink">Bebi</button></div>
+    <div class="fcard" id="mcE"><div class="fh"><span>Comer</span><b id="mCn">–</b></div><div class="fint"><i id="mEBar"></i></div><button id="mEat">Comi</button></div>
   </div>
   <div class="mini pr" data-tab="prof" hidden>
     <canvas id="spark" class="spark"></canvas>
@@ -101,7 +103,7 @@
     <div class="cs" id="mProfTxt"></div>
   </div>
 
-  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnMark">📍 Marcar</button><button id="btnSens">Sensores</button><button id="btnSim">Sim</button><button id="btnReport">Relatório</button><button id="btnFinish">Encerrar</button><button id="btnReset">Zerar</button></span></div>
+  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnMark">Marcar lugar</button><button id="btnMenu">Mais</button></span></div>
 </footer>
 
 <dialog id="dlgBrief"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
@@ -110,6 +112,13 @@
   <div id="pvBody"></div>
   <div class="dlg-acts"><button id="pvGo" class="pri">Navegar esta etapa</button><button data-close>Fechar</button></div>
 </dialog>
+<dialog id="dlgMenu"><div class="menu-hd"><b>Mais</b><span id="menuSt"></span></div><div class="menu">
+  <button id="btnReport"><b>Relatório do dia</b><span>resumo, pódio, GPX</span></button>
+  <button id="btnSens"><b>Sensores</b><span>frequência cardíaca, cadência, potência por Bluetooth</span></button>
+  <button id="btnSim" class="dev"><b>Simulação</b><span>percorre a etapa a 22 km/h (teste)</span></button>
+  <button id="btnFinish" class="danger"><b>Encerrar etapa</b><span>toque duas vezes · fecha a sessão e gera o relatório</span></button>
+  <button id="btnReset" class="danger dev"><b>Zerar etapa</b><span>apaga progresso, sessão e registro</span></button>
+</div><div class="dlg-acts"><button data-close class="pri">Fechar</button></div></dialog>
 <dialog id="dlgSos"><div class="sos-hd"><b>Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
 <dialog id="dlgReport"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
 

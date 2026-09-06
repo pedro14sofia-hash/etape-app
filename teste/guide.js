@@ -26,7 +26,7 @@ export function tick(S, fix, now) {
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
       if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
       else { const q = pointAt(st, S.proj.dist); const back = bearing(fix.lat, fix.lon, q[0], q[1]); ev.push({ kind: 'offRoute', off: pr.off, back, rel: ((back - (fix.head || 0)) + 540) % 360 - 180, level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } } }
-  else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
+  else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; S.reroute = null; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
   if (pr.off > 120 && !S.offSince) S.offSince = now;
   if (S.off) { S.offDist = pr.off; return ev; }
   // bornes

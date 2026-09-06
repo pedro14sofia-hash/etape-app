@@ -350,3 +350,59 @@ body.full #ctl #zin,body.full #ctl #zout{display:none}
 :root[data-theme="night"] .mini.ab>div,:root[data-theme="night"] .mini.fu>div{border-right-color:#2A2A2A}
 
 .mini .kv b span{display:inline;font-size:inherit;color:inherit;letter-spacing:0;text-transform:none;margin:0;font-weight:inherit;font-family:inherit}
+
+/* painel completo nunca cobre o mapa: altura máxima e conteúdo da aba com rolagem própria */
+#panel:not(.resumo){max-height:calc(100dvh - 210px - env(safe-area-inset-top))}
+#panel:not(.resumo) .pane{overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+#panel:not(.resumo) .foot{padding:3px 8px 4px}
+.foot .tools button{padding:4px 8px;font-size:.85rem}
+
+/* Abastecer: dois cartões (Beber / Comer) com contagem regressiva, barra do intervalo e botão; totais do dia embaixo */
+.fuel2{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 12px 4px}
+.fcard{border:2px solid var(--ink);padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.fcard .fh{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.fcard .fh span{font-family:var(--fd);font-weight:800;font-size:1.1rem;letter-spacing:.12em;text-transform:uppercase}
+.fcard .fh b{font-family:var(--fd);font-weight:900;font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fcard .fint{height:10px;background:var(--pill);border:1.5px solid var(--ink);position:relative;overflow:hidden}
+.fcard .fint i{position:absolute;left:0;top:0;bottom:0;background:#000;width:0}
+.fcard button{border:0;background:#000;color:#fff;padding:12px 6px;font-family:var(--fd);font-weight:900;font-size:1.5rem;text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.fcard button small{display:block;font-family:var(--fb);font-size:.72rem;letter-spacing:.1em;color:#bbb;font-weight:700;margin-top:4px}
+.fcard.soon{border-color:#000;background:#FFFF00}.fcard.soon .fint{background:#fff}
+.fcard.due{border-color:#E10D0D;background:#E10D0D;color:#fff}.fcard.due .fh b{color:#fff}.fcard.due .fint{background:#fff;border-color:#fff}.fcard.due .fint i{background:#000}.fcard.due button{background:#fff;color:#E10D0D}.fcard.due button small{color:#E10D0D}
+:root[data-theme="night"] .fcard{background:#0A0A0A;border-color:#fff}:root[data-theme="night"] .fcard .fint{background:#1A1A1A;border-color:#fff}:root[data-theme="night"] .fcard .fint i{background:#FFFF00}:root[data-theme="night"] .fcard button{background:#FFFF00;color:#000}:root[data-theme="night"] .fcard button small{color:#333}
+:root[data-theme="night"] .fcard.soon{background:#FFFF00;color:#000;border-color:#FFFF00}:root[data-theme="night"] .fcard.soon .fh b{color:#000}:root[data-theme="night"] .fcard.soon .fint{background:#fff;border-color:#000}:root[data-theme="night"] .fcard.soon .fint i{background:#000}:root[data-theme="night"] .fcard.soon button{background:#000;color:#fff}:root[data-theme="night"] .fcard.soon button small{color:#bbb}
+.ftot{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:6px 12px 0}
+.ftot span{display:block;font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.ftot b{display:block;font-family:var(--fd);font-weight:900;font-size:1.5rem;line-height:1.1;margin:2px 0 4px}.ftot b small{font-family:var(--fb);font-size:.78rem;color:var(--muted);font-weight:600}
+.ftot .fbar{height:10px}
+.fnote{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px 10px;font-size:.86rem;color:var(--muted)}
+.fnote b{font-family:var(--fd);font-weight:800;font-size:1.05rem;color:var(--ink)}.fnote b.late{color:#E10D0D}
+.fnote button{border:1.5px solid var(--ink);padding:6px 10px;font-family:var(--fd);font-weight:800;font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink);white-space:nowrap}
+/* resumo: os mesmos cartões, mais baixos */
+.mini.fu{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 10px;min-height:0}
+.mini.fu>div{padding:8px 10px 9px;border-right:0}
+.mini.fu .fcard .fh b{font-size:1.45rem}.mini.fu .fcard button{padding:9px 6px;font-size:1.25rem}
+/* painel completo: no máximo 56 % da altura, para o mapa continuar visível */
+#panel:not(.resumo){max-height:56dvh}
+
+/* écart retirado do mapa a pedido do Pedro (06/09); a tabela de passagens fica no perfil */
+.ecart{display:none!important}
+/* cartões de abastecer: rótulo em cima, contagem embaixo (cabe em qualquer largura); vermelho também à noite */
+.fcard .fh{flex-direction:column;align-items:flex-start;gap:2px}
+.fcard .fh b{font-size:1.9rem}
+.mini.fu .fcard .fh b{font-size:1.6rem}
+:root[data-theme="night"] .fcard.due{background:#E10D0D;border-color:#E10D0D;color:#fff}:root[data-theme="night"] .fcard.due .fh b{color:#fff}:root[data-theme="night"] .fcard.due .fint{background:#fff;border-color:#fff}:root[data-theme="night"] .fcard.due .fint i{background:#000}:root[data-theme="night"] .fcard.due button{background:#fff;color:#E10D0D}:root[data-theme="night"] .fcard.due button small{color:#E10D0D}
+.fuel2{padding-top:8px}.fcard{padding:8px 12px 10px;gap:6px}
+
+/* rodapé limpo: estado do GPS e dois botões; o resto vai para o menu "Mais" */
+.foot{display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;padding:6px 10px 7px;border-top:1.5px solid var(--line);font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.foot .tools{flex-wrap:nowrap;gap:6px}.foot .tools button{border:1.5px solid var(--ink);padding:7px 12px;font-family:var(--fd);font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:var(--bg)}
+.foot .tools #btnMenu{background:var(--ink);color:var(--bg)}
+.menu-hd{background:#000;color:#fff;padding:calc(16px + env(safe-area-inset-top)) 16px 12px}.menu-hd b{display:block;font-family:var(--fd);font-weight:900;font-size:2rem;line-height:.9;text-transform:uppercase}.menu-hd span{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:#bbb}
+.menu{padding:10px 14px}
+.menu button{display:block;width:100%;text-align:left;border:2px solid var(--ink);background:var(--bg);color:var(--ink);padding:12px 14px;margin:0 0 8px}
+.menu button b{display:block;font-family:var(--fd);font-weight:800;font-size:1.3rem;text-transform:uppercase;line-height:1}.menu button span{display:block;font-size:.8rem;color:var(--muted);margin-top:3px}
+.menu button.danger{border-color:#E10D0D;color:#E10D0D}.menu button.danger b{color:#E10D0D}
+.menu button.danger.armed{background:#E10D0D;color:#fff}.menu button.danger.armed b,.menu button.danger.armed span{color:#fff}
+.menu button.dev{display:none}body.dev .menu button.dev{display:block}
+.menu button.on{background:#FFFF00;color:#000;border-color:#000}.menu button.on b{color:#000}

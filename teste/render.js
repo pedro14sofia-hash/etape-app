@@ -248,6 +248,8 @@ export function createRenderer(canvas, overlay) {
       ctx.save(); ctx.translate(W / 2, H * view.anchorY); ctx.rotate(view.rot);
       const size = s / 2 ** sat.zoom + 0.6;
       for (const [x, y] of tiles) { const im = sat.tile(x, y); if (!im) continue; const m = sat.tileMerc(x, y); ctx.drawImage(im, (m.mx - view.cx) * s, (m.my - view.cy) * s, size, size); }
+      // camada de detalhe (z16, 600 m do traçado) por cima quando o zoom pede
+      for (const zd of sat.detailLevels()) { if (view.z < zd + 0.3) continue; const sz = s / 2 ** zd + 0.6; const tl = sat.tilesFor(box, zd); if (tl.length > 600) continue; for (const [x, y] of tl) { if (!sat.hasDetailTile(x, y, zd)) continue; const im = sat.tile(x, y, zd); if (!im) continue; const m = sat.tileMerc(x, y, zd); ctx.drawImage(im, (m.mx - view.cx) * s, (m.my - view.cy) * s, sz, sz); } }
       ctx.restore(); return true;
     }
     // 3D: desenha o chão plano numa tela auxiliar e deforma faixa a faixa (perspectiva)
@@ -350,6 +352,8 @@ export function createRenderer(canvas, overlay) {
     // outras etapas
     ctx.lineWidth = 2; ctx.strokeStyle = th.other;
     if (!satOn) for (const k in S.routes.stages) if (k !== st.key) { path(S.routes.stages[k].track); ctx.stroke(); }
+    // caminho de volta à rota (recálculo): azul com casaco branco
+    if (S.reroute && !cam) { path(S.reroute.pts); ctx.lineWidth = 11; ctx.strokeStyle = '#FFFFFF'; ctx.stroke(); ctx.lineWidth = 7; ctx.strokeStyle = '#3969B7'; ctx.stroke(); }
     // fita da etapa: feito (tracejado) e restante (amarela com casaco)
     const ci = S.proj.idx || 0;
     if (cam) { const rem = [pointAt(st, S.proj.dist || 0)].concat(st.pts.slice(ci + (st.cum[ci] < (S.proj.dist || 0) ? 1 : 0))); groundStrip(rem, 5.2, th.ribbonCasing); groundStrip(rem, 3.4, th.ribbon); }
@@ -387,7 +391,7 @@ export function createRenderer(canvas, overlay) {
   function drawDynamic(S) {
     const th = theme;
     // fora da rota: linha tracejada e seta da posição até o ponto mais próximo do traçado, com a distância
-    if (S.fix && S.pos && (S.off || (S.proj && S.proj.off > 60)) && S.proj.off < 5000 && !cam) {
+    if (S.fix && S.pos && !S.reroute && (S.off || (S.proj && S.proj.off > 60)) && S.proj.off < 5000 && !cam) {
       const pp = S.pos || S.fix, q0 = proj(pp.lat, pp.lon), tp = pointAt(S.stage, S.proj.dist || 0), q1 = proj(tp[0], tp[1]);
       ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E10D0D'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
       const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E10D0D'; ctx.fill(); ctx.restore();
@@ -428,10 +432,10 @@ export function createRenderer(canvas, overlay) {
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x, y + 5 * sz); ctx.arc(q[0], y + 16 * sz, 16 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 12 * sz); ctx.lineTo(x, y + 12 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
     ctx.fillStyle = '#000000'; ctx.font = '900 ' + Math.round(16 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 25 * sz); ctx.textAlign = 'left';
-    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(16 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    if (z >= 12 && sz > .5) label(c.name, q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(16 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
   // disco atrás do ícone (estilo Apple Maps): branco de dia, preto à noite; amarelo para as paradas da viagem
-  function maxZ() { return view.sat && sat.available() ? 17 : 19; }
+  function maxZ() { if (!(view.sat && sat.available())) return 19; const lv = sat.detailLevels(); return lv.length ? Math.min(19, lv[lv.length - 1] + 2) : 17; }
   let placed = [], zBaseCache = 13; function zBaseOf() { return zBaseCache; }
   function disc(x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme === THEMES.night ? '#FFFFFF' : '#000000'; ctx.stroke(); }
   function crowded(x, y, r) { for (const q of placed) if (Math.abs(q[0] - x) < r && Math.abs(q[1] - y) < r) return true; placed.push([x, y]); return false; }
@@ -447,7 +451,7 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
     if (crowded(q[0], q[1], base * 0.9)) return;
-    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
+    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n, q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {

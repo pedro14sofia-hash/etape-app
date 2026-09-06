@@ -15,7 +15,7 @@ const fmtGap = m => { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + '
 const fmtMinH = m => { m = Math.round(m); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
 const n1 = x => isFinite(x) ? (Math.round(x * 10) / 10).toFixed(1).replace('.', ',') : '–';
 const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 7l4 3"/>', direita: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>', reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>', retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>' };
-export const svgArrow = k => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${ARROW[k] || ARROW.reto}</svg>`;
+export const svgArrow = (k, dir) => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${k === 'retorno' && dir === 'esquerda' ? '<g transform="translate(24 0) scale(-1 1)">' + ARROW.retorno + '</g>' : (ARROW[k] || ARROW.reto)}</svg>`;
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
 
 export function bindGestures(canvas, R, onUserPan, onUserZoom, onUserRotate) {
@@ -85,7 +85,7 @@ export function panel(S) {
   const sfTxt = ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf);
   $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (sfTxt || (cp.ele ? cp.ele + ' m' : '')) : '';
   $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
-  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.txt.includes('retorno') ? 'retorno' : tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.txt; }
+  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.txt.includes('retorno') ? 'retorno' : tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.txt; }
   else { $('tcArrow').innerHTML = svgArrow('reto'); $('tcDist').textContent = fmtKm1(rem) + ' km'; $('tcSub').textContent = 'reto'; }
   // telemetria
   const L = S.live;
@@ -103,13 +103,20 @@ export function panel(S) {
   // abastecer
   const F = S.fuelStatus;
   if (F) {
-    const set = (id, v, plan, total) => { $(id + 'Bar').style.width = Math.min(100, total ? v / total * 100 : 0) + '%'; $(id + 'Mark').style.left = Math.min(100, total ? plan / total * 100 : 0) + '%'; };
-    set('fW', F.water, F.waterPlan, F.waterTotal); set('fC', F.carbs, F.carbsPlan, F.carbsTotal); set('fS', F.sodium, F.sodiumPlan, F.sodiumTotal);
-    $('fWv').innerHTML = n1(F.water / 1000) + '<small>de ' + n1(F.waterTotal / 1000) + ' L</small>'; $('fCv').innerHTML = n0(F.carbs) + '<small>de ' + n0(F.carbsTotal) + ' g</small>'; $('fSv').innerHTML = n1(F.sodium / 1000) + '<small>de ' + n1(F.sodiumTotal / 1000) + ' g</small>';
-    $('fNext').innerHTML = `<span>garrafa ≈ <b>${n1(F.bottles)}</b></span><span>beber em <b>${fmtMin(F.nextDrinkMin)}</b></span><span>comer em <b>${fmtMin(F.nextEatMin)}</b></span>`;
-    $('mWv').textContent = n1(F.water / 1000) + ' L'; $('mWn').textContent = fmtMin(F.nextDrinkMin); $('mCv').textContent = n0(F.carbs) + ' g'; $('mCn').textContent = fmtMin(F.nextEatMin);
-    $('mWBar').style.width = Math.min(100, F.waterTotal ? F.water / F.waterTotal * 100 : 0) + '%'; $('mWMark').style.left = Math.min(100, F.waterTotal ? F.waterPlan / F.waterTotal * 100 : 0) + '%';
-    $('mCBar').style.width = Math.min(100, F.carbsTotal ? F.carbs / F.carbsTotal * 100 : 0) + '%'; $('mCMark').style.left = Math.min(100, F.carbsTotal ? F.carbsPlan / F.carbsTotal * 100 : 0) + '%';
+    const P = S.fuelPlan || { drinkEveryMin: 12, eatEveryMin: 25, sipMl: 150, biteG: 30 };
+    const card = (idCard, idN, idBar, next, every, label) => {
+      const el = $(idCard); if (!el) return; const due = next <= 0;
+      $(idN).textContent = due ? 'AGORA' : 'em ' + fmtMin(next);
+      $(idBar).style.width = Math.round(Math.max(0, Math.min(1, 1 - next / every)) * 100) + '%';
+      el.classList.toggle('due', due); el.classList.toggle('soon', !due && next <= 3);
+    };
+    card('fcD', 'fDn', 'fDBar', F.nextDrinkMin, P.drinkEveryMin, 'beber'); card('fcE', 'fEn', 'fEBar', F.nextEatMin, P.eatEveryMin, 'comer');
+    card('mcD', 'mWn', 'mDBar', F.nextDrinkMin, P.drinkEveryMin, 'beber'); card('mcE', 'mCn', 'mEBar', F.nextEatMin, P.eatEveryMin, 'comer');
+    const tot = (idV, idBar, idMark, v, plan, total, fmt, unit) => { $(idV).innerHTML = fmt(v) + '<small> de ' + fmt(total) + ' ' + unit + '</small>'; $(idBar).style.width = Math.min(100, total ? v / total * 100 : 0) + '%'; $(idMark).style.left = Math.min(100, total ? plan / total * 100 : 0) + '%'; };
+    tot('fWv', 'fWBar', 'fWMark', F.water / 1000, F.waterPlan / 1000, F.waterTotal / 1000, n1, 'L'); tot('fCv', 'fCBar', 'fCMark', F.carbs, F.carbsPlan, F.carbsTotal, n0, 'g');
+    const behind = F.water < F.waterPlan * 0.8 && F.waterPlan > 300;
+    $('fNext').innerHTML = 'garrafas ≈ <b>' + n1(F.bottles) + '</b>' + (S.waterAhead ? ' · fonte a <b>' + Math.round(S.waterAhead) + ' m</b>' : '') + (behind ? ' · <b class="late">água atrasada</b>' : '');
+    const bd = $('fDrink'), be = $('fEat'); if (bd) bd.innerHTML = 'Bebi<small>' + Math.round(P.sipMl) + ' ml</small>'; if (be) be.innerHTML = 'Comi<small>' + Math.round(P.biteG) + ' g</small>';
   }
   // perfil
   if (S.tab === 'prof') {
@@ -122,7 +129,7 @@ export function panel(S) {
   // écart estilo TV: diferença para o plano do guia (à frente em verde, atrás em vermelho)
   const ec = S.ecart, eb = $('ecart');
   if (eb) {
-    if (ec && ec.now != null && sess.state !== 'idle') { const g = ec.now; eb.hidden = false; eb.className = 'ecart ' + (g > 2 ? 'ec-late' : g < -2 ? 'ec-ahead' : ''); eb.innerHTML = '<span>écart</span><b>' + (g > 0 ? '+' : g < 0 ? '−' : '') + fmtGap(Math.abs(g)) + '</b>'; }
+    if (false && ec && ec.now != null && sess.state !== 'idle') { const g = ec.now; eb.hidden = false; eb.className = 'ecart ' + (g > 2 ? 'ec-late' : g < -2 ? 'ec-ahead' : ''); eb.innerHTML = '<span>écart</span><b>' + (g > 0 ? '+' : g < 0 ? '−' : '') + fmtGap(Math.abs(g)) + '</b>'; }
     else eb.hidden = true;
   }
   const pl = $('passages');

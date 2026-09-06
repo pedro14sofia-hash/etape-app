@@ -13,22 +13,35 @@ export function available() { return !!index; }
 export function hasStage(key) { return !!(index && index.stages[key] && index.stages[key].length); }
 
 // tiles cobrindo a caixa [s,w,n,e] em lat/lon, com o zoom fixo do acervo
-export function tilesFor(box) {
-  const n = 2 ** Z, t = (lat, lon) => [(lon + 180) / 360 * n, (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n];
+export function tilesFor(box, z = Z) {
+  const n = 2 ** z, t = (lat, lon) => [(lon + 180) / 360 * n, (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n];
   const [x0, y0] = t(box[2], box[1]), [x1, y1] = t(box[0], box[3]); const out = [];
   for (let x = Math.floor(x0); x <= Math.floor(x1); x++) for (let y = Math.floor(y0); y <= Math.floor(y1); y++) out.push([x, y]);
   return out;
 }
-export function tile(x, y) {
-  const k = x + '/' + y; let e = cache.get(k);
+export function hasLevel(z) { return !!(index && index['z' + z]); }
+// tiles de detalhe existem só perto do traçado: conjunto por etapa para saber se um tile z16 está no acervo
+const detailSets = {};
+export function hasDetailTile(x, y, z) { if (!index || !index['z' + z]) return false; let ds = detailSets[z]; if (!ds) { ds = detailSets[z] = new Set(); for (const k in index['z' + z].stages) for (const [a, b] of index['z' + z].stages[k]) ds.add(a + '/' + b); } return ds.has(x + '/' + y); }
+// níveis de detalhe disponíveis (16, 17…) em ordem
+export function detailLevels() { return [16, 17, 18].filter(z => index && index['z' + z]); }
+// aquece o cache de memória com os tiles do trecho à frente (progressivo: decodifica antes de precisar)
+export function warmAhead(stage, dist, meters, zView) {
+  if (!index) return; const levels = [Z].concat(detailLevels().filter(z => zView >= z + 0.3));
+  const pts = []; for (let d = dist; d <= Math.min(stage.total, dist + meters); d += 120) { const i = stage.cum ? idxAt(stage, d) : 0; pts.push(stage.pts[i]); }
+  for (const z of levels) { const n = 2 ** z; for (const p of pts) { const x = Math.floor((p[1] + 180) / 360 * n), y = Math.floor((1 - Math.log(Math.tan(p[0] * Math.PI / 180) + 1 / Math.cos(p[0] * Math.PI / 180)) / Math.PI) / 2 * n); if (z === Z || hasDetailTile(x, y, z)) tile(x, y, z); } }
+}
+function idxAt(stage, d) { const c = stage.cum; let lo = 0, hi = c.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (c[m] < d) lo = m + 1; else hi = m; } return lo; }
+export function tile(x, y, z = Z) {
+  const k = z + '/' + x + '/' + y; let e = cache.get(k);
   if (e) { cache.delete(k); cache.set(k, e); return e.img.complete && e.img.naturalWidth ? e.img : null; }
   const img = new Image(); img.decoding = 'async'; img.onload = () => { if (onLoad) onLoad(); }; img.onerror = () => { e.bad = true; };
-  img.src = base + Z + '/' + x + '/' + y + '.jpg'; e = { img };
+  img.src = base + z + '/' + x + '/' + y + '.jpg'; e = { img };
   cache.set(k, e); if (cache.size > MAX) cache.delete(cache.keys().next().value);
   return null;
 }
 // canto noroeste do tile em Mercator normalizado [0..1]
-export function tileMerc(x, y) { const n = 2 ** Z; return { mx: x / n, my: y / n, size: 1 / n }; }
+export function tileMerc(x, y, z = Z) { const n = 2 ** z; return { mx: x / n, my: y / n, size: 1 / n }; }
 export const zoom = Z;
 // tiles da maquete (nível baixo cobrindo a caixa inteira da etapa): {z, list}
 export function dioTiles(key) { const d = index && index.dio; return d && d.stages[key] ? { z: d.z, list: d.stages[key] } : null; }
@@ -53,7 +66,8 @@ export function colorAt(lat, lon) {
 export async function prefetch(key, progress) {
   if (!index || !index.stages[key]) return false;
   const dio = index.dio && index.dio.stages[key] ? index.dio.stages[key].map(([x, y]) => [x, y, index.dio.z]) : [];
-  const list = index.stages[key].map(([x, y]) => [x, y, Z]).concat(dio); let done = 0;
+  const det = []; for (const z of [16, 17, 18]) if (index['z' + z] && index['z' + z].stages[key]) for (const [x, y] of index['z' + z].stages[key]) det.push([x, y, z]);
+  const list = index.stages[key].map(([x, y]) => [x, y, Z]).concat(dio, det); let done = 0;
   const c = 'caches' in window ? await caches.open('etape-sat') : null;
   for (let i = 0; i < list.length; i += 8) {
     await Promise.all(list.slice(i, i + 8).map(async ([x, y, z]) => {

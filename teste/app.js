@@ -18,7 +18,7 @@ import * as dem from './dem.js';
 import * as compass from './compass.js';
 import * as weather from './weather.js';
 import * as sensors from './sensors.js';
-let rider3d = null, diorama = null;   // módulos WebGL (three.js) carregados sob demanda
+let rider3d = null, diorama = null, router = null;   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -29,7 +29,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide, onFix };
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
@@ -58,8 +58,14 @@ export function init() {
   $('btnSos').onclick = showSos; $('btnMark').onclick = () => markPlace(); $('sosMark').onclick = () => { markPlace(); $('dlgSos').close(); };
   $('btnSens').onclick = async () => { if (sensors.connected()) { sensors.disconnect(); $('btnSens').classList.remove('on'); S.sensors = null; refresh(); return; } if (!sensors.supported()) { voice.banner('Bluetooth indisponível neste navegador', 2); return; } try { const nm = await sensors.connect(); $('btnSens').classList.add('on'); voice.banner('Sensor ligado', 3, nm || ''); } catch (e) { voice.banner('Sem sensor', 2, (e && e.message || '').slice(0, 60)); } };
   sensors.onData(d => { S.sensors = d; refresh(); });
-  $('btnSession').onclick = toggleSession; $('btnFinish').onclick = finishStage; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
-  $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => showReport(report.list()[S.stage.key]);
+  $('btnSession').onclick = toggleSession; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
+  if (/[?&](debug|sim)=/.test(location.search)) document.body.classList.add('dev');
+  setTimeout(() => { import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
+  $('btnMenu').onclick = () => { $('menuSt').textContent = (S.stage.name || '') + ' · ' + session.label(S.session.state).toLowerCase(); $('dlgMenu').showModal(); };
+  // encerrar em dois toques: o primeiro arma por 5 s, o segundo encerra
+  let finishArm = 0; const fb = $('btnFinish');
+  fb.onclick = () => { if (S.session.state === 'idle') { voice.banner('Nenhuma etapa em andamento', 3); return; } if (Date.now() - finishArm < 5000) { finishArm = 0; fb.classList.remove('armed'); $('dlgMenu').close(); finishStage(true); return; } finishArm = Date.now(); fb.classList.add('armed'); fb.querySelector('b').textContent = 'Toque de novo para encerrar'; setTimeout(() => { fb.classList.remove('armed'); fb.querySelector('b').textContent = 'Encerrar etapa'; }, 5000); };
+  $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => { $('dlgMenu').close(); showReport(report.list()[S.stage.key]); };
   document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
   $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
@@ -113,6 +119,7 @@ export function init() {
   if (q.get('theme')) { S.prefs.theme = q.get('theme'); applyTheme(); }
   if (q.get('cam') === 'tp') S.prefs.cam = 'tp'; else if (!S.prefs.cam || S.prefs.cam === 'fp') S.prefs.cam = '2d';   // 2D por padrão; 3ª pessoa opcional; 1ª pessoa removida
   if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
+  if (q.get('z')) { S.userZoomAt = Date.now() + 1e9; setTimeout(() => R.setView(null, null, +q.get('z')), 600); }   // zoom fixo para testes e gravações
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
   if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
@@ -202,11 +209,14 @@ function onFix(raw) {
     if (S.prefs.theme === 'auto') applyTheme();
   }
   for (const ev of events) handleEvent(ev);
+  rerouteTick(fix, now, events);
   S.next = guide.nextCue(S);
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
   // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
   const onRoad = (S.proj.off || 0) <= 30 && !S.off, v0 = fix.v || 0;
+  // satélite progressivo: aquece os tiles dos próximos 800 m no nível em uso
+  if (S.prefs.sat && onRoad) { try { sat.warmAhead(S.stage, S.proj.dist, 800, R.view.z); } catch (e) { } }
   if (S.gpsMsg === 'GPS perdido · estimando') { S.gpsMsg = 'GPS ligado'; }
   const T = { lat: fix.lat, lon: fix.lon, v: v0, head: (fix.head || 0) * Math.PI / 180, dist: S.proj.dist || 0, on: onRoad, t: Date.now() };
   const prev = S.viewTarget; S.viewTarget = T;
@@ -215,6 +225,38 @@ function onFix(raw) {
   // zoom automático pela velocidade (2D): parado 19 · normal 18,2 · descida rápida 17,4; desliza no loop, e só sem zoom manual recente
   if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4); else S.zoomTarget = null;
   R.invalidate(); refresh();
+}
+// Recálculo de rota (estilo Waze): fora da rota confirmada, entre 60 m e 3 km do traçado, com o grafo carregado, calcula
+// o caminho da posição até um ponto do traçado 300 m à frente de onde saiu; refaz a cada 30 s ou se a posição mudou
+// 120 m; anuncia as curvas do caminho de volta; some ao voltar à fita amarela.
+function rerouteTick(fix, now, events) {
+  const off = S.proj.off || 0; const mine = [];
+  if (!S.off || off < 60 || off > 3000 || !router || !router.available() || S.session.state !== 'running') { if (S.reroute && !S.off) { S.reroute = null; R.invalidate(); } return; }
+  const rr = S.reroute;
+  const stale = !rr || now - rr.at > 30000 || haversine(rr.from[0], rr.from[1], fix.lat, fix.lon) > 120;
+  if (stale) {
+    // alvo: 300 m à frente do ponto do traçado mais próximo de verdade (busca global; S.proj pode estar velho fora da rota)
+    const g = track.project(S.stage, fix.lat, fix.lon, -1); const tgtD = Math.min(S.stage.total, Math.max(g.dist, S.proj.dist || 0) + 300), tgt = track.pointAt(S.stage, tgtD);
+    let res = null; try { res = router.route(fix.lat, fix.lon, tgt[0], tgt[1]); } catch (e) { res = null; }
+    if (res && res.pts.length > 1) {
+      const cum = [0]; for (let i = 1; i < res.pts.length; i++) cum.push(cum[i - 1] + haversine(res.pts[i - 1][0], res.pts[i - 1][1], res.pts[i][0], res.pts[i][1]));
+      const pseudo = { pts: res.pts, cum, total: cum[cum.length - 1] };
+      const turns = track.detectTurns(pseudo, 45, 25, 40);
+      const first = !rr;
+      S.reroute = { pts: res.pts, cum, total: pseudo.total, turns, at: now, from: [fix.lat, fix.lon], tgtD, proj: { idx: 0, dist: 0, off: 0 } };
+      if (first) { voice.clearBanner(); mine.push({ kind: 'reroute', level: 2, text: 'Recalculando', sub: (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(pseudo.total) + ' m') + ' até voltar ao traçado', speak: 'Recalculando. ' + (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' quilômetros' : Math.round(pseudo.total / 50) * 50 + ' metros') + ' até a rota.' }); }
+      R.invalidate();
+    } else if (rr) { S.reroute = null; R.invalidate(); }
+  }
+  // curvas do caminho de volta
+  const r2 = S.reroute; if (!r2) return;
+  const pr = track.project(r2, fix.lat, fix.lon, r2.proj.idx); if (pr.off < 80) r2.proj = pr;
+  for (const t of r2.turns) {
+    const ahead = t.dist - r2.proj.dist;
+    if (ahead > 0 && ahead < 320 && !t.a300) { t.a300 = true; mine.push({ kind: 'turn300', level: 2, text: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' · 300 m', sub: 'volta à rota', speak: 'Em 300 metros, ' + t.txt + '.', turn: t }); }
+    if (ahead > 0 && ahead < 60 && !t.a50) { t.a50 = true; mine.push({ kind: 'turn50', level: 1, text: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' agora', sub: 'volta à rota', speak: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' agora.', turn: t, hold: 8000 }); }
+  }
+  for (const ev of mine) handleEvent(ev);
 }
 function handleEvent(ev) {
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
@@ -234,12 +276,13 @@ function handleEvent(ev) {
   if (ev.kind === 'toilets') ev.right = '<span class="pill bleu">' + Math.round((ev.m || 0) / 50) * 50 + ' m</span>';
   if (ev.kind === 'bikeshop') ev.right = '<span class="pill vert">' + (ev.m >= 1000 ? (ev.m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(ev.m / 50) * 50 + ' m') + '</span>';
   if (ev.kind === 'rec') ev.right = '<span class="pill rouge">● REC</span>';
+  if (ev.kind === 'reroute') ev.right = '<span class="pill bleu">↻</span>';
   if (ev.kind === 'offRoute' && ev.off > 5000 && !/\/teste\//.test(location.pathname)) ev.right = '<a class="mini-btn" href="../teste/" target="_top">Rota de teste</a>';
   else if (ev.kind === 'offRoute' && ev.rel != null) ev.right = '<span class="arr"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(ev.rel) + 'deg)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34V8M10 18l10-10 10 10"/></svg></span><span class="pill">' + Math.round(ev.off) + ' m</span>';
   if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
   if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
   if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
-  if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.txt.includes('retorno') ? 'retorno' : ev.turn.dir) + '</span>';
+  if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.txt.includes('retorno') ? 'retorno' : ev.turn.dir, ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
   voice.announce(ev);
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
@@ -302,7 +345,7 @@ function glide(ts) {
 }
 const PERF = { n: 0, ms: 0, last: 0, el: null };
 function perfHud(ts, ms) {
-  if (!/[?&]debug=1/.test(location.search)) return;
+  if (!/[?&]hud=1/.test(location.search)) return;   // medidor de desempenho só com ?hud=1
   PERF.n++; PERF.ms += ms;
   if (ts - PERF.last < 500) return; PERF.last = ts;
   if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFFF00;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
@@ -319,7 +362,7 @@ function loop(ts) {
   const f = moving ? Math.floor(ts / (60000 / Math.min(95, 60 + v * 3) / 4)) % 4 : 0;
   if (rider3d && rider3d.isReady()) { if (R.riderMoved()) R.drawRider(0); rider3d.render(R.riderInfo(), moving ? v : 0, ts); }
   else if (f !== riderFrame || R.riderMoved()) { riderFrame = f; R.drawRider(f); }
-  } catch (e) { if (!loop._err) { loop._err = 1; console.error(e); } }   // um erro num quadro não pode matar o loop
+  } catch (e) { if (window.__errs) window.__errs.push('loop: ' + (e && e.message)); if (!loop._err) { loop._err = 1; console.error(e); } }   // um erro num quadro não pode matar o loop
   requestAnimationFrame(loop);
 }
 
