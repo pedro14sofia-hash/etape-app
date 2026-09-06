@@ -312,3 +312,14 @@ body.full #ctl #zin,body.full #ctl #zout{display:none}
 
 /* noite: números sobre fundo amarelo ficam pretos (ETA, pódio, destaque do relatório) */
 :root[data-theme="night"] .fixed .eta b,:root[data-theme="night"] .podium .s1 b,:root[data-theme="night"] .rep .grid div.hi b,:root[data-theme="night"] #ctx.climb b,:root[data-theme="night"] .fixed .eta i{color:#000}
+
+/* controles escondidos: toque no mapa mostra por 8 s; ao arrastar ficam até recentralizar */
+#ctl.hide{display:none}
+/* abas: ícone + texto; no resumo vão para o rodapé da tela como barra de ícones */
+.tabs div{display:flex;align-items:center;justify-content:center;gap:6px}
+.tabs div svg{width:20px;height:20px;flex:none}
+#panel{display:flex;flex-direction:column}
+#panel.resumo .tabs{order:99;border-top:2px solid #FFFF00;padding-bottom:env(safe-area-inset-bottom)}
+#panel.resumo .tabs div{flex-direction:column;gap:2px;padding:6px 0 5px;font-size:.72rem;letter-spacing:.12em}
+#panel.resumo .tabs div svg{width:28px;height:28px}
+#panel.resumo .tabs div.on{background:#FFFF00;color:#000}

@@ -39,14 +39,21 @@ export function init() {
   });
   const sel = $('stageSel'); for (const k in S.routes.stages) { const o = document.createElement('option'); o.value = k; o.textContent = code(k); sel.appendChild(o); }
   sel.onchange = () => selectStage(sel.value);
-  ui.bindGestures($('map'), R, () => { if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); if (R.view.mode === '2d') R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); }, () => { S.rotLock = true; $('btnFollow').classList.add('pulse'); });
+  ui.bindGestures($('map'), R, () => { S.showCtl(0); if (S.follow) { S.follow = false; $('btnFollow').classList.remove('on'); if (R.view.mode === '2d') R.setView(null, null, null, 0); } }, () => { S.userZoomAt = Date.now(); }, () => { S.rotLock = true; $('btnFollow').classList.add('pulse'); });
   // zoom manual desliga o zoom automático por 45 s
   const zoomBtn = dz => { S.userZoomAt = Date.now(); const { W, H } = R.size(); ui.zoomAnim(R, R.view.z + dz, W / 2, H * R.view.anchorY); };
   $('zin').onclick = () => zoomBtn(0.7); $('zout').onclick = () => zoomBtn(-0.7);
   $('map').addEventListener('wheel', () => { S.userZoomAt = Date.now(); }); $('map').addEventListener('pointerdown', e => { if (e.isPrimary === false) S.userZoomAt = Date.now(); });
-  $('btnFollow').onclick = () => { S.follow = true; S.rotLock = false; $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
+  $('btnFollow').onclick = () => { S.follow = true; S.rotLock = false; S.hideCtl(); $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
+  // controles escondidos por padrão: um toque no mapa mostra por 8 s; arrastar mostra até recentralizar
+  const ctl = $('ctl'); ctl.classList.add('hide'); let ctlTimer = 0;
+  const showCtl = (ms) => { ctl.classList.remove('hide'); clearTimeout(ctlTimer); if (ms) ctlTimer = setTimeout(() => { if (S.follow) ctl.classList.add('hide'); }, ms); };
+  const hideCtl = () => { clearTimeout(ctlTimer); ctlTimer = setTimeout(() => { if (S.follow) ctl.classList.add('hide'); }, 1500); };
+  S.showCtl = showCtl; S.hideCtl = hideCtl;
+  let tapAt = null; $('map').addEventListener('pointerdown', e => { tapAt = [e.clientX, e.clientY, Date.now()]; }); $('map').addEventListener('pointerup', e => { if (tapAt && Math.hypot(e.clientX - tapAt[0], e.clientY - tapAt[1]) < 12 && Date.now() - tapAt[2] < 400) { if (ctl.classList.contains('hide')) showCtl(8000); else if (S.follow) ctl.classList.add('hide'); } tapAt = null; });
+  ctl.addEventListener('pointerdown', () => showCtl(8000));
   $('btnCam').onclick = () => setCam(S.prefs.cam === 'tp' ? '2d' : 'tp');
   $('btnSos').onclick = showSos; $('btnMark').onclick = () => markPlace(); $('sosMark').onclick = () => { markPlace(); $('dlgSos').close(); };
   $('btnSens').onclick = async () => { if (sensors.connected()) { sensors.disconnect(); $('btnSens').classList.remove('on'); S.sensors = null; refresh(); return; } if (!sensors.supported()) { voice.banner('Bluetooth indisponível neste navegador', 2); return; } try { const nm = await sensors.connect(); $('btnSens').classList.add('on'); voice.banner('Sensor ligado', 3, nm || ''); } catch (e) { voice.banner('Sem sensor', 2, (e && e.message || '').slice(0, 60)); } };
