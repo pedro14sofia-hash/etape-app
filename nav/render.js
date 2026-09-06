@@ -23,7 +23,6 @@ const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
 const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000000', 'ch'], castle: ['#000000', 'ca'], viewpoint: ['#1DAE50', 'vp'], picnic: ['#1DAE50', 'pi'], water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
-const CAMS = { tp: { yh: 0.30, yr: 0.76, dc: 70, hc: 34, far: 2600, rider: true, riderScale: 1.35 }, fp: { yh: 0.40, yr: 1.06, dc: 22, hc: 7.5, far: 1800, rider: false, riderScale: 1 } };
 
 // bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
 export const FLAG = { start: '#FFFFFF', cat: '#E10D0D', sprint: '#1DAE50', feed: '#8A8F96', sight: '#1DAE50', flamme: '#E10D0D', finish: '#FFFFFF' };
@@ -69,37 +68,16 @@ export function createRenderer(canvas, overlay) {
   sat.setOnLoad(() => { dirty = true; dirtyBase = true; }); dem.setOnLoad(() => { dirty = true; dirtyBase = true; });   // tiles e ícones chegam depois: a base precisa ser refeita
   function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
   const scale = () => 256 * Math.pow(2, view.z);
-  const is3d = () => view.mode !== '2d';
   // ---------- projeções ----------
   // 2D: rotação em torno da âncora. 3D: câmera atrás/acima do ciclista (âncora), perspectiva pinhole sobre o plano do chão.
-  let cam = null;   // parâmetros derivados por quadro: F (focal px), mpp, yh, yr
-  function setupCam() {
-    if (!is3d()) { cam = null; return; }
-    const c = CAMS[view.mode], lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI);
-    const mpp = metersPerPixel(lat, view.z);   // metros por px na projeção plana base (zoom vira "densidade de detalhe")
-    const Hv = view.hv > 120 && view.hv < H ? view.hv : H;   // área visível do mapa (o painel cobre a parte de baixo do canvas)
-    const yh = c.yh * Hv, yr = c.yr * Hv, F = (yr - yh) * c.dc / c.hc;
-    cam = { ...c, yh, yr, F, mpp, sr: F / c.dc };  // sr: px por metro na linha do ciclista
-    // terreno: altitude do ciclista como referência (0); só quando o tile já está no aparelho
-    const clat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI), clon = view.cx * 360 - 180;
-    cam.z0 = dem.available() ? dem.elevation(clat, clon) : null; cam.terrain = cam.z0 != null;
-    if (dem.available()) dem.warm(clat, clon, c.far);
-  }
+  const cam = null;   // o 3D em canvas saiu na F5: a vista 3ª pessoa vive em terrain3d.js (WebGL); `cam` fica nulo para os ramos antigos
   function flatPx(lat, lon) { // coordenadas planas, rumo para cima, âncora = ciclista (ou centro em 2D)
     const s = scale(), px = (mercX(lon) - view.cx) * s, py = (mercY(lat) - view.cy) * s;
     const c = Math.cos(view.rot), sn = Math.sin(view.rot);
     return [px * c - py * sn, px * sn + py * c];
   }
   // devolve [x, y, escala(px/m), ok]
-  function proj(lat, lon) {
-    const f = flatPx(lat, lon);
-    if (!cam) return [f[0] + W / 2, f[1] + H * view.anchorY, 1 / metersPerPixel(lat, view.z), true];
-    const right = f[0] * cam.mpp, ahead = -f[1] * cam.mpp, D = cam.dc + ahead;
-    let up = 0; if (cam.terrain) { const e = dem.elevation(lat, lon); if (e != null) up = e - cam.z0; }
-    if (D < 1.5) return [W / 2 + right * cam.F / 1.5, cam.yh + cam.F * (cam.hc - up) / 1.5, cam.F / 1.5, false];
-    const qx = W / 2 + right * cam.F / D, qy = cam.yh + cam.F * (cam.hc - up) / D;
-    return [qx, qy, cam.F / D, D <= cam.far * 1.4 && !occluded(qx, qy, D)];
-  }
+  function proj(lat, lon) { const f = flatPx(lat, lon); return [f[0] + W / 2, f[1] + H * view.anchorY, 1 / metersPerPixel(lat, view.z), true]; }
   function toPx(lat, lon) { const p = proj(lat, lon); return [p[0], p[1]]; }
   function fromPx(x, y) {
     // 3D: inverte a câmera pinhole sobre o plano do chão (sem relevo): D = F·hc/(y − yh); acima do horizonte, fica no limite
@@ -118,89 +96,8 @@ export function createRenderer(canvas, overlay) {
     return [lat(view.cy + r), lon(view.cx - r), lat(view.cy - r), lon(view.cx + r)];
   }
   // caminho projetado; em 3D os segmentos são recortados no plano próximo (não somem ao passar atrás da câmera)
-  // inverso: (right, ahead) em metros → lat/lon
-  function raToLL(right, ahead) {
-    const s = scale(), px = right / cam.mpp, py = -ahead / cam.mpp, c = Math.cos(-view.rot), sn = Math.sin(-view.rot);
-    const mx = view.cx + (px * c - py * sn) / s, my = view.cy + (px * sn + py * c) / s;
-    return [Math.atan(Math.sinh(Math.PI * (1 - 2 * my))) * 180 / Math.PI, mx * 360 - 180];
-  }
-  // ponto (x,y) à distância D fica escondido se está abaixo da crista do terreno mais próximo naquela coluna
-  function occluded(x, y, D) {
-    if (!cam || !cam.ridge) return false;
-    let i = 0; while (i < cam.rows && cam.Dof(i) < D) i++;
-    const xb = Math.max(0, Math.min(cam.BINS - 1, Math.floor(x / W * cam.BINS)));
-    return y > cam.ridge[i][xb] + 3;
-  }
-  function projRA(right, ahead) {
-    const D = Math.max(1.6, cam.dc + ahead); let up = 0;
-    if (cam.terrain) { const ll = raToLL(right, ahead); const e = dem.elevation(ll[0], ll[1]); if (e != null) up = e - cam.z0; }
-    return [W / 2 + right * cam.F / D, cam.yh + cam.F * (cam.hc - up) / D];
-  }
-  // malha do terreno em 3D: leque de células (linhas por distância, colunas pela largura visível), pintadas de longe para perto
-  function drawTerrain(satOn) {
-    const c = cam, rows = 34, cols = 22, light = [-0.45, 0.35, 0.82];
-    const Dof = i => c.dc * 0.35 * Math.pow(c.far / (c.dc * 0.35), i / rows);           // distâncias geométricas
-    const half = D => (W / 2) * D / c.F * 1.15;                                          // meia largura visível (m)
-    const P = new Array(rows + 1);
-    for (let i = 0; i <= rows; i++) {
-      const D = Dof(i), ahead = D - c.dc, hw = half(D); P[i] = new Array(cols + 1);
-      for (let j = 0; j <= cols; j++) {
-        const right = -hw + 2 * hw * j / cols, ll = raToLL(right, ahead); let e = dem.elevation(ll[0], ll[1]); if (e == null) e = c.z0;
-        const up = e - c.z0; P[i][j] = { x: W / 2 + right * c.F / D, y: c.yh + c.F * (c.hc - up) / D, e, ll, D, right, ahead };
-      }
-    }
-    // cristas: para cada linha i, o menor y (mais alto na tela) do terreno mais próximo que ela, por faixa de x
-    const BINS = 96, ridge = new Array(rows + 1); ridge[0] = new Float32Array(BINS).fill(1e9);
-    for (let i = 1; i <= rows; i++) {
-      const r = new Float32Array(ridge[i - 1]);
-      for (let j = 0; j < cols; j++) {
-        const a = P[i - 1][j], b = P[i - 1][j + 1], d = P[i][j + 1], e2 = P[i][j];
-        const x0 = Math.max(0, Math.min(BINS - 1, Math.floor(Math.min(a.x, b.x, d.x, e2.x) / W * BINS))), x1 = Math.max(0, Math.min(BINS - 1, Math.floor(Math.max(a.x, b.x, d.x, e2.x) / W * BINS)));
-        const ymin = Math.min(a.y, b.y, d.y, e2.y);
-        for (let xb = x0; xb <= x1; xb++) if (ymin < r[xb]) r[xb] = ymin;
-      }
-      ridge[i] = r;
-    }
-    cam.ridge = ridge; cam.Dof = Dof; cam.BINS = BINS; cam.rows = rows;
-    for (let i = rows - 1; i >= 0; i--) for (let j = 0; j < cols; j++) {
-      const a = P[i][j], b = P[i][j + 1], d = P[i + 1][j + 1], e2 = P[i + 1][j];
-      // normal aproximada (right, ahead, up) → sombreado
-      const dx = (b.e - a.e) / Math.max(1, b.right - a.right), dy = (e2.e - a.e) / Math.max(1, e2.ahead - a.ahead);
-      let nx = -dx, ny = -dy, nz = 1; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
-      const sh = Math.max(0.35, Math.min(1.15, 0.55 + 0.6 * (nx * light[0] + ny * light[1] + nz * light[2])));
-      let r, g, bl;
-      const col = satOn ? sat.colorAt((a.ll[0] + d.ll[0]) / 2, (a.ll[1] + d.ll[1]) / 2) : null;
-      if (col) { r = col[0] * sh; g = col[1] * sh; bl = col[2] * sh; }
-      else { const t = Math.max(0, Math.min(1, (a.e - 400) / 1300)); const base = theme === THEMES.night ? [46, 52, 44] : [190 - 40 * t, 200 - 70 * t, 150 - 40 * t]; r = base[0] * sh; g = base[1] * sh; bl = base[2] * sh; }
-      const fog = Math.min(1, Math.max(0, (a.D - c.far * 0.55) / (c.far * 0.5))), fc = theme === THEMES.night ? [26, 28, 33] : [235, 232, 222];
-      r = r + (fc[0] - r) * fog; g = g + (fc[1] - g) * fog; bl = bl + (fc[2] - bl) * fog;
-      ctx.fillStyle = 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (bl | 0) + ')';
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(d.x, d.y); ctx.lineTo(e2.x, e2.y); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6; ctx.stroke();   // fecha as frestas entre células
-    }
-  }
-  const path = pts => {
-    ctx.beginPath();
-    if (!cam) { for (let i = 0; i < pts.length; i++) { const q = proj(pts[i][0], pts[i][1]); if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); } return; }
-    const NEAR = 1.6; let pen = false, prev = null;
-    for (let i = 0; i < pts.length; i++) {
-      const f = flatPx(pts[i][0], pts[i][1]); const cur = [f[0] * cam.mpp, -f[1] * cam.mpp]; const D = cam.dc + cur[1];
-      if (prev) {
-        const Dp = cam.dc + prev[1];
-        if (Dp < NEAR && D < NEAR) { pen = false; }
-        else {
-          let a = prev, b = cur;
-          if (Dp < NEAR) { const t = (NEAR - Dp) / (D - Dp); a = [prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t]; pen = false; }
-          if (D < NEAR) { const t = (NEAR - Dp) / (D - Dp); b = [prev[0] + (cur[0] - prev[0]) * t, prev[1] + (cur[1] - prev[1]) * t]; }
-          const qa = projRA(a[0], a[1]), qb = projRA(b[0], b[1]);
-          const hid = cam.terrain && !S3.noOcclude && (occluded(qa[0], qa[1], cam.dc + a[1]) || occluded(qb[0], qb[1], cam.dc + b[1]));
-          if (hid) { pen = false; }
-          else { if (!pen) ctx.moveTo(qa[0], qa[1]); ctx.lineTo(qb[0], qb[1]); pen = D >= NEAR; }
-        }
-      }
-      prev = cur;
-    }
-  };
+  const path = pts => { ctx.beginPath(); for (let i = 0; i < pts.length; i++) { const q = proj(pts[i][0], pts[i][1]); if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); } };
+;
   function clipFlat(pts) {
     const NEAR = 1.6, out = []; let cur = [], prev = null;
     for (const p of pts) {
@@ -282,7 +179,6 @@ export function createRenderer(canvas, overlay) {
     if (!dirty) return;
     if (!W || !H) { if (canvas.clientWidth && canvas.clientHeight) resize(); else return; }   // canvas sem tamanho (iframe ainda oculto): espera
     dirty = false;
-    setupCam();
     if (cam) { drawStatic(S); drawDynamic(S); return; }
     ensureBase(S);
     ctx.fillStyle = theme.map; ctx.fillRect(0, 0, W, H);
@@ -335,9 +231,7 @@ export function createRenderer(canvas, overlay) {
     if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let satOn = false;
-    if (cam && cam.terrain) { drawSkyFull(); drawTerrain(view.sat && sat.available()); satOn = view.sat && sat.available(); }
-    else satOn = drawSat(box);
-    if (cam && !cam.terrain) { ctx.save(); ctx.beginPath(); ctx.rect(0, cam.yh, W, H - cam.yh); ctx.clip(); }
+    satOn = drawSat(box);
     if (!satOn && z >= 10.5) for (const p of M.polys) if (inter(p.b, box)) { path(p.p); ctx.closePath(); ctx.fillStyle = p.t === 'wood' ? th.forest : th.res; ctx.fill(); }
     for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { if (satOn) continue; ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.globalAlpha = satOn ? .7 : 1; ctx.stroke(); ctx.globalAlpha = 1; } }
     if (z >= 11 && !satOn) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
@@ -361,7 +255,6 @@ export function createRenderer(canvas, overlay) {
     else { ctx.lineWidth = 10; ctx.strokeStyle = th.ribbonCasing; path(st.pts.slice(ci)); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = th.ribbon; ctx.stroke(); }
     for (const sf of st.surfaces) if (sf.kind !== 'asfalto' && sf.to > S.proj.dist) { path(sliceByDist(st, Math.max(sf.from, S.proj.dist), sf.to)); ctx.strokeStyle = th.gravel; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
     ctx.lineWidth = 3; ctx.strokeStyle = th.done; ctx.setLineDash([7, 6]); path(st.pts.slice(0, ci + 1)); ctx.stroke(); ctx.setLineDash([]);
-    if (cam && !cam.terrain) { ctx.restore(); drawSky(); }
     // curvas
     if (zBase >= 14) for (const t of st.turns) { if (t.dist < S.proj.dist - 200) continue; const q = proj(st.pts[t.i][0], st.pts[t.i][1]); if (!q[3]) continue; const r = 7 * sizeAt(q); ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 7); ctx.fillStyle = th.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = th.casing; ctx.stroke(); }
     // rótulos de estradas
@@ -417,18 +310,6 @@ export function createRenderer(canvas, overlay) {
       label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx, H - S.scaleBottom - 12, 'left', '600 11px Barlow, sans-serif');
     }
   }
-  function drawSkyFull() {
-    const g = ctx.createLinearGradient(0, 0, 0, H * 0.55); g.addColorStop(0, theme.sky0); g.addColorStop(1, theme.sky1);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  }
-  function drawSky() {
-    const c = cam, g = ctx.createLinearGradient(0, 0, 0, c.yh); g.addColorStop(0, theme.sky0); g.addColorStop(1, theme.sky1);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, c.yh);
-    // névoa de distância: esconde o corte do alcance
-    const f = ctx.createLinearGradient(0, c.yh, 0, c.yh + H * 0.10); f.addColorStop(0, theme.fog); f.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = f; ctx.fillRect(0, c.yh, W, H * 0.10);
-    ctx.fillStyle = theme.casing; ctx.globalAlpha = .35; ctx.fillRect(0, c.yh - 1, W, 1.5); ctx.globalAlpha = 1;
-  }
   function sliceByDist(st, a, b) { const out = []; for (let i = 0; i < st.pts.length; i++) if (st.cum[i] >= a && st.cum[i] <= b) out.push(st.pts[i]); return out.length > 1 ? out : []; }
   function borne(c, q, z) {
     const sz = sizeAt(q), w = 32 * sz, h = 36 * sz, x = q[0] - w / 2, y = q[1] - h;
@@ -454,7 +335,7 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
     if (crowded(q[0], q[1], base * 0.9)) return;
-    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n, q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
+    if (ready(im)) { const s2 = base * sz; if (im.png) { ctx.drawImage(im, q[0] - s2 * .55, q[1] - s2 * .6, s2 * 1.1, s2 * 1.1); } else { disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); } if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n, q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {
@@ -478,7 +359,7 @@ export function createRenderer(canvas, overlay) {
   return {
     view, resize, toPx, fromPx, invalidate() { dirty = true; dirtyBase = true; }, draw, drawRider, riderMoved() { return riderMoved; }, riderInfo() { return rider ? { ...rider, mode: cam ? (cam.rider ? 'tp' : 'fp') : '2d' } : null; }, setRiderExternal(v) { riderExternal = !!v; }, size() { return { W, H }; },
     setTheme(name) { theme = THEMES[name] || THEMES.day; dirty = true; dirtyBase = true; },
-    setMode(m) { view.mode = m; if (m !== '2d') view.anchorY = CAMS[m].yr; dirty = true; },
+    setMode(m) { view.mode = '2d'; dirty = true; },   // só 2D aqui; o 3D é o terrain3d.js
     setSat(on) { view.sat = !!on; if (view.z > maxZ()) view.z = maxZ(); dirty = true; dirtyBase = true; },
     maxZ,
     setView(cx, cy, z, rot) { if (cx != null) view.cx = cx; if (cy != null) view.cy = cy; if (z != null) view.z = Math.max(9, Math.min(maxZ(), z)); if (rot != null) view.rot = rot; dirty = true; lastViewChange = performance.now(); },

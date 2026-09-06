@@ -397,6 +397,7 @@ function loop(ts) {
     if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2, 'toque em 3ª para tentar de novo'); setCam('2d'); }
     else { if (ts - (loop._t3d || 0) >= 15.5) { loop._t3d = ts; const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); } requestAnimationFrame(loop); return; }   // 3D: no máximo 60 qps (a tela do S23 é 120 Hz)
   }
+  if (ts - (loop._t2d || 0) < 15.5) { requestAnimationFrame(loop); return; } loop._t2d = ts;   // 2D também no máximo 60 qps (tela de 120 Hz)
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
   const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();

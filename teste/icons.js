@@ -75,8 +75,15 @@ export const ICONS = {
 const cache = new Map(); let onLoad = null;
 export function setOnLoad(cb) { onLoad = cb; }
 // devolve um HTMLImageElement rasterizado (pronto ou não; ver .complete && .naturalWidth); size em px CSS
+// ícones de lugar em PNG, renderizados dos modelos 3D (icons3d.js, página icons3d.html?sheet=1): mesmo estilo nos dois modos
+const PNG = new Set(['water', 'bakery', 'shop', 'bike', 'pharmacy', 'hospital', 'pass', 'peak', 'toilets', 'cafe', 'church', 'castle', 'viewpoint', 'picnic', 'hotel']);
 export function icon(name, size = 32) {
   const key = name + '@' + size; if (cache.has(key)) return cache.get(key);
+  if (PNG.has(name)) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.round(size * dpr), img = new Image(px, px);
+    img.onload = () => { try { const cv = document.createElement('canvas'); cv.width = cv.height = px; cv.getContext('2d').drawImage(img, 0, 0, px, px); cv.complete = true; cv.naturalWidth = px; cv.png = true; cache.set(key, cv); } catch (e) { } if (onLoad) onLoad(); try { document.dispatchEvent(new Event('etape:icons')); } catch (e) { } };
+    img.src = 'icons2d/' + name + '.png'; img.png = true; cache.set(key, img); return img;
+  }
   const svg = ICONS[name]; if (!svg) return null;
   const dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.round(size * dpr);
   const img = new Image(px, px);

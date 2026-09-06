@@ -38,5 +38,18 @@ function render(canvas, obj, dist = 17, h = 7.5) {   // um só contexto WebGL: r
 for (const it of items) render(cell(I.LABEL[it.kind][0].toLowerCase()), I.make(it.kind, it.txt));
 for (const [k, t] of flags) { const g = new THREE.Group(); g.add(I.flag(k, t, 12)); render(cell('bandeira ' + k + (t ? ' ' + t : '')), g, 20, 8); }
 window.__lineup = { n: items.length + flags.length };
+// ?sheet=1: renderiza cada tipo em 256² transparente (vista de cima em três quartos, sem placa) para virar o ícone 2D
+if (/sheet=1/.test(location.search)) {
+  const R2 = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); R2.outputColorSpace = THREE.SRGBColorSpace; R2.setClearColor(0x000000, 0); R2.setPixelRatio(1); R2.setSize(256, 256, false);
+  const sheet = {}; const MAP2D = { water: 'water', bakery: 'bakery', shop: 'feed', bike: 'bike', pharmacy: 'pharmacy', hospital: 'hospital', pass: 'pass', peak: 'peak', toilets: 'toilets', cafe: 'bakery', church: 'church', castle: 'castle', viewpoint: 'viewpoint', picnic: 'picnic', hotel: 'hotel' };
+  for (const [name, kind] of Object.entries(MAP2D)) {
+    const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xFFFFFF, 0x8A8070, 1.1)); const sun = new THREE.DirectionalLight(0xFFF4E0, 1.5); sun.position.set(-20, 40, 20); sc.add(sun);
+    const obj = I.make(kind, '', { plate: false }); sc.add(obj);
+    const cam = new THREE.PerspectiveCamera(30, 1, 0.5, 100); cam.position.set(9, 15, 12); cam.lookAt(0, 2.4, 0);
+    R2.render(sc, cam); sheet[name] = R2.domElement.toDataURL('image/png');
+  }
+  window.__sheet = sheet;
+}
+
 </script>
 </body></html>
