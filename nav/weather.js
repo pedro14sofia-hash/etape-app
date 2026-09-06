@@ -2,6 +2,7 @@
 // Previsão do tempo pela Open-Meteo (gratuita, sem chave) para 3 pontos da etapa (largada, meio, chegada), horária,
 // guardada em localStorage para ler offline. Vento relativo ao rumo médio da etapa.
 import * as store from './store.js';
+import { TZ } from './geo.js';
 const DATES = { '1': '2026-10-22', '2': '2026-10-23', '3': '2026-10-24', '4': '2026-10-25', '4b': '2026-10-25', '5': '2026-10-26', '6': '2026-10-27', '7': '2026-10-28', '8': '2026-10-29' };
 const CODES = { 0: 'céu limpo', 1: 'quase limpo', 2: 'parcialmente nublado', 3: 'nublado', 45: 'nevoeiro', 48: 'nevoeiro', 51: 'garoa', 53: 'garoa', 55: 'garoa forte', 61: 'chuva fraca', 63: 'chuva', 65: 'chuva forte', 71: 'neve', 73: 'neve', 75: 'neve', 80: 'pancadas', 81: 'pancadas', 82: 'pancadas fortes', 95: 'trovoada' };
 export function dateOf(key) { return DATES[key] || null; }
@@ -51,5 +52,5 @@ export function html(sm, key) {
   const alert = sm.ppMax >= 50 ? '<div class="wxa">Chuva provável' + (sm.rainAt != null ? ' a partir das ' + sm.rainAt + 'h' : '') + ' · ' + sm.mm + ' mm</div>' : '';
   return '<div class="wx"><div class="wxh"><span>Tempo</span><b>' + Math.round(sm.tmin) + '° a ' + Math.round(sm.tmax) + '°</b><span>chuva ' + Math.round(sm.ppMax) + ' %</span><span>vento ' + Math.round(sm.wind) + ' km/h ' + sm.windDir + ' · ' + sm.windRel + '</span></div>' + alert +
     '<div class="wxr">' + sm.cols.map(c => '<div><small>' + c.name + ' ' + c.h + 'h</small><b>' + Math.round(c.t) + '°</b><span>' + c.desc + '</span><span>' + Math.round(c.pp || 0) + ' % · ' + Math.round(c.ws) + ' km/h ' + c.dir + '</span></div>').join('') + '</div>' +
-    '<div class="wxs">' + sm.hours.map(h => '<i style="height:' + Math.max(2, Math.round((h.pp || 0) / 100 * 22)) + 'px" title="' + h.h + 'h ' + Math.round(h.pp || 0) + '%"></i>').join('') + '</div><div class="wxf">' + sm.hours[0].h + 'h → ' + sm.hours[sm.hours.length - 1].h + 'h · probabilidade de chuva por hora · atualizado ' + new Date(sm.at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + '</div></div>';
+    '<div class="wxs">' + sm.hours.map(h => '<i style="height:' + Math.max(2, Math.round((h.pp || 0) / 100 * 22)) + 'px" title="' + h.h + 'h ' + Math.round(h.pp || 0) + '%"></i>').join('') + '</div><div class="wxf">' + sm.hours[0].h + 'h → ' + sm.hours[sm.hours.length - 1].h + 'h · probabilidade de chuva por hora · atualizado ' + new Date(sm.at).toLocaleString('pt-BR', { timeZone: TZ, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + '</div></div>';
 }

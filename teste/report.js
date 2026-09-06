@@ -1,3 +1,4 @@
+import { tzHM, tzAt } from './geo.js';
 // Étape Navegar · report.js
 // Relatório do dia: números, subidas, paradas, ingestão vs plano, exportação.
 import { elevationAt } from './track.js';
@@ -6,7 +7,7 @@ import * as session from './session.js';
 import * as store from './store.js';
 
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
-const fmtH = d => d ? new Date(d).getHours() + ':' + String(new Date(d).getMinutes()).padStart(2, '0') : '–';
+const fmtH = d => d ? tzHM(d) : '–';
 const fmtMin = m => { m = Math.round(Math.abs(m)); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return r ? h + 'h' + String(r).padStart(2, '0') : h + ' h'; };
 const n1 = x => (Math.round(x * 10) / 10).toFixed(1).replace('.', ',');
 
@@ -27,7 +28,7 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
   const hours = moving / 3600;
   const fuel = fuelState && fuelPlan ? { water: fuelState.water, waterPlan: fuelPlan.waterPerHour * hours, carbs: fuelState.carbs, carbsPlan: fuelPlan.carbsPerHour * hours, sodium: fuelState.sodium, sodiumPlan: fuelPlan.sodiumPerHour * hours } : null;
   let vsPlan = null;
-  if (planArrival && sess.finishedAt) { const [h, m] = planArrival.split(/[h:]/).map(Number); const p = new Date(sess.finishedAt); p.setHours(h, m || 0, 0, 0); vsPlan = Math.round((sess.finishedAt - p) / 60000); }
+  if (planArrival && sess.finishedAt) { const [h, m] = planArrival.split(/[h:]/).map(Number); const p = tzAt(sess.finishedAt, h, m || 0); vsPlan = Math.round((sess.finishedAt - p) / 60000); }
   const first = log[0] || { dist: 0 }, ridden = Math.max(0, last.dist - first.dist);
   const marks = (sess.marks || []).filter(m => m.kind === 'lugar').map(m => ({ lat: m.lat, lon: m.lon, km: m.dist != null ? m.dist / 1000 : null, at: m.at, note: m.note || '' }));
   return { marks, stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };

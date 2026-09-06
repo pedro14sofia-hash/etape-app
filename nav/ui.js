@@ -1,3 +1,4 @@
+import { tzHM, tzHour } from './geo.js';
 // Étape Navegar · ui.js
 // Painel, controles, gestos, tema, orientação, modo resumo.
 import { drawProfile } from './render.js';
@@ -6,7 +7,7 @@ import * as session from './session.js';
 
 const $ = id => document.getElementById(id);
 const fmtKm1 = m => (Math.max(0, m) / 1000).toFixed(1).replace('.', ',');
-const fmtH = d => d ? d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') : '–';
+const fmtH = d => d ? tzHM(d) : '–';
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
 const n0 = x => isFinite(x) ? Math.round(x).toLocaleString('pt-BR') : '–';
 export const fmtMin = m => { m = Math.round(Math.abs(m)); if (m < 60) return m + ' min'; const h = Math.floor(m / 60), r = m % 60; return r ? h + 'h' + String(r).padStart(2, '0') : h + ' h'; };
@@ -143,7 +144,7 @@ function terrainStrip(el, st) {
 export function setTab(S, tab) { S.tab = tab; document.querySelectorAll('#tabs div').forEach(d => d.classList.toggle('on', d.dataset.tab === tab)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== tab); document.querySelectorAll('.mini').forEach(p => p.hidden = p.dataset.tab !== tab); }
 export function setMode(S, mode) { S.mode = mode; $('panel').classList.toggle('resumo', mode === 'resumo'); }
 export function theme(mode, S) {
-  const night = mode === 'night' || (mode === 'auto' && S.light && S.light.remaining < 0 && S.light.remaining > -14 * 3600) || (mode === 'auto' && !S.light && new Date().getHours() >= 19);
+  const night = mode === 'night' || (mode === 'auto' && S.light && S.light.remaining < 0 && S.light.remaining > -14 * 3600) || (mode === 'auto' && !S.light && tzHour(Date.now()) >= 19);
   document.documentElement.setAttribute('data-theme', night ? 'night' : 'day'); return night ? 'night' : 'day';
 }
 // prévia do dia: tudo o que se lê na véspera. day = routes.days[key]; b = guide.briefing()

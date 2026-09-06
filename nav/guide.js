@@ -1,6 +1,6 @@
 // Étape Navegar · guide.js
 // Orientação: transforma posição em eventos (curva, borne, fora de rota, chegada, parada, compra, subida, luz).
-import { haversine, sunTimes, bearing } from './geo.js';
+import { haversine, sunTimes, bearing, tzAt, tzMinutes } from './geo.js';
 import { project, nextCheckpoint, climbAt, surfaceAt, pointAt } from './track.js';
 import { poisNear } from './data-mod.js';
 
@@ -81,7 +81,7 @@ export function eta(stage, dist, speedMs, paradasLeftMin = 0) {
 // comparação com o plano: hora prevista de chegada do guia (HH:MM) vs ETA
 export function vsPlan(planArrival, arrival) {
   if (!planArrival || !arrival) return null;
-  const [h, m] = planArrival.split(/[h:]/).map(Number); const p = new Date(arrival); p.setHours(h, m || 0, 0, 0);
+  const [h, m] = planArrival.split(/[h:]/).map(Number); const p = tzAt(arrival, h, m || 0);
   return Math.round((arrival - p) / 60000);
 }
 export function daylight(date, lat, lon) {
@@ -102,7 +102,7 @@ export function shopWindow(S, speedMs, now) {
   for (const p of S.paradas) {
     if (p.kind !== 'compras' || p.passed || !p.horario) continue;
     const m = p.horario.match(/(?:até|fecha[m]?)\s*(\d{1,2})h(\d{0,2})/); if (!m) continue;
-    const close = new Date(now); close.setHours(+m[1], +(m[2] || 0), 0, 0);
+    const close = tzAt(now, +m[1], +(m[2] || 0));
     const arrive = new Date(now + (p.km * 1000 - S.proj.dist) / speedMs * 1000);
     const slack = (close - arrive) / 60000;
     if (slack < 20 && slack > -60 && !p.winWarned && p.km * 1000 > S.proj.dist) { p.winWarned = true; ev.push({ kind: 'shopWindow', level: 2, text: p.nome.split(' · ')[0] + ' fecha ' + m[1] + 'h' + (m[2] || ''), sub: 'você chega ' + arrive.getHours() + 'h' + String(arrive.getMinutes()).padStart(2, '0'), speak: p.nome.split(' · ')[0] + ' fecha às ' + m[1] + ' horas. Você chega às ' + arrive.getHours() + ' e ' + arrive.getMinutes() + '.' }); }
@@ -120,13 +120,13 @@ export function planTimeAt(day, distM) {
 // écart: diferença (min) entre a hora prevista de passagem e a hora do plano, nos pontos com bandeira à frente
 export function ecart(S, speedMs, now, day) {
   const st = S.stage, out = [], d0 = S.proj.dist;
-  const nowMin = new Date(now).getHours() * 60 + new Date(now).getMinutes() + new Date(now).getSeconds() / 60;
+  const nowMin = tzMinutes(now);
   const planNow = planTimeAt(day, d0);
   const items = [{ dist: 0, name: 'Largada', kind: 'start' }].concat(st.climbs.map(c => ({ dist: c.to, name: c.name, kind: 'cat', cat: c.cat })), [{ dist: st.total, name: 'Chegada', kind: 'finish' }]);
   for (const it of items) {
     const plan = planTimeAt(day, it.dist); if (plan == null) continue;
     let eta = null;
-    if (it.dist <= d0) { const mk = (S.session.marks || []).find(m => m.dist != null && Math.abs(m.dist - it.dist) < 400); eta = mk ? new Date(mk.at).getHours() * 60 + new Date(mk.at).getMinutes() : null; }
+    if (it.dist <= d0) { const mk = (S.session.marks || []).find(m => m.dist != null && Math.abs(m.dist - it.dist) < 400); eta = mk ? tzMinutes(mk.at) : null; }
     else if (speedMs > 0.8) eta = nowMin + (it.dist - d0) / speedMs / 60;
     out.push({ ...it, plan, eta, gap: eta == null ? null : Math.round(eta - plan) });
   }

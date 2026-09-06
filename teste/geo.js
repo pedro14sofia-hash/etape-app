@@ -56,3 +56,14 @@ export function sunTimes(date, lat, lon) {
   const toDate = j => new Date((j - 2440587.5) * 86400000);
   return { sunrise: toDate(Jt - w), sunset: toDate(Jt + w) };
 }
+
+// Fuso da viagem: as horas do plano (8h45, "fecha às 12h30", écart, relógio) são sempre no fuso da Auvergne,
+// mesmo que o aparelho continue em Brasília. A rota de teste usa America/Sao_Paulo (window.ETAPE_TZ, gerado pelo build).
+export const TZ = (typeof window !== 'undefined' && window.ETAPE_TZ) || 'Europe/Paris';
+const TZF = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+export function tzParts(d) { const p = {}; for (const x of TZF.formatToParts(new Date(d))) p[x.type] = x.value; return { y: +p.year, mo: +p.month, d: +p.day, h: (+p.hour) % 24, mi: +p.minute, s: +p.second }; }
+export function tzHM(d) { const p = tzParts(d); return String(p.h).padStart(2, '0') + ':' + String(p.mi).padStart(2, '0'); }
+export function tzMinutes(d) { const p = tzParts(d); return p.h * 60 + p.mi + p.s / 60; }
+export function tzHour(d) { return tzParts(d).h; }
+// instante correspondente a h:m no fuso da viagem, no mesmo dia (do fuso) que `base`
+export function tzAt(base, h, m = 0) { const p = tzParts(base); const guess = Date.UTC(p.y, p.mo - 1, p.d, h, m); const q = tzParts(guess); const diff = (q.h * 60 + q.mi) - (h * 60 + m); return new Date(guess - diff * 60000); }
