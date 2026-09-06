@@ -202,18 +202,18 @@ function buildRig(mesh) {
     }
     const rBB = Math.hypot(v.x - BB.x, v.y - BB.y);
     if (az < 0.085 * k && rBB > 0.07 * k && nearFrame(v)) { counts.frame++; continue; }
-    // pedivela e coroa giram no movimento central, mas nunca a canela/sapato que passa rente (fica para o pedal/canela)
-    const dShin = Math.min(segDist(v, side[1].K0, side[1].P0).d, segDist(v, side[-1].K0, side[-1].P0).d);
-    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && rBB < Lc + 0.03 * k && dShin > 0.10 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
     const s = v.z > 0 ? 1 : -1; const S = side[s]; const z = az;
-    if (z < RIG.legZ[0] * k || z > RIG.legZ[1] * k || v.y > S.H.y + 0.05 * k || v.x < BB.x - 0.32 * k || v.x > S.H.x + 0.16 * k) continue;
     const dFoot = v.distanceTo(S.P0);
-    const t1 = segDist(v, S.H, S.K0), t2 = segDist(v, S.K0, S.P0);
-    const dLeg = Math.min(t1.d, t2.d);
-    if (dFoot < RIG.footR * k) {   // pé e pedal: seguem o pedal; transição para a canela
+    if (z >= RIG.legZ[0] * k && dFoot < RIG.footR * k) {   // pé, pedal e ponta do pedivela: seguem o pedal; transição para a canela
       const w = Math.max(0, Math.min(1, (RIG.footR * k - dFoot) / (RIG.blend * k)));
       set(i, bi('pedal' + S.tag), w, bi('shin' + S.tag), 1 - w); counts.foot++; continue;
     }
+    // pedivela e coroa giram no movimento central, mas nunca a canela que passa rente (fica para a canela)
+    const dShin = Math.min(segDist(v, side[1].K0, side[1].P0).d, segDist(v, side[-1].K0, side[-1].P0).d);
+    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && rBB < Lc + 0.03 * k && dShin > 0.10 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
+    if (z < RIG.legZ[0] * k || z > RIG.legZ[1] * k || v.y > S.H.y + 0.05 * k || v.x < BB.x - 0.32 * k || v.x > S.H.x + 0.16 * k) continue;
+    const t1 = segDist(v, S.H, S.K0), t2 = segDist(v, S.K0, S.P0);
+    const dLeg = Math.min(t1.d, t2.d);
     if (dLeg > RIG.legR * k) continue;
     // coxa ou canela, com mistura perto do joelho
     const dK = v.distanceTo(S.K0);

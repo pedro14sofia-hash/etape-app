@@ -12,11 +12,11 @@ import * as dem from './dem.js';
 export const THEMES = {
   day: { map: '#F0F0F0', forest: '#E1E6DA', res: '#E6E6E6', water: '#BFD8F0', waterLine: '#3969B7', waterTxt: '#3969B7', rail: '#777777',
     r1: '#FFFFFF', r2: '#FFFFFF', r3: '#FFFFFF', r4: '#FFFFFF', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B08968', r8: '#1DAE50', r9: '#9A9A9A', casing: '#555555', casingMinor: '#C4C4C4',
-    ribbon: '#FFFF00', ribbonCasing: '#000000', done: '#000000', other: '#BDBDBD', gravel: '#6B4423', label: '#000000', halo: '#F0F0F0', borne: '#FFFFFF', forestTxt: '#3D7A34', contour: '#CCCCCC',
+    ribbon: '#FFFF00', ribbonCasing: '#000000', done: '#000000', other: '#BDBDBD', gravel: '#6B4423', label: '#000000', roadLabel: '#3A3A3A', poiLabel: '#222222', halo: '#F0F0F0', borne: '#FFFFFF', forestTxt: '#3D7A34', contour: '#CCCCCC',
     puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.2)', scale: '#000000', poiBg: '#FFFFFF', sky0: '#A9CFF0', sky1: '#F0F0F0', fog: 'rgba(240,240,240,.85)' },
   night: { map: '#151515', forest: '#1E241C', res: '#1A1A1A', water: '#1D3A5E', waterLine: '#3969B7', waterTxt: '#6FA3E0', rail: '#666666',
     r1: '#3A3A3A', r2: '#3A3A3A', r3: '#383838', r4: '#333333', r5: '#2E2E2E', r6: '#2A2A2A', r7: '#4A3A2A', r8: '#1F5A33', r9: '#333333', casing: '#000000', casingMinor: '#000000',
-    ribbon: '#FFFF00', ribbonCasing: '#FFFFFF', done: '#BBBBBB', other: '#333333', gravel: '#D9A066', label: '#FFFF00', halo: '#151515', borne: '#FFFFFF', forestTxt: '#7FA070', contour: '#333333',
+    ribbon: '#FFFF00', ribbonCasing: '#FFFFFF', done: '#BBBBBB', other: '#333333', gravel: '#D9A066', label: '#FFFFFF', roadLabel: '#C8C8C8', poiLabel: '#DDDDDD', halo: '#151515', borne: '#FFFFFF', forestTxt: '#7FA070', contour: '#333333',
     puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.16)', scale: '#FFFF00', poiBg: '#0A0A0A', sky0: '#05070C', sky1: '#151515', fog: 'rgba(21,21,21,.85)' }
 };
 const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
@@ -324,6 +324,11 @@ export function createRenderer(canvas, overlay) {
   function drawStatic(S) {
     placed = [];
     const M = S.map, st = S.stage, z = view.z, box = visibleBox(), th = theme;
+    // revelação progressiva: as informações aparecem perto de onde o ciclista está (ou do centro da vista, na prévia)
+    const me = S.pos || S.fix || null, cLat = me ? me.lat : Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI, cLon = me ? me.lon : view.cx * 360 - 180, cosL = Math.cos(cLat * Math.PI / 180);
+    const distMe = (lat, lon) => Math.hypot((lat - cLat) * 111320, (lon - cLon) * 111320 * cosL);
+    const ESSENTIAL = { water: 1, toilets: 1, bike: 1, pharmacy: 1, hospital: 1, pass: 1, peak: 1, viewpoint: 1, castle: 1 }, SHOPS = { bakery: 1, shop: 1, cafe: 1 };
+    const nearR = zBaseOf() >= 17 ? 500 : 900;
     if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let satOn = false;
@@ -334,7 +339,7 @@ export function createRenderer(canvas, overlay) {
     for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { if (satOn) continue; ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.globalAlpha = satOn ? .7 : 1; ctx.stroke(); ctx.globalAlpha = 1; } }
     if (z >= 11 && !satOn) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
     // estradas: classe mínima e largura pela escala local (em 3D, pela distância)
-    const zBase = cam ? Math.min(19, zoomAt([0, 0, cam.sr])) : z;
+    const zBase = cam ? Math.min(19, zoomAt([0, 0, cam.sr])) : z; zBaseCache = zBase;
     const ways = query(M.index, box).filter(w => zBase >= MINZ[w.c]);
     ways.sort((a, b) => b.c - a.c);
     const wz = w => { if (!cam) return z; const q = midOf(w.p); return zoomAt(q); };
@@ -355,13 +360,19 @@ export function createRenderer(canvas, overlay) {
     // curvas
     if (zBase >= 14) for (const t of st.turns) { if (t.dist < S.proj.dist - 200) continue; const q = proj(st.pts[t.i][0], st.pts[t.i][1]); if (!q[3]) continue; const r = 7 * sizeAt(q); ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 7); ctx.fillStyle = th.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = th.casing; ctx.stroke(); }
     // rótulos de estradas
-    if (zBase >= 14) { const seen = new Set(); for (const w of ways) { if (!w.n || w.c > (zBase >= 16 ? 5 : 4) || seen.has(w.n) || (zBase < 15.5 && !/^[A-Z] ?\d/.test(w.n))) continue; const q = midOf(w.p); if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue; seen.add(w.n); label(w.n, q[0], q[1], 'center', '600 ' + Math.round(12 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); } }
+    if (zBase >= 13.5) { const seen = new Set(); let nlab = 0; for (const w of ways) {
+        if (!w.n || seen.has(w.n) || nlab >= 8) continue;
+        const major = w.c <= 4 && /^[A-Z] ?\d/.test(w.n); const mid = midOf(w.p); const near = zBase >= 15 && w.c <= 6 && w.p.some(pt => distMe(pt[0], pt[1]) < 220);
+        if (!major && !near) continue;
+        const q = mid; if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue;
+        if (crowded(q[0], q[1], 70)) continue; seen.add(w.n); nlab++;
+        label(w.n, q[0], q[1], 'center', (major ? '800 ' : '600 ') + Math.round((major ? 13 : 12) * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.roadLabel); } }
     // POIs
-    if (zBase >= 13) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place') || (zBase < 15 && (p.k === 'shop' || p.k === 'bakery' || p.k === 'pharmacy' || p.k === 'cafe' || p.k === 'toilets')) || (zBase < 14 && (p.k === 'church' || p.k === 'castle' || p.k === 'viewpoint' || p.k === 'picnic'))) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
+    if (zBase >= 14.5) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (zBase < 16 || dm > 300) continue; } else continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
     // paradas (foto/visita/compras)
     if (zBase >= 12) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; sightIcon(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12 : 14.5; if (zBase < minz) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(16 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(14 * sz) + 'px' : '600 ' + Math.round(12 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
+    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(16 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(14 * sz) + 'px' : '600 ' + Math.round(12 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
     // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
     if (cam) for (const f of stageFlags(st, S.paradas)) {
       if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
@@ -420,7 +431,7 @@ export function createRenderer(canvas, overlay) {
     if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(14 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
   // disco atrás do ícone (estilo Apple Maps): branco de dia, preto à noite; amarelo para as paradas da viagem
-  let placed = [];
+  let placed = [], zBaseCache = 13; function zBaseOf() { return zBaseCache; }
   function disc(x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme === THEMES.night ? '#FFFFFF' : '#000000'; ctx.stroke(); }
   function crowded(x, y, r) { for (const q of placed) if (Math.abs(q[0] - x) < r && Math.abs(q[1] - y) < r) return true; placed.push([x, y]); return false; }
   function sightIcon(p, q, z) {
@@ -435,7 +446,7 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
     if (crowded(q[0], q[1], base * 0.9)) return;
-    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(12 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
+    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(12 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {
