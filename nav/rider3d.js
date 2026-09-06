@@ -284,12 +284,12 @@ export function init(canvas) {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
   scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x8a7a5a, 1.1));
-  sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-1.5, 3.2, -1.2); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-0.6, 4.5, 0.4);   // quase a pino: a sombra fica sob a bike, não um borrão ao lado sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -1.5; sun.shadow.camera.right = 1.5; sun.shadow.camera.top = 1.5; sun.shadow.camera.bottom = -1.5; sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 8; sun.shadow.bias = -0.002; scene.add(sun);
   bike = new THREE.Group(); bike.add(buildBike()); riderG = buildRider(); bike.add(riderG);
   bike.position.set(0, 0, 0.5);   // centro do modelo na origem (rodas em z=+0.5 atrás … -0.49 à frente)
   scene.add(bike);
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ opacity: 0.35 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.ShadowMaterial({ opacity: 0.28 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   ok = true; return true;
 }
 export function isReady() { return ok; }
@@ -309,13 +309,13 @@ export function render(r, v, t) {
   step(v, t);
   renderer.setScissorTest(true); renderer.clear(true, true, true);
   if (!r || !r.show) { renderer.setScissorTest(false); return; }
-  const size = Math.round((r.mode === 'tp' ? 230 : 200) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.42);
+  const size = Math.round((r.mode === 'tp' ? 230 : 230) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.36);
   renderer.setViewport(x0, y0, size, size); renderer.setScissor(x0, y0, size, size);
   camera.aspect = 1;
-  if (model) { camera.position.set(0.0, 1.25, 2.9); camera.fov = 30; }               // avatar: de trás e um pouco acima, como a TV do Tour
+  if (model) { camera.position.set(0.0, 1.3, 3.3); camera.fov = 30; }                // avatar: de trás e um pouco acima, como a TV do Tour
   else if (r.mode === 'tp') { camera.position.set(0.0, 1.15, 2.7); camera.fov = 30; }
   else { camera.position.set(-1.0, 3.2, 2.2); camera.fov = 26; }                     // procedural em 2D: de cima, três quartos, de trás
-  camera.lookAt(0, 0.6, 0); camera.updateProjectionMatrix();                         // origem = chão sob o centro das rodas
+  camera.lookAt(0, model ? 0.7 : 0.6, 0); camera.updateProjectionMatrix();           // origem = chão sob o centro das rodas
   yaw(r.rot);                                                                        // rumo: o mapa gira, a bike acompanha
   renderer.render(scene, camera); renderer.setScissorTest(false);
 }

@@ -122,7 +122,7 @@ export function panel(S) {
   // écart estilo TV: diferença para o plano do guia (à frente em verde, atrás em vermelho)
   const ec = S.ecart, eb = $('ecart');
   if (eb) {
-    if (ec && ec.now != null && sess.state !== 'idle') { const g = ec.now; eb.hidden = false; eb.className = 'ecart ' + (g > 2 ? 'late' : g < -2 ? 'ahead' : ''); eb.innerHTML = '<span>écart</span><b>' + (g > 0 ? '+' : g < 0 ? '−' : '') + fmtGap(Math.abs(g)) + '</b>'; }
+    if (ec && ec.now != null && sess.state !== 'idle') { const g = ec.now; eb.hidden = false; eb.className = 'ecart ' + (g > 2 ? 'ec-late' : g < -2 ? 'ec-ahead' : ''); eb.innerHTML = '<span>écart</span><b>' + (g > 0 ? '+' : g < 0 ? '−' : '') + fmtGap(Math.abs(g)) + '</b>'; }
     else eb.hidden = true;
   }
   const pl = $('passages');

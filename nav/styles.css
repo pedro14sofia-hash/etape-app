@@ -81,7 +81,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .cue.show ~ .ecart{top:calc(166px + env(safe-area-inset-top))}
 .ecart span{font-family:var(--fb);font-weight:700;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:#BBBBBB}
 .ecart b{font-family:var(--fd);font-weight:900;font-size:1.8rem;font-variant-numeric:tabular-nums;margin-top:2px;color:#FFFF00}
-.ecart.late b{color:#FF2A2A}.ecart.ahead b{color:#35C86A}
+.ecart.ec-late b{color:#FF2A2A}.ecart.ec-ahead b{color:#35C86A}
 .pass-h{display:grid;grid-template-columns:34px 1fr 52px 58px 52px;gap:6px;margin:10px 0 2px;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted)}
 .pass-h span:nth-child(n+3){text-align:right}
 .passages{list-style:none;margin:0;padding:0}
@@ -301,3 +301,11 @@ body.full #ctl #zin,body.full #ctl #zout{display:none}
 
 /* painel completo: controles em duas colunas empurram o écart */
 body.full .ecart{right:112px}
+/* dia com a mesma hierarquia da noite: títulos de seção com marcador amarelo, chaves de km em pílula amarela */
+.pv h4::before,.rep h4::before,.brief h4::before{content:"";width:8px;height:15px;background:#FFFF00;border-left:3px solid #000;flex:none}
+:root[data-theme="night"] .pv h4::before,:root[data-theme="night"] .rep h4::before,:root[data-theme="night"] .brief h4::before{border-left-color:#FFFF00}
+.pv li .k,.rep td.k{background:#FFFF00;color:#000;padding:1px 6px;line-height:1.2;text-align:center}
+.pv li .k{min-width:52px}
+:root[data-theme="night"] .pv li .k,:root[data-theme="night"] .rep td.k{background:transparent;color:#FFFF00;padding:0;text-align:left}
+.pv li .h{background:#000;color:#fff;padding:1px 6px;text-align:center;line-height:1.2}
+:root[data-theme="night"] .pv li .h{background:#FFFF00;color:#000}
