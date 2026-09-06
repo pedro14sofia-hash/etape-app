@@ -9,7 +9,7 @@ import { icon, ready, KIND_ICON, SIGHT_ICON } from './icons.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
 import * as shade from './shade.js';
-import { T as TOKENS, FLAG as TFLAG } from './tokens.js';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
+import { T as TOKENS, FLAG as TFLAG, CAT as TCAT } from './tokens.js';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
 
 // estilo A "relevo em papel" (estudo do mapa, 06/09/2026): chão branco (preto à noite), sombra do relevo, curvas de nível
 export const THEMES = { day: TOKENS.day, night: TOKENS.night };
@@ -28,8 +28,12 @@ const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000
 
 // bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
 export const FLAG = TFLAG;   // start, cat, sprint, feed, sight, flamme, finish, visit, shop
+// cor da categoria de subida (tokens.json cat): HC e 1 vermelho, 2 ocre, 3 e 4 amarelo; número em tinta sobre amarelo
+export const CAT = TCAT || {};
+export const catCol = c => CAT[c] || FLAG.cat;
+export const catInk = c => (c === '3' || c === '4') ? '#1B1815' : '#FFFFFF';
 export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
-  const col = FLAG[kind] || '#E10D0D', fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
+  const col = kind === 'cat' ? catCol(text) : (FLAG[kind] || '#E10D0D'), fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
   ctx.save(); ctx.lineCap = 'butt';
   ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = pw + 1.4; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
   ctx.strokeStyle = kind === 'feed' ? '#8A8F96' : col; ctx.lineWidth = pw; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
@@ -45,7 +49,7 @@ export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
     ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx + fw, fy); ctx.lineTo(fx + fw, fy + fh); ctx.lineTo(fx + fw * .12, fy + fh); ctx.lineTo(fx, fy + fh * .55); ctx.closePath(); ctx.fill(); if (kind === 'start') ctx.stroke();
     if (kind === 'start') { ctx.fillStyle = '#000000'; ctx.beginPath(); ctx.moveTo(fx + fw * .32, fy + fh * .2); ctx.lineTo(fx + fw * .32, fy + fh * .8); ctx.lineTo(fx + fw * .78, fy + fh * .5); ctx.closePath(); ctx.fill(); }
     else if (kind === 'sight') { ctx.fillStyle = '#FFFFFF'; ctx.fillRect(fx + fw * .3, fy + fh * .3, fw * .42, fh * .42); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(fx + fw * .51, fy + fh * .51, fh * .13, 0, 7); ctx.fill(); }
-    else if (text) { ctx.fillStyle = '#FFFFFF'; ctx.font = '800 ' + Math.round(11 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
+    else if (text) { ctx.fillStyle = kind === 'cat' ? catInk(text) : '#FFFFFF'; ctx.font = '800 ' + Math.round(11 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, fx + fw * .55, fy + fh * .55); }
   }
   ctx.restore();
 }
@@ -191,15 +195,16 @@ export function createRenderer(canvas, overlay) {
     }
     ctx.restore(); return true;
   }
-  // chevrons de rampa na fita (estilo IGN): um acima de 6 %, dois acima de 10 %, apontando para onde se sobe
+  // chevrons de rampa na fita (estilo IGN): ocre de 6 a 9 % (um), vermelho de 9 % para cima (dois), apontando para onde se sobe; mesmas faixas do número da rampa
   function drawChevrons(st, fromDist) {
     const col = theme.chevron, mpp = metersPerPixel(45.3, view.z), every = 34 * mpp, size = 7;
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = col; ctx.lineWidth = 2.6;
     for (let d = Math.ceil(fromDist / every) * every; d < st.total - 60; d += every) {
       const g = gradeAt(st, d, 200); if (g < 6) continue;   // gradeAt devolve porcentagem
+      ctx.strokeStyle = g >= 9 ? theme.chevron : (theme.chevronHard || '#C27A14');
       const p = pointAt(st, d), q = proj(p[0], p[1]); if (q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue;
       const b = bearingAt(st, d) * Math.PI / 180 + view.rot, ux = Math.sin(b), uy = -Math.cos(b), px = -uy, py = ux;
-      for (let k = 0; k < (g >= 10 ? 2 : 1); k++) {
+      for (let k = 0; k < (g >= 9 ? 2 : 1); k++) {
         const cx = q[0] - ux * k * 5, cy = q[1] - uy * k * 5;
         ctx.beginPath(); ctx.moveTo(cx - ux * size * .3 + px * size * .55, cy - uy * size * .3 + py * size * .55); ctx.lineTo(cx + ux * size * .6, cy + uy * size * .6); ctx.lineTo(cx - ux * size * .3 - px * size * .55, cy - uy * size * .3 - py * size * .55); ctx.stroke();
       }
@@ -462,7 +467,7 @@ export function drawFita(canvas, stage, dist, theme, opts = {}) {
   for (let k = 10; k < km; k += 10) { const x = X(k); ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, h - 1); ctx.stroke(); }
   for (const s of opts.paradas || []) { if (s.done) continue; const x = X(s.km); ctx.fillStyle = s.kind === 'compras' ? FLAG.shop : s.kind === 'visita' ? FLAG.visit : s.kind === 'opcional' ? FLAG.feed : FLAG.sight; ctx.fillRect(x - 1.5, h - bottom - 9, 3, 9); }
   ctx.font = '900 11px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Math.max(8, Y(c.topEle) - 11); ctx.fillStyle = FLAG.cat; ctx.fillRect(x - 9, y - 7, 18, 14); ctx.fillStyle = '#FFFFFF'; ctx.fillText(c.cat, x, y + .5); }
+  for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Math.max(8, Y(c.topEle) - 11); ctx.fillStyle = catCol(c.cat); ctx.fillRect(x - 9, y - 7, 18, 14); ctx.fillStyle = catInk(c.cat); ctx.fillText(c.cat, x, y + .5); }
   if (!stage.free) { const xf = X(km), cw = 4, ch = 4; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#1B1815' : '#FFFFFF'; ctx.fillRect(xf - 16 + i * cw, 2 + j * ch, cw, ch); } ctx.strokeStyle = '#1B1815'; ctx.lineWidth = 1; ctx.strokeRect(xf - 16.5, 1.5, 17, 9); ctx.fillStyle = '#1B1815'; ctx.fillRect(xf - 17.5, 1, 1.5, h - bottom - 1); }   // chegada quadriculada com haste
   if (opts.arrived) return;
   ctx.fillStyle = FLAG.cat; ctx.fillRect(xd - 1.5, 0, 3, h);
@@ -486,7 +491,7 @@ export function drawProfile(canvas, stage, dist, theme, opts = {}) {
     if (!big && f.kind !== 'cat' && f.kind !== 'finish' && f.kind !== 'start') continue;
     const x = Math.min(w - 16, Math.max(8, X(f.dist / 1000))), y = Y(elevationAt(stage, f.dist));
     if (big) flagAt(ctx, x, Math.max(20, y - 26), h - bottom, f.kind, f.text, 1);
-    else { ctx.strokeStyle = FLAG[f.kind] || '#E10D0D'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, Math.max(2, y - 6)); ctx.stroke(); }
+    else { ctx.strokeStyle = f.kind === 'cat' ? catCol(f.text) : (FLAG[f.kind] || '#E10D0D'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, Math.max(2, y - 6)); ctx.stroke(); }
   }
   ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), big ? 5 : 3.5, 0, 7); ctx.fillStyle = '#000000'; ctx.fill(); ctx.lineWidth = big ? 2 : 1.2; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
   if (big) {

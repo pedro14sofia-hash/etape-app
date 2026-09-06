@@ -50,7 +50,7 @@ export function standings(all) {
     pois: best(r => r.up), vert: best(r => r.avg), vmax: best(r => r.vmax), longest: best(r => r.km) };
 }
 export function render(r, all) {
-  const cat = c => `<span class="cat${c === 'HC' ? ' hc' : ''}">${c}</span>`;
+  const cat = c => `<span class="cat${c === 'HC' ? ' hc' : ''} cat-${String(c).toLowerCase()}">${c}</span>`;
   const vamAvg = r.climbs.filter(c => c.vam).map(c => c.vam); const vam = vamAvg.length ? Math.round(vamAvg.reduce((a, b) => a + b, 0) / vamAvg.length) : '–';
   const d = r.date ? new Date(r.date) : new Date();
   const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });

@@ -1,7 +1,8 @@
 import { tzHM, tzHour } from './geo.js';
 // Étape Navegar · ui.js
 // Painel, controles, gestos, tema, orientação, modo resumo.
-import { drawProfile } from './render.js';
+import { drawProfile, catCol } from './render.js';
+import { GRADE } from './tokens.js';
 import { surfaceAt, nextSurfaceChange } from './track.js';
 import * as session from './session.js';
 
@@ -23,6 +24,7 @@ const ARROW = {
 ARROW.direita = ARROW.acentuada; ARROW.esquerda = '<g transform="translate(24 0) scale(-1 1)">' + ARROW.acentuada + '</g>';
 // k: leve | acentuada | retorno | reto (ou direita/esquerda); dir espelha as classes desenhadas para a direita
 export const svgArrow = (k, dir) => { const g = ARROW[k] || ARROW.reto, mir = dir === 'esquerda' && (k === 'leve' || k === 'acentuada' || k === 'retorno'); return `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${mir ? '<g transform="translate(24 0) scale(-1 1)">' + g + '</g>' : g}</svg>`; };
+export const catCls = c => 'cat-' + String(c || '').toLowerCase();
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : (k === 'ciclovia' || k === 'faixa') ? 'bike' : k === 'rua' ? 'asf' : 'trl'}">${k}</i>` : '';
 
 export function bindGestures(canvas, R, onUserPan, onUserZoom, onUserRotate) {
@@ -105,7 +107,7 @@ export function panel(S) {
     if (sn.hr) { $('mV').textContent = n0(sn.hr); $('mVu').textContent = 'bpm'; $('mVl').textContent = 'FC'; } else { $('mV').textContent = n0(L.vam); $('mVu').textContent = 'm/h'; $('mVl').textContent = 'VAM'; }
     if (sn.cad) { $('mG').textContent = n0(sn.cad); $('mGu').textContent = 'rpm'; $('mGl').textContent = 'cadência'; } else { $('mG').textContent = n0(L.upRem); $('mGu').textContent = 'm'; $('mGl').textContent = 'a subir'; }
     const cl = L.climb, ctxEl = $('ctx');
-    if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
+    if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat ${catCls(cl.cat)}">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
     else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, S.light.remaining / 60); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${fmtMin(mins)}</b><span>de sol</span></div>`; }
     else ctxEl.hidden = true;
   }
@@ -145,12 +147,12 @@ export function panel(S) {
   }
   const pl = $('passages');
   if (pl && S.tab === 'prof') {
-    if (ec && ec.items.length) pl.innerHTML = ec.items.map(it => `<li${it.dist <= d ? ' class="done"' : ''}><span class="k">${it.kind === 'cat' ? '<i class="catf">' + it.cat + '</i>' : it.kind === 'start' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h10l-3 4 3 4H8z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h4v4H8zm4 4h4v4h-4zm4-4h4v4h-4zm-8 8h4v4H8zm8 0h4v4h-4zm-4-4h4v4h-4z"/></svg>'}</span><span class="nm">${it.name}</span><span class="t">${fmtMinH(it.plan)}</span><span class="t">${it.eta == null ? '–' : fmtMinH(it.eta)}</span><span class="g ${it.gap == null ? '' : it.gap > 2 ? 'late' : it.gap < -2 ? 'ahead' : ''}">${it.gap == null ? '' : (it.gap > 0 ? '+' : it.gap < 0 ? '−' : '') + fmtGap(Math.abs(it.gap))}</span></li>`).join('');
+    if (ec && ec.items.length) pl.innerHTML = ec.items.map(it => `<li${it.dist <= d ? ' class="done"' : ''}><span class="k">${it.kind === 'cat' ? '<i class="catf ' + catCls(it.cat) + '">' + it.cat + '</i>' : it.kind === 'start' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h10l-3 4 3 4H8z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h4v4H8zm4 4h4v4h-4zm4-4h4v4h-4zm-8 8h4v4H8zm8 0h4v4h-4zm-4-4h4v4h-4z"/></svg>'}</span><span class="nm">${it.name}</span><span class="t">${fmtMinH(it.plan)}</span><span class="t">${it.eta == null ? '–' : fmtMinH(it.eta)}</span><span class="g ${it.gap == null ? '' : it.gap > 2 ? 'late' : it.gap < -2 ? 'ahead' : ''}">${it.gap == null ? '' : (it.gap > 0 ? '+' : it.gap < 0 ? '−' : '') + fmtGap(Math.abs(it.gap))}</span></li>`).join('');
     else pl.innerHTML = '';
   }
   // números soltos sobre o mapa (F2): velocidade à esquerda, rampa à direita, sempre visíveis
   const sp = $('speedo'), gr = $('grade'); sp.hidden = !L; if (gr) gr.hidden = !L;
-  if (L) { initSpeedo(); const v = L.v < 2 ? 0 : L.v; $('spV').textContent = Math.round(v); const nd = $('spNeedle'); if (nd) nd.setAttribute('transform', 'rotate(' + spAngle(v).toFixed(1) + ' 60 60)'); const pk = $('spPlan'); if (pk) { if (S.planSpeed > 0) { pk.removeAttribute('hidden'); pk.setAttribute('transform', 'rotate(' + spAngle(S.planSpeed).toFixed(1) + ' 60 60)'); } else pk.setAttribute('hidden', ''); } /* elemento SVG não tem .hidden */ const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); sp.style.bottom = (S.scaleBottom + 22) + 'px'; if (gr) gr.style.bottom = (S.scaleBottom + 26) + 'px'; }
+  if (L) { initSpeedo(); const v = L.v < 2 ? 0 : L.v; $('spV').textContent = Math.round(v); const nd = $('spNeedle'); if (nd) nd.setAttribute('transform', 'rotate(' + spAngle(v).toFixed(1) + ' 60 60)'); const pk = $('spPlan'); if (pk) { if (S.planSpeed > 0) { pk.removeAttribute('hidden'); pk.setAttribute('transform', 'rotate(' + spAngle(S.planSpeed).toFixed(1) + ' 60 60)'); } else pk.setAttribute('hidden', ''); } /* elemento SVG não tem .hidden */ const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= GRADE.wall ? ' wall' : L.grade >= GRADE.hard ? ' hard' : L.grade <= -GRADE.hard ? ' down' : ''); /* tinta até 6 %, ocre até 9 %, vermelho acima */ sp.style.bottom = (S.scaleBottom + 22) + 'px'; if (gr) gr.style.bottom = (S.scaleBottom + 26) + 'px'; }
   const plc = $('place'); if (plc) { plc.textContent = S.place || ''; plc.hidden = !S.place; plc.style.bottom = (S.scaleBottom + 150) + 'px'; }   // acima do velocímetro (118 px)
   $('gpsSt').textContent = S.gpsMsg || '';
   $('clock').textContent = fmtH(new Date());
@@ -226,7 +228,7 @@ export function previewHtml(stage, day, b, paradas, sun) {
   const tl = (d.timeline || []).map(t => `<li><span class="h">${t[0]}</span><span class="k">${t[1] ? 'km ' + t[1] : ''}</span><span>${t[2]}</span></li>`).join('');
   const sights = paradas.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span><span><span class="chipk ${p.kind}">${p.kind}</span>${p.nome}${p.min ? ' · ' + fmtMin(p.min) : ''}<small>${p.oque || ''}</small></span></li>`).join('');
   const shops = paradas.filter(p => p.kind === 'compras').map(p => `<li${p.nivel === 1 ? ' class="n1"' : ''}><span class="k">km ${Math.round(p.km)}</span><span>${p.nome}<small>${p.horario || ''}${p.oque ? ' · ' + p.oque : ''}</small></span></li>`).join('');
-  const climbs = stage.climbs.map(c => `<li><span class="k">km ${Math.round(c.from / 1000)}</span><span><span class="chipk">${c.cat}</span>${c.name} · ${(c.len / 1000).toFixed(1).replace('.', ',')} km a ${c.pct.toFixed(1).replace('.', ',')} % · +${c.gain} m</span></li>`).join('');
+  const climbs = stage.climbs.map(c => `<li><span class="k">km ${Math.round(c.from / 1000)}</span><span><span class="chipk ${catCls(c.cat)}">${c.cat}</span>${c.name} · ${(c.len / 1000).toFixed(1).replace('.', ',')} km a ${c.pct.toFixed(1).replace('.', ',')} % · +${c.gain} m</span></li>`).join('');
   const bornes = stage.cps.map(c => `<li><span class="k">km ${c.kmLabel}</span><span>${c.full}${c.ele ? ' · ' + c.ele + ' m' : ''}</span></li>`).join('');
   const h = d.hotel;
   return `<div class="pv m-${stage.type}">
