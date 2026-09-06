@@ -18,7 +18,7 @@ import * as dem from './dem.js';
 import * as compass from './compass.js';
 import * as weather from './weather.js';
 import * as sensors from './sensors.js';
-let rider3d = null, diorama = null, router = null;   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
+let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
 const code = k => /^\d/.test(k) ? 'E' + k : k;
@@ -29,7 +29,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
@@ -72,7 +72,7 @@ export function init() {
   // câmera: 2D → 3ª pessoa → 1ª pessoa; satélite liga/desliga (e baixa a etapa para offline na primeira vez)
   $('btnSat').onclick = async () => {
     if (!sat.available()) { voice.banner('Satélite indisponível nesta versão', 3); return; }
-    const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); $('btnSat').classList.toggle('on', on);
+    const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); if (t3d) t3d.setSat(on); $('btnSat').classList.toggle('on', on);
     if (on && sat.hasStage(S.stage.key) && !store.get('satdl:' + S.stage.key, false) && navigator.onLine) {
       voice.banner('Baixando satélite da etapa', 3);
       await sat.prefetch(S.stage.key, (d, t) => { S.gpsMsg = 'satélite ' + Math.round(d / t * 100) + ' %'; refresh(); });
@@ -94,7 +94,8 @@ export function init() {
   $('cue').onclick = () => { voice.clearBanner(); };
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
   if (!S.prefs.voice) { voice.mute(); $('btnVoice').classList.remove('on'); } else $('btnVoice').classList.add('on');
-  window.addEventListener('resize', () => { R.resize(); measurePanel(); });
+  window.addEventListener('resize', () => { R.resize(); measurePanel(); if (t3d && S.cam3d) t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); });
+  { let t0 = 0, p0 = null; const gl = $('gl'); gl.addEventListener('pointerdown', e => { t0 = performance.now(); p0 = [e.clientX, e.clientY]; }); gl.addEventListener('pointerup', e => { if (p0 && performance.now() - t0 < 300 && Math.hypot(e.clientX - p0[0], e.clientY - p0[1]) < 12) S.showCtl(0); p0 = null; }); }
   R.resize();
   window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
@@ -146,13 +147,27 @@ export function selectStage(key) {
   R.centerOn(p0[0], p0[1]); R.setView(null, null, R.view.mode === '2d' ? 18.5 : 16, S.prefs.orientation === 'heading' ? -b0 * Math.PI / 180 : 0); if (R.view.mode === '2d') R.view.anchorY = 0.45; S.follow = true; $('btnFollow').classList.add('on');
   S.next = guide.nextCue(S); S.live = telemetry.live(S.log, S.stage, S.session, Date.now(), session.movingTime(S.session, Date.now()));
   if (!S.log.length) S.live = { ...S.live, v: 0, avg: 0, vam: 0, grade: track.gradeAt(S.stage, 0, 200) };
-  applyTheme(); refresh(); measurePanel();
+  applyTheme(); refresh(); measurePanel(); if (t3d) t3d.setStage(S.stage);
   if (S.session.state === 'running') startNavigation(true);
 }
-function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); R.invalidate(); }
-function setCam(c) { c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); } if (c === 'tp') { S.follow = true; $('btnFollow').classList.add('on'); if (S.pos) R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, 16, S.pos ? -S.pos.head : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
+function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); R.invalidate(); }
+function setCam(c) {
+  c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs);
+  const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); }
+  R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45;
+  if (c === 'tp') {
+    S.follow = true; $('btnFollow').classList.add('on');
+    const show = () => { $('gl').hidden = false; $('rider').hidden = true; $('rider3d').hidden = true; t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); S.cam3d = true; };
+    if (t3d) { show(); return; }
+    import('./terrain3d.js').then(m => {
+      if (!m.init($('gl'))) { voice.banner('3D indisponível neste aparelho', 2); setCam('2d'); return; }
+      t3d = m; t3d.setStage(S.stage); t3d.setTheme(S.theme === 'night'); t3d.setSat(!!S.prefs.sat); t3d.loadAvatar('./models/avatar.glb'); show();
+    }).catch(e => { voice.banner('3D indisponível', 2, (e && e.message || '').slice(0, 60)); setCam('2d'); });
+  } else { S.cam3d = false; $('gl').hidden = true; $('rider').hidden = false; $('rider3d').hidden = false; }
+  R.invalidate();
+}
 function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
-function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
+function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); if (t3d) t3d.setTheme(S.theme === 'night'); }
 
 export function startNavigation(silent) {
   const ok = gps.start(onFix, e => { S.gpsMsg = 'GPS: ' + (e.message || 'erro'); refresh(); });
@@ -362,12 +377,17 @@ function perfHud(ts, ms) {
   if (ts - PERF.last < 500) return; PERF.last = ts;
   if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFFF00;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
   const st = R.stats(), mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '';
+  if (S.cam3d && t3d) { const g = t3d.getStats(); PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · 3D ' + g.ms + ' ms (+' + g.upd + ' prep) · ' + g.tri + ' tri · ' + g.calls + ' calls · dpr ' + g.dpr + ' · buracos ' + g.holes + ' · sat faltando ' + g.miss + ' ' + mem; PERF.n = 0; PERF.ms = 0; return; }
   PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem;
   PERF.n = 0; PERF.ms = 0;
 }
 function loop(ts) {
   try {
   glide(ts);
+  if (S.cam3d && t3d) {
+    if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2); setCam('2d'); }
+    else { const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); requestAnimationFrame(loop); return; }
+  }
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo
   const v = S.fix ? (S.fix.v || 0) : 0, moving = v > 0.8 && gps.running();

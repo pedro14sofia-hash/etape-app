@@ -21,7 +21,10 @@ export function tilesFor(box, z = Z) {
 }
 export function hasLevel(z) { return !!(index && index['z' + z]); }
 // tiles de detalhe existem só perto do traçado: conjunto por etapa para saber se um tile z16 está no acervo
-const detailSets = {};
+const detailSets = {}; let baseSet = null;
+// o tile existe no acervo? (z15: corredor de todas as etapas; níveis de detalhe: hasDetailTile); isBad: tentou carregar e falhou
+export function hasTile(x, y, z = Z) { if (!index) return false; if (z !== Z) return hasDetailTile(x, y, z); if (!baseSet) { baseSet = new Set(); for (const k in index.stages) for (const [a, b] of index.stages[k]) baseSet.add(a + '/' + b); if (index.dio) for (const k in index.dio.stages) for (const [a, b] of index.dio.stages[k]) baseSet.add('d' + a + '/' + b); } return baseSet.has(x + '/' + y); }
+export function isBad(x, y, z = Z) { const e = cache.get(z + '/' + x + '/' + y); return !!(e && e.bad); }
 export function hasDetailTile(x, y, z) { if (!index || !index['z' + z]) return false; let ds = detailSets[z]; if (!ds) { ds = detailSets[z] = new Set(); for (const k in index['z' + z].stages) for (const [a, b] of index['z' + z].stages[k]) ds.add(a + '/' + b); } return ds.has(x + '/' + y); }
 // níveis de detalhe disponíveis (16, 17…) em ordem
 export function detailLevels() { return [16, 17, 18].filter(z => index && index['z' + z]); }
