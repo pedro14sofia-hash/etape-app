@@ -309,3 +309,6 @@ body.full .ecart{right:112px}
 :root[data-theme="night"] .pv li .k,:root[data-theme="night"] .rep td.k{background:transparent;color:#FFFF00;padding:0;text-align:left}
 .pv li .h{background:#000;color:#fff;padding:1px 6px;text-align:center;line-height:1.2}
 :root[data-theme="night"] .pv li .h{background:#FFFF00;color:#000}
+
+/* noite: números sobre fundo amarelo ficam pretos (ETA, pódio, destaque do relatório) */
+:root[data-theme="night"] .fixed .eta b,:root[data-theme="night"] .podium .s1 b,:root[data-theme="night"] .rep .grid div.hi b,:root[data-theme="night"] #ctx.climb b,:root[data-theme="night"] .fixed .eta i{color:#000}

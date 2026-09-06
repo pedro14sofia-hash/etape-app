@@ -32,7 +32,7 @@ export function init() {
   if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide, onFix };
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
-  if (r3dq === '1' || r3dq === '2') import('./rider3d.js').then(async m => {   // desligado por padrão a pedido do Pedro; ?r3d=2 liga o avatar
+  if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
     if (!m.init($('rider3d'))) return;
     const okModel = r3dq === '1' ? false : await m.loadModel('./models/avatar.glb');
     if (okModel || r3dq === '1') { rider3d = m; R.setRiderExternal(true); size3d(); R.invalidate(); }
