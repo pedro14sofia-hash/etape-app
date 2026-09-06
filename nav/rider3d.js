@@ -185,7 +185,12 @@ function buildRig(mesh) {
   // pesos por vértice
   const idx = new Float32Array(n * 4), wgt = new Float32Array(n * 4); const bi = name => list.indexOf(bones[name]);
   const set = (i, a, wa, b = 0, wb = 0) => { idx[4 * i] = a; wgt[4 * i] = wa; idx[4 * i + 1] = b; wgt[4 * i + 1] = wb; };
-  const v = new THREE.Vector3(); let counts = { wheel: 0, crank: 0, leg: 0, foot: 0 };
+  // tubos do quadro (linhas no plano sagital): vértices rentes a eles com |z| pequeno ficam parados
+  const hubR = new THREE.Vector3(A.rearX, A.ymin + A.R, 0), hubF = new THREE.Vector3(A.frontX, A.ymin + A.R, 0);
+  const seatTop = new THREE.Vector3(BB.x + 0.14 * k, BB.y + 0.58 * k, 0), headB = new THREE.Vector3(A.frontX + 0.03 * k, A.ymin + A.R + 0.32 * k, 0), headT = new THREE.Vector3(A.frontX + 0.01 * k, A.ymin + A.R + 0.48 * k, 0);
+  const frameSegs = [[BB, seatTop], [BB, headB], [BB, hubR], [hubR, seatTop], [seatTop, headT], [headB, headT], [headB, hubF]];
+  const nearFrame = p => { const q = new THREE.Vector3(p.x, p.y, 0); for (const [a, b] of frameSegs) if (segDist(q, a, b).d < 0.055 * k) return true; return false; };
+  const v = new THREE.Vector3(); let counts = { wheel: 0, crank: 0, leg: 0, foot: 0, frame: 0 };
   for (let i = 0; i < n; i++) {
     v.set(pos[3 * i], pos[3 * i + 1], pos[3 * i + 2]); set(i, 0, 1);
     const az = Math.abs(v.z);
@@ -195,7 +200,9 @@ function buildRig(mesh) {
       if (rr < A.R - 0.06 * k) { set(i, bi('wheelR'), 1); counts.wheel++; continue; }
       if (rf < A.R - 0.06 * k) { set(i, bi('wheelF'), 1); counts.wheel++; continue; }
     }
-    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && Math.hypot(v.x - BB.x, v.y - BB.y) < Lc + 0.04 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
+    const rBB = Math.hypot(v.x - BB.x, v.y - BB.y);
+    if (az < 0.085 * k && rBB > 0.07 * k && nearFrame(v)) { counts.frame++; continue; }
+    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && rBB < Lc + 0.04 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
     const s = v.z > 0 ? 1 : -1; const S = side[s]; const z = az;
     if (z < RIG.legZ[0] * k || z > RIG.legZ[1] * k || v.y > S.H.y + 0.05 * k || v.x < BB.x - 0.32 * k || v.x > S.H.x + 0.16 * k) continue;
     const dFoot = v.distanceTo(S.P0);
