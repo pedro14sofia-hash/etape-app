@@ -4,7 +4,7 @@
  --btn:#000000;--btn-ink:#FFFFFF;--cue:#000000;--cue-ink:#FFFFFF;--ctl:#FFFFFF;--casing:#000000;--attr:rgba(255,255,255,.75);--attr-ink:#444;
  --fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Open Sans","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 :root[data-theme="night"]{
- --map:#151515;--paper:#000000;--bg:#0A0A0A;--ink:#FFFF00;--muted:#BBBBBB;--line:#2A2A2A;--pill:#1A1A1A;--auto:#FFFF00;--deep:#FFFF00;--rouge:#FF2A2A;--vert:#35C86A;--bleu:#5B8FD9;
+ --map:#151515;--paper:#000000;--bg:#0A0A0A;--ink:#FFFFFF;--muted:#BBBBBB;--line:#2A2A2A;--pill:#1A1A1A;--auto:#FFFF00;--deep:#FFFF00;--rouge:#FF2A2A;--vert:#35C86A;--bleu:#5B8FD9;
  --btn:#FFFF00;--btn-ink:#000000;--cue:#000000;--cue-ink:#FFFFFF;--ctl:#0A0A0A;--casing:#FFFF00;--attr:rgba(0,0,0,.75);--attr-ink:#BBBBBB}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--map);color:var(--ink);font-family:var(--fb);font-size:15px;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none}
@@ -290,3 +290,14 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 body.full #ctl{display:grid;grid-template-columns:46px 46px;gap:6px}
 body.full #ctl #zin,body.full #ctl #zout{display:none}
 .foot{flex-wrap:wrap;gap:4px}.foot .tools{flex-wrap:wrap;justify-content:flex-end;gap:4px}
+
+/* noite: texto corrido em branco; amarelo só para números grandes, títulos de seção e chaves (hierarquia) */
+:root[data-theme="night"] .fixed b,:root[data-theme="night"] .tele b,:root[data-theme="night"] .mini .kv b,:root[data-theme="night"] .mini em,:root[data-theme="night"] .next .nb em,
+:root[data-theme="night"] .pv .row3 b,:root[data-theme="night"] .rep .big b,:root[data-theme="night"] .rep .grid b,:root[data-theme="night"] .pv h4,:root[data-theme="night"] .rep h4,:root[data-theme="night"] .brief h4,
+:root[data-theme="night"] .pv li .k,:root[data-theme="night"] .pv li .h,:root[data-theme="night"] .fuel .val,:root[data-theme="night"] .ahead b,:root[data-theme="night"] .podium b,:root[data-theme="night"] .sos-pos b,
+:root[data-theme="night"] .passages .nm,:root[data-theme="night"] .mini.fu .l b,:root[data-theme="night"] .mini .cs b,:root[data-theme="night"] .fuel .nxt b,:root[data-theme="night"] .pv .card b,:root[data-theme="night"] .sos-card b,:root[data-theme="night"] .rep td.k{color:#FFFF00}
+:root[data-theme="night"] .tele b small,:root[data-theme="night"] .mini .kv b small{color:#BBBBBB}
+:root[data-theme="night"] #speedo .sp span,:root[data-theme="night"] #speedo .spx{color:#FFFFFF}
+
+/* painel completo: controles em duas colunas empurram o écart */
+body.full .ecart{right:112px}

@@ -309,12 +309,13 @@ export function render(r, v, t) {
   step(v, t);
   renderer.setScissorTest(true); renderer.clear(true, true, true);
   if (!r || !r.show) { renderer.setScissorTest(false); return; }
-  const size = Math.round((r.mode === 'tp' ? 230 : 160) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.5);
+  const size = Math.round((r.mode === 'tp' ? 230 : 200) * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.42);
   renderer.setViewport(x0, y0, size, size); renderer.setScissor(x0, y0, size, size);
   camera.aspect = 1;
-  if (r.mode === 'tp') { camera.position.set(0.0, 1.15, 2.7); camera.fov = 30; }     // de trás e um pouco acima, como a câmera do mapa
-  else { camera.position.set(-1.0, 3.2, 2.2); camera.fov = 26; }                     // 2D: de cima, três quartos, de trás
-  camera.lookAt(0, 0.55, 0); camera.updateProjectionMatrix();                        // origem = chão sob o centro das rodas
+  if (model) { camera.position.set(0.0, 1.25, 2.9); camera.fov = 30; }               // avatar: de trás e um pouco acima, como a TV do Tour
+  else if (r.mode === 'tp') { camera.position.set(0.0, 1.15, 2.7); camera.fov = 30; }
+  else { camera.position.set(-1.0, 3.2, 2.2); camera.fov = 26; }                     // procedural em 2D: de cima, três quartos, de trás
+  camera.lookAt(0, 0.6, 0); camera.updateProjectionMatrix();                         // origem = chão sob o centro das rodas
   yaw(r.rot);                                                                        // rumo: o mapa gira, a bike acompanha
   renderer.render(scene, camera); renderer.setScissorTest(false);
 }
