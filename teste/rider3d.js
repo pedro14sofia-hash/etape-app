@@ -126,7 +126,7 @@ function updateLegs() {
 // Avatar glb + rig procedural. Coordenadas do modelo: frente = -x, cima = +y, lateral = z (chão em y mínimo). Todas as
 // medidas abaixo são em "metros do modelo" (k = raio da roda / 0,34 corrige a escala do gerador).
 // ---------------------------------------------------------------------------------------------------------------------
-const RIG = { hipBack: 0.15, hipUp: 0.66, hipSide: 0.09, thigh: 0.44, shin: 0.44, crank: 0.17, bbBack: 0.41, bbDrop: 0.07, legZ: [0.045, 0.24], legR: 0.15, footR: 0.15, wheelZ: 0.035, crankZ: [0.04, 0.078], blend: 0.06 };
+const RIG = { hipBack: 0.15, hipUp: 0.66, hipSide: 0.09, thigh: 0.44, shin: 0.44, crank: 0.17, bbBack: 0.41, bbDrop: 0.07, legZ: [0.045, 0.24], legR: 0.15, footR: 0.15, wheelZ: 0.035, crankZ: [0.04, 0.07], blend: 0.06 };
 function analyseMesh(pos) {
   const n = pos.length / 3; let ymin = Infinity, xmin = Infinity, xmax = -Infinity;
   for (let i = 0; i < n; i++) { const x = pos[3 * i], y = pos[3 * i + 1]; if (y < ymin) ymin = y; if (x < xmin) xmin = x; if (x > xmax) xmax = x; }
@@ -202,7 +202,9 @@ function buildRig(mesh) {
     }
     const rBB = Math.hypot(v.x - BB.x, v.y - BB.y);
     if (az < 0.085 * k && rBB > 0.07 * k && nearFrame(v)) { counts.frame++; continue; }
-    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && rBB < Lc + 0.04 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
+    // pedivela e coroa giram no movimento central, mas nunca a canela/sapato que passa rente (fica para o pedal/canela)
+    const dShin = Math.min(segDist(v, side[1].K0, side[1].P0).d, segDist(v, side[-1].K0, side[-1].P0).d);
+    if (az >= RIG.crankZ[0] * k && az <= RIG.crankZ[1] * k && rBB < Lc + 0.03 * k && dShin > 0.10 * k) { set(i, bi('crank'), 1); counts.crank++; continue; }
     const s = v.z > 0 ? 1 : -1; const S = side[s]; const z = az;
     if (z < RIG.legZ[0] * k || z > RIG.legZ[1] * k || v.y > S.H.y + 0.05 * k || v.x < BB.x - 0.32 * k || v.x > S.H.x + 0.16 * k) continue;
     const dFoot = v.distanceTo(S.P0);

@@ -56,7 +56,6 @@ export function init() {
   $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   // câmera: 2D → 3ª pessoa → 1ª pessoa; satélite liga/desliga (e baixa a etapa para offline na primeira vez)
-  $('btnCam').onclick = () => { const seq = ['2d', 'tp', 'fp']; setCam(seq[(seq.indexOf(S.prefs.cam || '2d') + 1) % 3]); };
   $('btnSat').onclick = async () => {
     if (!sat.available()) { voice.banner('Satélite indisponível nesta versão', 3); return; }
     const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); $('btnSat').classList.toggle('on', on);
@@ -102,7 +101,7 @@ export function init() {
   if (q.get('stage')) selectStage(q.get('stage'));
   if (q.get('mode')) setMode(q.get('mode'));
   if (q.get('theme')) { S.prefs.theme = q.get('theme'); applyTheme(); }
-  if (q.get('cam')) S.prefs.cam = q.get('cam');
+  S.prefs.cam = '2d';   // só o mapa 2D (com ou sem satélite): as câmeras 3D foram desligadas por decisão do usuário
   if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
   if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
@@ -134,7 +133,7 @@ export function selectStage(key) {
   if (S.session.state === 'running') startNavigation(true);
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
-function setCam(c) { S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); $('btnCam').textContent = c === '2d' ? '2D' : c === 'tp' ? '3ª' : '1ª'; $('btnCam').classList.toggle('on', c !== '2d'); if (c !== '2d') { S.follow = true; $('btnFollow').classList.add('on'); if (S.fix) R.centerOn(S.fix.lat, S.fix.lon); R.setView(null, null, 16, S.fix ? -(S.fix.head || 0) * Math.PI / 180 : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
+function setCam(c) { S.prefs.cam = '2d'; store.setPrefs(S.prefs); R.setMode('2d'); R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
 function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
