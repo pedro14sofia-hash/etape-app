@@ -89,7 +89,8 @@ export function panel(S) {
   // linha da borne + curva
   const cp = S.next.cp, tn = S.next.turn, sf = surfaceAt(st, d), ch = nextSurfaceChange(st, d);
   $('nbName').textContent = cp ? cp.name : '–';
-  const sfTxt = ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf);
+  const bwChip = S.bikeway === 'ciclovia' ? '<i class="chip bike">ciclovia</i>' : S.bikeway === 'faixa' ? '<i class="chip bike">faixa</i>' : '';
+  const sfTxt = bwChip + (ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf));
   $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (sfTxt || (cp.ele ? cp.ele + ' m' : '')) : '';
   $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
   if (tn) { $('tcArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.label || tn.txt; }
@@ -147,6 +148,7 @@ export function panel(S) {
   // velocímetro estilo Tour, só no resumo
   const sp = $('speedo'); sp.hidden = S.mode !== 'resumo';
   if (!sp.hidden && L) { $('spV').textContent = Math.round(L.v); const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); sp.style.bottom = (S.scaleBottom + 22) + 'px'; }
+  const plc = $('place'); if (plc) { plc.textContent = S.place || ''; plc.hidden = !S.place; plc.style.bottom = (S.scaleBottom + (S.mode === 'resumo' ? 122 : 22)) + 'px'; }
   $('gpsSt').textContent = S.gpsMsg || '';
   $('clock').textContent = fmtH(new Date());
 }

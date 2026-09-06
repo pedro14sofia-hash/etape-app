@@ -365,6 +365,8 @@ export function createRenderer(canvas, overlay) {
     // curvas
     if (zBase >= 14) for (const t of st.turns) { if (t.dist < S.proj.dist - 200) continue; const q = proj(st.pts[t.i][0], st.pts[t.i][1]); if (!q[3]) continue; const r = 7 * sizeAt(q); ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 7); ctx.fillStyle = th.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = th.casing; ctx.stroke(); }
     // rótulos de estradas
+    // faixas de bike na rua: tracejado verde ao lado da via (z ≥ 15)
+    if (zBase >= 15 && !cam) for (const w of ways) if (w.k === 1) { path(w.p); ctx.strokeStyle = '#1DAE50'; ctx.lineWidth = 2.2; ctx.setLineDash([7, 6]); ctx.stroke(); ctx.setLineDash([]); }
     if (zBase >= 13.5) { const seen = new Set(); let nlab = 0; for (const w of ways) {
         if (!w.n || seen.has(w.n) || nlab >= 8) continue;
         const major = w.c <= 4 && /^[A-Z] ?\d/.test(w.n); const mid = midOf(w.p); const near = zBase >= 15 && w.c <= 6 && w.p.some(pt => distMe(pt[0], pt[1]) < 220);

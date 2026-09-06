@@ -178,6 +178,17 @@ export function finishStage(force) {
   const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival); report.save(r); showReport(r);
 }
 function resetStage() { if (!confirm('Zerar progresso, sessão e registro desta etapa?')) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
+// cidade/vila atual: nó "place" mais próximo, cada tipo com o seu raio (cidade 4 km, town 2,5 km, vila 1,2 km, lugarejo 600 m)
+const PLACE_R = { 'place:city': 4000, 'place:town': 2500, 'place:village': 1200, 'place:hamlet': 600 };
+let placeAt = 0;
+function updatePlace(now) {
+  const p = S.pos || S.fix; if (!p || now - placeAt < 2500) return; placeAt = now;
+  const near = poisNear(S.map.poiIndex, p.lat, p.lon, 4000, Object.keys(PLACE_R));
+  let best = null, bs = 1;
+  for (const c of near) { const s = c.d / PLACE_R[c.poi.k]; if (s < bs) { bs = s; best = c; } }
+  const name = best ? best.poi.n : '';
+  if (name !== S.place) { S.place = name; refresh(); }
+}
 function placeNow() {
   if (!S.fix) return null;
   const near = poisNear(S.map.poiIndex, S.fix.lat, S.fix.lon, 400, ['place:village', 'place:hamlet', 'place:town', 'bakery', 'water', 'pass', 'shop']);
@@ -210,6 +221,7 @@ function onFix(raw) {
   }
   for (const ev of events) handleEvent(ev);
   rerouteTick(fix, now, events);
+  updatePlace(now);
   S.next = guide.nextCue(S);
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }

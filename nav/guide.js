@@ -2,7 +2,7 @@
 // Orientação: transforma posição em eventos (curva, borne, fora de rota, chegada, parada, compra, subida, luz).
 import { haversine, sunTimes, bearing, tzAt, tzMinutes } from './geo.js';
 import { project, nextCheckpoint, climbAt, surfaceAt, pointAt } from './track.js';
-import { poisNear } from './data-mod.js';
+import { poisNear, nearestWay } from './data-mod.js';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -52,6 +52,15 @@ export function tick(S, fix, now) {
   // terreno
   const sf = surfaceAt(st, dist);
   if (sf && sf !== S.surface) { if (S.surface) ev.push({ kind: 'surface', level: 3, text: cap(sf), sub: 'mudança de terreno', speak: sf === 'asfalto' ? 'Volta ao asfalto.' : 'Trecho de ' + sf + '.' }); S.surface = sf; }
+  // ciclovia / faixa de bike / rua: via mais próxima (≤ 25 m), muda só depois de 2 leituras iguais
+  if (S.map && S.map.index) {
+    const p = S.pos || fix, nw = nearestWay(S.map.index, p.lat, p.lon, 30), bw = nw ? (nw.way.k === 2 ? 'ciclovia' : nw.way.k === 1 ? 'faixa' : 'rua') : (S.bikeway || 'rua');
+    if (bw !== S.bikeway) { S.bwCand = bw === S.bwCand ? S.bwCand : bw; S.bwN = bw === S.bwCand ? (S.bwN || 0) + 1 : 1; }
+    if (bw !== S.bikeway && S.bwN >= (bw === 'rua' ? 3 : 2)) {
+      const first = !S.bikeway; S.bikeway = bw; S.bwN = 0;
+      if (!first) ev.push(bw === 'ciclovia' ? { kind: 'bikeway', level: 3, text: 'Ciclovia', sub: 'via própria de bike', speak: 'Ciclovia.' } : bw === 'faixa' ? { kind: 'bikeway', level: 3, text: 'Faixa de bike', sub: 'na rua, atenção ao trânsito', speak: 'Faixa de bike.' } : { kind: 'bikeway', level: 3, text: 'Rua', sub: 'trânsito compartilhado', speak: 'De volta à rua. Atenção ao trânsito.' });
+    }
+  }
   // flamme rouge
   if (st.total - dist < 1000 && !S.flamme) { S.flamme = true; ev.push({ kind: 'flamme', level: 2, text: 'Flamme rouge', sub: 'último quilômetro', speak: 'Último quilômetro.' }); if (S.prefs && S.prefs.camera !== false) ev.push({ kind: 'rec', level: 2, text: 'Grava agora', sub: 'chegada · ' + st.name.split('→').pop().trim(), speak: 'Grava agora. Chegada.' }); }
   // paradas e compras

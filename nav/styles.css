@@ -64,6 +64,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .mini-btn{border:1.5px solid currentColor;border-radius:0;padding:6px 10px;font-family:var(--fd);font-weight:800;font-size:1rem;letter-spacing:.06em;text-transform:uppercase}
 #attr{position:absolute;right:10px;font-size:9px;color:var(--attr-ink);background:var(--attr);padding:1px 4px;border-radius:2px;z-index:4;pointer-events:none}
 /* velocímetro estilo TV do Tour (modo resumo): sem fundo, dígitos com halo sobre o mapa */
+#place{position:absolute;left:10px;z-index:4;pointer-events:none;background:#000;color:#fff;font-family:var(--fd);font-weight:800;font-size:1.15rem;letter-spacing:.06em;text-transform:uppercase;line-height:1;padding:6px 10px 5px;border-left:5px solid #FFFF00;max-width:62vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #speedo{position:absolute;left:10px;z-index:4;color:var(--ink);padding:0;min-width:132px;pointer-events:none}
 #speedo .sp{display:flex;align-items:baseline;gap:6px}
 #speedo .sp.alt{margin-top:2px}#speedo .sp.alt b{font-size:2.2rem}
@@ -116,7 +117,7 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 .next .tc svg{display:block;flex:none}
 .next .tc small{display:block;font-family:var(--fb);font-size:.7rem;letter-spacing:.1em;font-weight:700;color:var(--muted);text-transform:uppercase;max-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chip{display:inline-block;font-family:var(--fd);font-weight:900;font-size:1.02rem;letter-spacing:.06em;padding:1px 6px 0;border:1.5px solid var(--ink);border-radius:3px;line-height:1.25;vertical-align:1px;margin-right:4px;font-style:normal;text-transform:uppercase}
-.chip.asf{background:var(--ink);color:var(--bg)}.chip.grv{background:#6B4423;color:#fff;border-color:#6B4423}.chip.trl{background:var(--bg);color:var(--ink)}
+.chip.bike{background:#1DAE50;color:#fff;border-color:#1DAE50}.chip.asf{background:var(--ink);color:var(--bg)}.chip.grv{background:#6B4423;color:#fff;border-color:#6B4423}.chip.trl{background:var(--bg);color:var(--ink)}
 :root[data-theme="night"] .chip.grv{background:#D9A066;color:#000000;border-color:#D9A066}
 .tabs{display:flex;border-bottom:0;background:#000}
 .tabs div{flex:1;text-align:center;padding:7px 0 6px;font-family:var(--fd);font-weight:800;font-size:1rem;letter-spacing:.14em;text-transform:uppercase;color:#BBBBBB;position:relative}

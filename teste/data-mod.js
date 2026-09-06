@@ -35,8 +35,18 @@ export function query(index, box) {
 }
 export function nearestWay(index, lat, lon, maxM = 60) {
   const d = maxM / 111000, cand = query(index, [lat - d, lon - d, lat + d, lon + d]);
-  let best = null, bd = maxM;
-  for (const w of cand) for (const p of w.p) { const dd = fastDist(lat, lon, p[0], p[1]); if (dd < bd) { bd = dd; best = w; } }
+  // distância ao segmento (não só aos vértices): vias longas e retas simplificadas têm poucos pontos
+  const kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 111320; let best = null, bd = maxM;
+  for (const w of cand) {
+    const P = w.p;
+    for (let i = 0; i < P.length; i++) {
+      let dd;
+      if (i) { const ax = (P[i - 1][1] - lon) * kx, ay = (P[i - 1][0] - lat) * ky, bx = (P[i][1] - lon) * kx, by = (P[i][0] - lat) * ky, vx = bx - ax, vy = by - ay, L2 = vx * vx + vy * vy;
+        const t = L2 > 0 ? Math.max(0, Math.min(1, -(ax * vx + ay * vy) / L2)) : 0; dd = Math.hypot(ax + vx * t, ay + vy * t); }
+      else dd = Math.hypot((P[0][1] - lon) * kx, (P[0][0] - lat) * ky);
+      if (dd < bd) { bd = dd; best = w; }
+    }
+  }
   return best ? { way: best, d: bd } : null;
 }
 export function poisNear(index, lat, lon, radiusM, kinds) {
