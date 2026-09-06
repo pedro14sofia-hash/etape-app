@@ -18,6 +18,7 @@ import * as dem from './dem.js';
 import * as compass from './compass.js';
 import * as weather from './weather.js';
 import * as sensors from './sensors.js';
+import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
@@ -108,6 +109,7 @@ export function init() {
   R.resize();
   window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
+  if (window.FREE) { S.free = true; free.init(S); S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageSel').disabled = true; R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0); }
   ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
@@ -131,7 +133,8 @@ export function init() {
   if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
   if (q.get('z')) { S.userZoomAt = Date.now() + 1e9; setTimeout(() => R.setView(null, null, +q.get('z')), 600); }   // zoom fixo para testes e gravações
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
-  if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
+  if (S.free && q.get('vias')) setTimeout(() => { if (S.session.state === 'idle') session.start(S.session, Date.now()); S.follow = true; R.setView(null, null, 18.5); S.gpsMsg = 'Simulação'; free.simulate(q.get('vias').split(','), +q.get('sim') || 22, onFix); }, 800);
+  else if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
   // ícones carregam de forma assíncrona: redesenha a prévia quando ficarem prontos
   document.addEventListener('etape:icons', () => { if (PV && $('dlgPreview').open) { PV.R2.invalidate(); PV.R2.draw(PV.S2); } });
@@ -189,7 +192,7 @@ export function stopNavigation() { gps.stop(); gps.keepAwake(false); S.gpsMsg = 
 
 export function toggleSession() {
   const now = Date.now(), s = S.session;
-  if (s.state === 'idle') { session.start(s, now); startNavigation(); showBriefingOnce(); }
+  if (s.state === 'idle') { session.start(s, now); startNavigation(); if (!S.free) showBriefingOnce(); }
   else if (s.state === 'running') { session.pause(s, now, placeNow()); voice.announce({ level: 3, text: 'Pausa', sub: 'GPS segue ligado', speak: 'Pausa.' }); }
   else if (s.state === 'paused') { session.resume(s, now); if (!gps.running()) startNavigation(true); voice.announce({ level: 3, text: 'Retomada', speak: 'Retomando.' }); }
   refresh();
@@ -199,7 +202,10 @@ export function finishStage(force) {
   if (!force && !confirm('Encerrar a etapa e gerar o relatório?')) return;
   session.finish(S.session, Date.now()); stopNavigation();
   telemetry.record(S.log, S.log[S.log.length - 1] || telemetry.sample({ t: Date.now(), lat: S.stage.pts[0][0], lon: S.stage.pts[0][1] }, S.stage, S.proj), S.stage.key, true);
-  const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival); report.save(r); showReport(r);
+  const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival);
+  if (S.free) { const d = new Date(S.session.startedAt || Date.now()); const hm = String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); r.stageKey = 'SP-' + d.toISOString().slice(0, 10) + '-' + hm; r.name = 'SP · ' + d.toLocaleDateString('pt-BR') + ' ' + hm; r.planKm = r.km; r.planUp = r.up; }
+  report.save(r); showReport(r);
+  if (S.free) { const c = S.fix ? [S.fix.lat, S.fix.lon] : S.stage.pts[S.stage.pts.length - 1]; store.clearStage('SP'); selectStage('SP'); free.reset(c); }
 }
 function resetStage() { if (!confirm('Zerar progresso, sessão e registro desta etapa?')) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
 // cidade/vila atual: nó "place" mais próximo, cada tipo com o seu raio (cidade 4 km, town 2,5 km, vila 1,2 km, lugarejo 600 m)
@@ -228,6 +234,7 @@ function onFix(raw) {
   S.speed10 = gps.speedWindow(S.hist, 600);
   const sess = S.session, running = sess.state === 'running';
   if (running) session.trackStill(sess, { ...fix, dist: S.proj.dist }, now, S.next.cp ? 'perto de ' + S.next.cp.name : '');
+  if (S.free) { onFixFree(fix, now, running); return; }
   const events = running ? guide.tick(S, fix, now) : (S.proj = track.project(S.stage, fix.lat, fix.lon, S.proj.idx), []);
   if (running && !S.off) {
     const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr; telemetry.record(S.log, smp, S.stage.key);
@@ -259,6 +266,29 @@ function onFix(raw) {
   const jump = !S.pos || !prev || Date.now() - prev.t > 60000 || haversine(S.pos.lat, S.pos.lon, fix.lat, fix.lon) > 150;
   if (jump) { const p = onRoad ? track.pointAt(S.stage, T.dist) : [fix.lat, fix.lon]; S.pos = { lat: p[0], lon: p[1], head: onRoad ? track.bearingAt(S.stage, T.dist) * Math.PI / 180 : T.head, dist: T.dist }; if (S.follow) snapView(); }
   // zoom automático pela velocidade (2D): parado 19 · normal 18,2 · descida rápida 17,4; desliza no loop, e só sem zoom manual recente
+  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4); else S.zoomTarget = null;
+  R.invalidate(); refresh();
+}
+// Navegação livre: encaixa na via (free.js), estende o percurso, telemetria e abastecimento iguais aos da etapa
+function onFixFree(fix, now, running) {
+  const events = free.onFix(fix, now), sess = S.session;
+  if (running) {
+    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr; telemetry.record(S.log, smp, S.stage.key);
+    const moving = session.movingTime(sess, now);
+    try { events.push(...fuel.tick(S.fuel, S.fuelPlan, moving, now, {})); } catch (e) { }
+    S.live = telemetry.live(S.log, S.stage, sess, now, moving);
+    try { S.fuelStatus = fuel.status(S.fuel, S.fuelPlan, moving, 0, S.speed10 * 3.6); } catch (e) { }
+    S.light = guide.daylight(new Date(now), fix.lat, fix.lon);
+    if (S.prefs.theme === 'auto') applyTheme();
+  }
+  for (const ev of events) handleEvent(ev);
+  updatePlace(now);
+  const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
+  const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);
+  const T = { lat: pos[0], lon: pos[1], v: v0, head: headDeg * Math.PI / 180, dist: S.proj.dist || 0, on: false, t: Date.now() };
+  const prev = S.viewTarget; S.viewTarget = T;
+  const jump = !S.pos || !prev || Date.now() - prev.t > 60000 || haversine(S.pos.lat, S.pos.lon, pos[0], pos[1]) > 150;
+  if (jump) { S.pos = { lat: pos[0], lon: pos[1], head: T.head, dist: T.dist }; if (S.follow) snapView(); }
   if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4); else S.zoomTarget = null;
   R.invalidate(); refresh();
 }
@@ -346,7 +376,7 @@ function markPlace() {
   session.mark(S.session, 'lugar', { lat: p.lat, lon: p.lon, dist: S.proj.dist, ele: Math.round(track.elevationAt(S.stage, S.proj.dist)) });
   voice.banner('Lugar marcado', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · vai para o relatório e o GPX'); R.invalidate();
 }
-function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
+function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); if (S.free) free.panel($); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
 function size3d() { if (!rider3d) return; const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); }
 let riderFrame = -1, lastGlide = 0;
 function headingRot() { if (S.rotLock) return R.view.rot; return (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -S.pos.head : 0; }
@@ -415,7 +445,7 @@ function startSim(kmh, from) {
   gps.simulate(S.stage, kmh, onFix, from, d => track.gradeAt(S.stage, d, 150));
 }
 function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
-function showBriefing() { showPreview(S.stage.key); }
+function showBriefing() { if (S.free) { voice.banner('Sem prévia no modo livre', 3, 'o percurso nasce com o pedal'); return; } showPreview(S.stage.key); }
 // prévia do dia: mapa inteiro, perfil, cronograma, paradas, compras, hospedagem; ou a viagem inteira
 let PV = null;
 function showPreview(key) {

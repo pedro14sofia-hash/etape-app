@@ -52,7 +52,7 @@ export function stageFlags(stage, paradas) {
   const out = [{ dist: 0, kind: 'start' }];
   for (const c of stage.climbs) out.push({ dist: c.to, kind: 'cat', text: c.cat, name: c.name });
   for (const p of paradas || []) { if (p.kind === 'compras') out.push({ dist: p.km * 1000, kind: 'feed', name: p.nome }); else if (p.kind === 'visita' || p.kind === 'foto') out.push({ dist: p.km * 1000, kind: 'sight', name: p.nome }); }
-  out.push({ dist: Math.max(0, stage.total - 1000), kind: 'flamme', text: '1' }); out.push({ dist: stage.total, kind: 'finish' });
+  if (!stage.free) { out.push({ dist: Math.max(0, stage.total - 1000), kind: 'flamme', text: '1' }); out.push({ dist: stage.total, kind: 'finish' }); }
   return out.sort((a, b) => a.dist - b.dist);
 }
 

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Étape · biblioteca de ícones</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>body{margin:0;background:#F7F5EE;color:#17191C;font-family:Barlow,sans-serif;padding:20px}h1{font-family:"Barlow Condensed",Impact,sans-serif;font-weight:900;font-size:2rem;text-transform:uppercase;margin:0 0 4px}p{margin:0 0 16px;color:#3C4045;max-width:60ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.c{background:#fff;border:1.5px solid #17191C;border-radius:4px;padding:12px 10px;text-align:center}.c svg{display:block;margin:0 auto}
+.c b{display:block;font-family:"Barlow Condensed",Impact,sans-serif;font-weight:800;font-size:1.1rem;text-transform:uppercase;margin-top:8px}.c span{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#6C7176;font-weight:600}
+.map{margin-top:20px;background:#F4EFE1;border:1.5px solid #17191C;border-radius:4px;padding:16px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end}.map .s{text-align:center;font-size:.7rem;color:#4B5056;font-weight:600}
+.night{background:#1A1C21;color:#E6E2D8}</style></head><body>
+<h1>Biblioteca de ícones · Étape</h1>
+<p>Papel recortado isométrico sobre base amarela, contorno de basalto, faces claras e sombreadas na paleta do guia. Abaixo, os mesmos ícones nos dois tamanhos usados no mapa, de dia e de noite.</p>
+<div class="grid" id="g"></div>
+<div class="map" id="day"></div>
+<div class="map night" id="night"></div>
+<script type="module">
+import { ICONS, svgOf } from './icons.js';
+const NAMES = { church: ['Igreja', 'place_of_worship'], castle: ['Castelo', 'historic=castle'], viewpoint: ['Mirante', 'tourism=viewpoint'], bakery: ['Padaria', 'shop=bakery'], cafe: ['Café', 'amenity=cafe'], water: ['Fonte', 'drinking_water'], toilets: ['Banheiro', 'amenity=toilets'], bike: ['Bicicletaria', 'shop=bicycle'], hotel: ['Hotel', 'hospedagem'], pharmacy: ['Farmácia', 'amenity=pharmacy'], shop: ['Mercado', 'supermarket'], hospital: ['Hospital', 'amenity=hospital'], picnic: ['Piquenique', 'picnic_site'], camera: ['Foto', 'parada de foto'], visit: ['Visita', 'parada de visita'], peak: ['Pico', 'natural=peak'], pass: ['Col', 'mountain_pass'], shopping: ['Compras', 'lembrete'], sos: ['SOS', 'emergência'], mybike: ['A Cannondale', 'lateral'], bikeTop: ['Você na Cannondale', 'modelo 3D projetado · posição no mapa'] };
+const g = document.getElementById('g');
+for (const k in ICONS) { const d = document.createElement('div'); d.className = 'c'; d.innerHTML = svgOf(k, 64) + '<b>' + (NAMES[k] ? NAMES[k][0] : k) + '</b><span>' + (NAMES[k] ? NAMES[k][1] : '') + '</span>'; g.appendChild(d); }
+for (const id of ['day', 'night']) { const m = document.getElementById(id); for (const k of ['church', 'bakery', 'water', 'toilets', 'bike', 'camera', 'visit', 'pass']) { const d = document.createElement('div'); d.className = 's'; d.innerHTML = svgOf(k, 34) + svgOf(k, 24) + '<div>' + NAMES[k][0] + '</div>'; m.appendChild(d); } }
+</script></body></html>

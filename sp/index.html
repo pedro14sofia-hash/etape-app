@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#FFFF00">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Étape Navegar</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+<canvas id="rider" aria-hidden="true"></canvas>
+<canvas id="rider3d" aria-hidden="true"></canvas>
+<canvas id="gl" hidden></canvas>
+<header id="top">
+  <div id="stageCode" class="code"><span id="stageKey">E1</span><select id="stageSel" aria-label="Etapa"></select></div>
+  <div class="name"><b id="stageName">–</b><span id="stageSub"></span></div>
+  <div class="clock"><b id="clock">–:–</b><button id="btnTheme" aria-label="Tema">◐</button></div>
+</header>
+<div id="edge"></div>
+<div id="cue" class="cue"></div>
+<div id="ctl">
+  <button id="zin" aria-label="Aproximar">+</button>
+  <button id="zout" aria-label="Afastar">−</button>
+  <button id="btnFollow" class="on" aria-label="Recentralizar em mim"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+  <button id="btnVoice" class="on" aria-label="Voz"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+  <button id="btnBrief" aria-label="Prévia do dia"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v18H5z"/><path d="M8 7h8M8 11h8M8 15h5"/><path d="M15 15l2 2 3-3" stroke-width="2.4"/></svg></button>
+  <button id="btnSat" aria-label="Satélite" hidden><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></button>
+  <button id="btnCam" aria-label="Câmera: 2D ou terceira pessoa">2D</button>
+  <button id="btnMode" aria-label="Recolher ou expandir o painel">▾</button>
+  <button id="btnSos" class="sos" aria-label="Emergência">SOS</button>
+</div>
+<div id="attr">© OpenStreetMap contributors</div>
+<div id="ecart" class="ecart" hidden></div>
+<div id="place" hidden></div>
+<div id="speedo" hidden>
+  <div class="sp"><b id="spV">0</b><span>km/h</span></div>
+  <div class="spx"><span id="spG" class="g">0 %</span></div>
+</div>
+
+<footer id="panel">
+  <div id="grab" class="grab"></div>
+  <div id="fixed" class="fixed">
+    <div class="eta"><b id="eta">–:–</b><span>chegada · <i id="vsplan"></i></span></div>
+    <div><b id="rem">–</b><span>km restam</span></div>
+    <div class="btn"><button id="btnSession" class="sbtn idle">Iniciar<small>etapa</small></button></div>
+  </div>
+  <div id="next" class="next">
+    <div class="nb"><em id="nbName">–</em><span id="nbSub"></span></div>
+    <div class="tc"><span id="tcArrow"></span><div><span id="tcDist">–</span><small id="tcSub"></small></div></div>
+  </div>
+  <div id="tabs" class="tabs"><div data-tab="tele" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg><span>Telemetria</span></div><div data-tab="fuel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3l1.5 2v11a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V8L9 6z"/><path d="M8 12h8"/></svg><span>Abastecer</span></div><div data-tab="prof"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 19l5-8 4 5 4-9 7 12z"/></svg><span>Perfil</span></div></div>
+
+  <section class="pane" data-tab="tele">
+    <div class="tele">
+      <div><b><span id="tV">–</span><small>km/h</small></b><span>velocidade</span></div>
+      <div><b><span id="tG">–</span><small>%</small></b><span>rampa agora</span></div>
+      <div><b><span id="tDone">–</span><small>km</small></b><span>feitos</span></div>
+      <div><b><span id="tVam">–</span><small>m/h</small></b><span>VAM 5 min</span></div>
+      <div><b><span id="tEle">–</span><small>m</small></b><span>altitude</span></div>
+      <div><b><span id="tUp">–</span><small>m</small></b><span>subida restante</span></div>
+    </div>
+    <div id="ctx" hidden></div>
+  </section>
+  <section class="pane" data-tab="fuel" hidden>
+    <div class="fuel2">
+      <div class="fcard" id="fcD"><div class="fh"><span>Beber</span><b id="fDn">–</b></div><div class="fint"><i id="fDBar"></i></div><button id="fDrink">Bebi<small>150 ml</small></button></div>
+      <div class="fcard" id="fcE"><div class="fh"><span>Comer</span><b id="fEn">–</b></div><div class="fint"><i id="fEBar"></i></div><button id="fEat">Comi<small>30 g</small></button></div>
+    </div>
+    <div class="ftot">
+      <div><span>Água hoje</span><b id="fWv">–</b><div class="fbar"><i id="fWBar"></i><em id="fWMark"></em></div></div>
+      <div><span>Carbo hoje</span><b id="fCv">–</b><div class="fbar"><i id="fCBar"></i><em id="fCMark"></em></div></div>
+    </div>
+    <div class="fnote"><span id="fNext"></span><button id="fSnooze">Adiar 10 min</button></div>
+  </section>
+  <section class="pane" data-tab="prof" hidden>
+    <div class="prof">
+      <canvas id="prof"></canvas>
+      <div class="terr" id="terr"></div>
+      <div class="lg"><span><i class="a"></i>asfalto</span><span><i class="g"></i>gravel</span><span><i class="t"></i>trilha</span></div>
+      <div class="ahead" id="pAhead"></div>
+      <div class="pass-h"><span></span><span>Passagens</span><span>plano</span><span>previsto</span><span>écart</span></div><ul class="passages" id="passages"></ul>
+    </div>
+  </section>
+
+  <div class="mini ab" data-tab="tele" hidden>
+    <div class="grow"><em id="mName">–</em><span id="mSub"></span></div>
+    <div class="kv"><b><span id="mV">–</span><small id="mVu">m/h</small></b><span id="mVl">VAM</span></div>
+    <div class="kv"><b><span id="mG">–</span><small id="mGu">m</small></b><span id="mGl">a subir</span></div>
+  </div>
+  <div class="mini fu" data-tab="fuel" hidden>
+    <div class="fcard" id="mcD"><div class="fh"><span>Beber</span><b id="mWn">–</b></div><div class="fint"><i id="mDBar"></i></div><button id="mDrink">Bebi</button></div>
+    <div class="fcard" id="mcE"><div class="fh"><span>Comer</span><b id="mCn">–</b></div><div class="fint"><i id="mEBar"></i></div><button id="mEat">Comi</button></div>
+  </div>
+  <div class="mini pr" data-tab="prof" hidden>
+    <canvas id="spark" class="spark"></canvas>
+    <div class="strip" id="mTerr"></div>
+    <div class="cs" id="mProfTxt"></div>
+  </div>
+
+  <div class="foot"><span id="gpsSt"></span><span class="tools"><button id="btnMark">Marcar lugar</button><button id="btnMenu">Mais</button></span></div>
+</footer>
+
+<dialog id="dlgBrief"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
+<dialog id="dlgPreview">
+  <div class="pv-tabs" id="pvTabs"></div>
+  <div id="pvBody"></div>
+  <div class="dlg-acts"><button id="pvGo" class="pri">Navegar esta etapa</button><button data-close>Fechar</button></div>
+</dialog>
+<dialog id="dlgMenu"><div class="menu-hd"><b>Mais</b><span id="menuSt"></span></div><div class="menu">
+  <button id="btnReport"><b>Relatório do dia</b><span>resumo, pódio, GPX</span></button>
+  <button id="btnSens"><b>Sensores</b><span>frequência cardíaca, cadência, potência por Bluetooth</span></button>
+  <button id="btnSim" class="dev"><b>Simulação</b><span>percorre a etapa a 22 km/h (teste)</span></button>
+  <button id="btnFinish" class="danger"><b>Encerrar etapa</b><span>toque duas vezes · fecha a sessão e gera o relatório</span></button>
+  <button id="btnReset" class="danger dev"><b>Zerar etapa</b><span>apaga progresso, sessão e registro</span></button>
+</div><div class="dlg-acts"><button data-close class="pri">Fechar</button></div></dialog>
+<dialog id="dlgSos"><div class="sos-hd"><b>Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
+<dialog id="dlgReport"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
+
+<script src="data.js"></script>
+<script type="module" src="app.js"></script>
+<noscript><div style="position:absolute;inset:0;background:#FFFFFF;padding:24px;font-family:sans-serif">O navegador precisa de JavaScript. Abra no Chrome.</div></noscript>
+</body>
+</html>
