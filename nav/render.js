@@ -366,13 +366,13 @@ export function createRenderer(canvas, overlay) {
         if (!major && !near) continue;
         const q = mid; if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue;
         if (crowded(q[0], q[1], 70)) continue; seen.add(w.n); nlab++;
-        label(w.n, q[0], q[1], 'center', (major ? '800 ' : '600 ') + Math.round((major ? 13 : 12) * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.roadLabel); } }
+        label(w.n, q[0], q[1], 'center', (major ? '800 ' : '600 ') + Math.round((major ? 15 : 13) * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.roadLabel); } }
     // POIs
     if (zBase >= 14.5) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (zBase < 16 || dm > 300) continue; } else continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
     // paradas (foto/visita/compras)
     if (zBase >= 12) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; sightIcon(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(16 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(14 * sz) + 'px' : '600 ' + Math.round(12 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
+    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
     // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
     if (cam) for (const f of stageFlags(st, S.paradas)) {
       if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
@@ -428,7 +428,7 @@ export function createRenderer(canvas, overlay) {
     ctx.beginPath(); rr(x, y, w, h, 4 * sz); ctx.fillStyle = c.done ? theme.res : theme.borne; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = theme.casing; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x, y + 5 * sz); ctx.arc(q[0], y + 16 * sz, 16 * sz, Math.PI, 0); ctx.lineTo(x + w, y + 12 * sz); ctx.lineTo(x, y + 12 * sz); ctx.closePath(); ctx.fillStyle = (c.col || c.hotel) ? '#E10D0D' : '#FFFF00'; ctx.fill();
     ctx.fillStyle = '#000000'; ctx.font = '900 ' + Math.round(16 * sz) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], y + 25 * sz); ctx.textAlign = 'left';
-    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(14 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    if (z >= 12 && sz > .5) label(c.name + (c.ele ? ' ' + c.ele + ' m' : ''), q[0] + 20 * sz, q[1] - 10 * sz, 'left', '700 ' + Math.round(16 * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
   }
   // disco atrás do ícone (estilo Apple Maps): branco de dia, preto à noite; amarelo para as paradas da viagem
   function maxZ() { return view.sat && sat.available() ? 17 : 19; }
@@ -438,7 +438,7 @@ export function createRenderer(canvas, overlay) {
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 14.5 ? 48 : 36, im = icon(SIGHT_ICON[p.kind] || 'camera', base);
-    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(13 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
+    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(15 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif'); return; }
     const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#E10D0D';
     ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
@@ -447,7 +447,7 @@ export function createRenderer(canvas, overlay) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 16 ? 40 : z >= 14.5 ? 34 : 26, nm = KIND_ICON[p.k], im = nm ? icon(nm, base) : null;
     if (crowded(q[0], q[1], base * 0.9)) return;
-    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(12 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
+    if (ready(im)) { const s2 = base * sz; disc(q[0], q[1], s2 * .52, theme.poiBg); ctx.drawImage(im, q[0] - s2 * .36, q[1] - s2 * .4, s2 * .72, s2 * .72); if (sz > .6 && (z >= 15.5 || ((p.k === 'peak' || p.k === 'pass' || p.k === 'water' || p.k === 'toilets' || p.k === 'bike' || p.k === 'castle' || p.k === 'viewpoint') && z >= 14)) && p.n && !crowded(q[0], q[1] + s2 * .52 + 8, 36)) label(p.n + (p.k === 'peak' || p.k === 'pass' ? (p.e ? ' ' + p.e : '') : ''), q[0], q[1] + s2 * .52 + 8 * sz, 'center', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.poiLabel); return; }
     ctx.beginPath(); ctx.arc(q[0], q[1], 7.5 * sz, 0, 7); ctx.fillStyle = theme.poiBg; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = s[0]; ctx.stroke();
   }
   function placeRider(q, rot) {
