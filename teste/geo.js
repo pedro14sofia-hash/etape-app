@@ -66,4 +66,4 @@ export function tzHM(d) { const p = tzParts(d); return String(p.h).padStart(2, '
 export function tzMinutes(d) { const p = tzParts(d); return p.h * 60 + p.mi + p.s / 60; }
 export function tzHour(d) { return tzParts(d).h; }
 // instante correspondente a h:m no fuso da viagem, no mesmo dia (do fuso) que `base`
-export function tzAt(base, h, m = 0) { const p = tzParts(base); const guess = Date.UTC(p.y, p.mo - 1, p.d, h, m); const q = tzParts(guess); const diff = (q.h * 60 + q.mi) - (h * 60 + m); return new Date(guess - diff * 60000); }
+export function tzAt(base, h, m = 0) { const p = tzParts(base); const guess = Date.UTC(p.y, p.mo - 1, p.d, h, m); const q = tzParts(guess); let diff = (q.h * 60 + q.mi) - (h * 60 + m); if (diff > 720) diff -= 1440; else if (diff < -720) diff += 1440; return new Date(guess - diff * 60000); }   // diff normalizado: sem isso, horas a partir das 22h de Paris caíam no dia seguinte

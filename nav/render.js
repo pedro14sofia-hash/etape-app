@@ -300,12 +300,14 @@ export function createRenderer(canvas, overlay) {
     ctx.lineWidth = 2; ctx.strokeStyle = th.other;
     if (!satOn) for (const k in S.routes.stages) if (k !== st.key) { path(S.routes.stages[k].track); ctx.stroke(); }
     // caminho de volta à rota (recálculo): azul com casaco branco
-    if (S.reroute && !cam) { path(S.reroute.pts); ctx.lineWidth = 11; ctx.strokeStyle = '#FFFFFF'; ctx.stroke(); ctx.lineWidth = 7; ctx.strokeStyle = '#3969B7'; ctx.stroke(); }
+    if (S.reroute && !cam) { path(S.reroute.pts); ctx.setLineDash([12, 9]); ctx.lineWidth = 10; ctx.strokeStyle = '#FFFFFF'; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = th.rouge || '#E4002B'; ctx.stroke(); ctx.setLineDash([]); }   // nova rota: vermelha tracejada (tela 05)
+    // rotas alternativas do Diário (tela 01): cinza tracejado; a escolhida é a etapa e vai em amarelo
+    if (S.alts && !cam) for (const a of S.alts) { if (a.sel || a.fail || a.same || !a.pts) continue; path(a.pts); ctx.setLineDash([10, 8]); ctx.lineWidth = 9; ctx.strokeStyle = th.paper || '#F7F2E6'; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = th.grey || '#8E9198'; ctx.stroke(); ctx.setLineDash([]); }
     // fita da etapa: feito (tracejado) e restante (amarela com casaco)
     const ci = S.proj.idx || 0;
     if (cam) { const rem = [pointAt(st, S.proj.dist || 0)].concat(st.pts.slice(ci + (st.cum[ci] < (S.proj.dist || 0) ? 1 : 0))); groundStrip(rem, 5.2, th.ribbonCasing); groundStrip(rem, 3.4, th.ribbon); }
     else { ctx.lineWidth = 10; ctx.strokeStyle = th.ribbonCasing; path(st.pts.slice(ci)); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = th.ribbon; ctx.stroke(); }
-    for (const sf of st.surfaces) if (sf.kind !== 'asfalto' && sf.to > S.proj.dist) { path(sliceByDist(st, Math.max(sf.from, S.proj.dist), sf.to)); ctx.strokeStyle = th.gravel; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
+    for (const sf of st.surfaces) if (sf.kind !== 'asfalto' && sf.kind !== 'rua' && sf.to > S.proj.dist) { path(sliceByDist(st, Math.max(sf.from, S.proj.dist), sf.to)); ctx.strokeStyle = sf.kind === 'ciclovia' ? '#0E9A4C' : sf.kind === 'faixa' ? '#6CC28E' : th.gravel; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
     ctx.lineWidth = 3; ctx.strokeStyle = th.done; ctx.setLineDash([7, 6]); path(st.pts.slice(0, ci + 1)); ctx.stroke(); ctx.setLineDash([]);
     // chevrons de rampa na fita e bornes de km (só na etapa com traçado, em 2D)
     if (!cam && !st.free && st.total > 0) { if (rules.chevrons && zBase >= 13.5) drawChevrons(st, S.proj.dist || 0); if (rules.bornes && zBase >= 13) drawKmMarks(st, S.proj.dist || 0); }
@@ -359,11 +361,11 @@ export function createRenderer(canvas, overlay) {
     if (S.fix && (S.pos || (S.proj && S.proj.off <= 50000))) { const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (!cam && accPx > 40) { const qa = proj(S.fix.lat, S.fix.lon); ctx.beginPath(); ctx.arc(qa[0], qa[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); }
       const pp = S.pos || { lat: S.fix.lat, lon: S.fix.lon, head: (S.fix.head || 0) * Math.PI / 180 }; const q = proj(pp.lat, pp.lon); placeRider(q, pp.head + view.rot); }
     // escala (só em 2D)
-    if (!cam) {
+    if (!cam && S.mode !== 'full') {   // regra 05: escala à esquerda, na linha da borda; some com a folha aberta
       const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
-      const sx = S.mode === 'resumo' ? 156 : 12;
+      const sx = 12;
       ctx.fillStyle = th.scale; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp, 4); ctx.fillStyle = th.borne; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp / 2, 4); ctx.strokeStyle = th.scale; ctx.lineWidth = 0.8; ctx.strokeRect(sx, H - S.scaleBottom - 4, bar / mpp, 4);
-      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx, H - S.scaleBottom - 12, 'left', '600 11px Barlow, sans-serif');
+      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx + bar / mpp + 6, H - S.scaleBottom - 1, 'left', '600 11px "Work Sans", sans-serif');
     }
   }
   function sliceByDist(st, a, b) { const out = []; for (let i = 0; i < st.pts.length; i++) if (st.cum[i] >= a && st.cum[i] <= b) out.push(st.pts[i]); return out.length > 1 ? out : []; }
@@ -437,6 +439,35 @@ export function createRenderer(canvas, overlay) {
   };
 }
 
+// a fita do dia (F2): o perfil da etapa esticado na largura, sobre fundo translúcido (o CSS dá o vidro). Silhueta escura de dia
+// e clara à noite, o passado velado, placas de categoria nos cols, marcas coloridas nas paradas, chegada quadriculada e um
+// único traço vivo: a posição, em vermelho.
+export function drawFita(canvas, stage, dist, theme, opts = {}) {
+  const ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return; if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const night = theme === 'night', p = stage.prof || [], km = Math.max(0.5, (stage.total || 0) / 1000);
+  if (p.length < 2) return;
+  let lo = 1e9, hi = -1e9; for (const q of p) { if (q[1] < lo) lo = q[1]; if (q[1] > hi) hi = q[1]; }
+  lo = Math.floor((lo - 20) / 50) * 50; hi = Math.ceil((hi + 30) / 50) * 50; if (hi - lo < 100) hi = lo + 100;
+  const L = 8, Rr = 8, top = 18, bottom = 7;
+  const X = d => L + Math.min(km, Math.max(0, d)) / km * (w - L - Rr), Y = e => h - bottom - (e - lo) / (hi - lo) * (h - top - bottom);
+  ctx.beginPath(); ctx.moveTo(X(0), h - bottom); for (const q of p) ctx.lineTo(X(q[0]), Y(q[1])); ctx.lineTo(X(km), h - bottom); ctx.closePath();
+  ctx.fillStyle = night ? 'rgba(243,238,228,.88)' : 'rgba(27,24,21,.9)'; ctx.fill();
+  const xd = X(dist / 1000);
+  if (!opts.arrived) { ctx.fillStyle = night ? 'rgba(0,0,0,.45)' : 'rgba(247,242,230,.6)'; ctx.fillRect(L, 0, Math.max(0, xd - L), h - bottom); }   // o feito, velado (na chegada, a fita fica inteira escura)
+  // superfície (regra 01): gravel e trilha viram uma faixa marrom sob a linha de base; o 'gravel em 4,8 km' saiu da placa
+  for (const s of stage.surfaces || []) { if (s.kind === 'asfalto' || s.kind === 'rua') continue; const x0 = X(s.from / 1000), x1 = X(s.to / 1000); ctx.fillStyle = s.kind === 'ciclovia' ? '#0E9A4C' : s.kind === 'faixa' ? '#6CC28E' : '#6B4423'; if (s.kind === 'gravel' || s.kind === 'ciclovia' || s.kind === 'faixa') ctx.fillRect(x0, h - bottom + 1, Math.max(1, x1 - x0), 3); else for (let x = x0; x < x1; x += 6) ctx.fillRect(x, h - bottom + 1, Math.min(3, x1 - x), 3); }
+  ctx.strokeStyle = night ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.4)'; ctx.lineWidth = 1;
+  for (let k = 10; k < km; k += 10) { const x = X(k); ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, h - 1); ctx.stroke(); }
+  for (const s of opts.paradas || []) { if (s.done) continue; const x = X(s.km); ctx.fillStyle = s.kind === 'compras' ? FLAG.shop : s.kind === 'visita' ? FLAG.visit : s.kind === 'opcional' ? FLAG.feed : FLAG.sight; ctx.fillRect(x - 1.5, h - bottom - 9, 3, 9); }
+  ctx.font = '900 11px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Math.max(8, Y(c.topEle) - 11); ctx.fillStyle = FLAG.cat; ctx.fillRect(x - 9, y - 7, 18, 14); ctx.fillStyle = '#FFFFFF'; ctx.fillText(c.cat, x, y + .5); }
+  if (!stage.free) { const xf = X(km), cw = 4, ch = 4; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#1B1815' : '#FFFFFF'; ctx.fillRect(xf - 16 + i * cw, 2 + j * ch, cw, ch); } ctx.strokeStyle = '#1B1815'; ctx.lineWidth = 1; ctx.strokeRect(xf - 16.5, 1.5, 17, 9); ctx.fillStyle = '#1B1815'; ctx.fillRect(xf - 17.5, 1, 1.5, h - bottom - 1); }   // chegada quadriculada com haste
+  if (opts.arrived) return;
+  ctx.fillStyle = FLAG.cat; ctx.fillRect(xd - 1.5, 0, 3, h);
+  ctx.beginPath(); ctx.arc(xd, Y(elevationAt(stage, dist)), 4.5, 0, 7); ctx.fillStyle = FLAG.cat; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#FFFFFF'; ctx.stroke();
+}
 // perfil da etapa no grafismo do Tour: amarelo com contorno branco, hastes e bandeirinhas
 export function drawProfile(canvas, stage, dist, theme, opts = {}) {
   const ctx = canvas.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth, h = canvas.clientHeight;

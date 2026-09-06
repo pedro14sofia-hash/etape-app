@@ -25,7 +25,7 @@ export function tick(S, fix, now) {
   // fora de rota
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
       if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
-      else { const q = pointAt(st, S.proj.dist); const back = bearing(fix.lat, fix.lon, q[0], q[1]); ev.push({ kind: 'offRoute', off: pr.off, back, rel: ((back - (fix.head || 0)) + 540) % 360 - 180, level: 1, text: 'Fora da rota', sub: Math.round(pr.off) + ' m do traçado', speak: 'Fora da rota. Volte ' + Math.round(pr.off) + ' metros.', hold: 60000 }); } } }
+      else { const q = pointAt(st, S.proj.dist); const back = bearing(fix.lat, fix.lon, q[0], q[1]); const rel = ((back - (fix.head || 0)) + 540) % 360 - 180, side = Math.abs(rel) < 25 ? 'à frente' : Math.abs(rel) > 155 ? 'atrás' : rel > 0 ? 'à sua direita' : 'à sua esquerda'; ev.push({ kind: 'offRoute', off: pr.off, back, rel, side, level: 1, text: 'Volte à rota', sub: 'traçado ' + Math.round(pr.off) + ' m ' + side, speak: 'Fora da rota. Traçado a ' + Math.round(pr.off) + ' metros ' + side + '.', hold: 12000 }); } } }
   else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; S.reroute = null; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
   if (pr.off > 120 && !S.offSince) S.offSince = now;
   if (S.off) { S.offDist = pr.off; return ev; }
@@ -51,7 +51,7 @@ export function tick(S, fix, now) {
   if (!cl && S.climbId) { const done = st.climbs.find(c => c.id === S.climbId); S.climbId = null; if (done && dist >= done.to - 150) done.done = true; if (done && dist >= done.to - 150 && S.prefs && S.prefs.camera !== false) ev.push({ kind: 'rec', level: 2, text: 'Grava agora', sub: 'descida · ' + done.name + ' · 3 min', speak: 'Grava agora. Descida.', voice: true }); if (done && dist >= done.to - 150) ev.push({ kind: 'summit', level: 3, text: 'Topo · ' + done.name, sub: Math.round(done.topEle) + ' m', speak: 'Topo. ' + done.name + '.' }); }
   // terreno
   const sf = surfaceAt(st, dist);
-  if (sf && sf !== S.surface) { if (S.surface) ev.push({ kind: 'surface', level: 3, text: cap(sf), sub: 'mudança de terreno', speak: sf === 'asfalto' ? 'Volta ao asfalto.' : 'Trecho de ' + sf + '.' }); S.surface = sf; }
+  if (sf && sf !== S.surface) { if (S.surface && !st.diario) ev.push({ kind: 'surface', level: 3, text: cap(sf), sub: 'mudança de terreno', speak: sf === 'asfalto' ? 'Volta ao asfalto.' : 'Trecho de ' + sf + '.' }); S.surface = sf; }
   // ciclovia / faixa de bike / rua: via mais próxima (≤ 25 m), muda só depois de 2 leituras iguais
   if (S.map && S.map.index) {
     const p = S.pos || fix, nw = nearestWay(S.map.index, p.lat, p.lon, 30), bw = nw ? (nw.way.k === 2 ? 'ciclovia' : nw.way.k === 1 ? 'faixa' : 'rua') : (S.bikeway || 'rua');
@@ -91,6 +91,13 @@ export function eta(stage, dist, speedMs, paradasLeftMin = 0) {
   if (!(speedMs > 0.8)) return { seconds: NaN, arrival: null };
   const s = rem / speedMs + paradasLeftMin * 60;
   return { seconds: s, arrival: new Date(Date.now() + s * 1000) };
+}
+// média que o plano pede daqui até a chegada (marca branca do velocímetro): km restantes ÷ (hora do plano − agora − paradas que faltam)
+export function planSpeed(stage, dist, planArrival, paradasLeftMin = 0, now = Date.now()) {
+  if (!planArrival || !stage) return null;
+  const [h, m] = planArrival.split(/[h:]/).map(Number); const p = tzAt(new Date(now), h, m || 0);
+  const s = (p - now) / 1000 - paradasLeftMin * 60; if (!(s > 300)) return null;   // com menos de 5 min de plano a marca não diz nada
+  return (stage.total - dist) / s * 3.6;
 }
 // comparação com o plano: hora prevista de chegada do guia (HH:MM) vs ETA
 export function vsPlan(planArrival, arrival) {

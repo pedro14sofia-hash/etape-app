@@ -2,7 +2,7 @@
 // Composição: liga os módulos e controla o ciclo de vida.
 import { mercX, mercY, haversine } from './geo.js';
 import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js';
-import { createRenderer } from './render.js';
+import { createRenderer, drawFita } from './render.js';
 import * as track from './track.js';
 import * as gps from './gps.js';
 import * as guide from './guide.js';
@@ -20,6 +20,8 @@ import * as compass from './compass.js';
 import * as weather from './weather.js';
 import * as sensors from './sensors.js';
 import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
+import * as outing from './outing.js';   // tela 02 · antes de sair
+let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
 const $ = id => document.getElementById(id);
@@ -31,7 +33,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
@@ -68,13 +70,18 @@ export function init() {
   let finishArm = 0; const fb = $('btnFinish');
   fb.onclick = () => { if (S.session.state === 'idle') { voice.banner('Nenhuma etapa em andamento', 3); return; } if (Date.now() - finishArm < 5000) { finishArm = 0; fb.classList.remove('armed'); $('dlgMenu').close(); finishStage(true); return; } finishArm = Date.now(); fb.classList.add('armed'); fb.querySelector('b').textContent = 'Toque de novo para encerrar'; setTimeout(() => { fb.classList.remove('armed'); fb.querySelector('b').textContent = 'Encerrar etapa'; }, 5000); };
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => { $('dlgMenu').close(); showReport(report.list()[S.stage.key]); };
-  document.querySelectorAll('#tabs div').forEach(d => d.onclick = () => { ui.setTab(S, d.dataset.tab); S.prefs.tab = d.dataset.tab; store.setPrefs(S.prefs); refresh(); });
-  $('grab').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
+  // computador de bordo (F2): três botões fixos no rodapé abrem a folha de cada aba; o mesmo botão fecha
+  document.querySelectorAll('.cb button').forEach(b => b.onclick = () => { const t = b.dataset.tab; if (S.mode === 'full' && S.tab === t) setMode('resumo'); else { ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); setMode('full'); } });
   $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
+  // fita do dia: toque abre o perfil; arrastar para cima entra no modo mapa. A alça do modo mapa (ou arrastar o rodapé para cima) volta
+  let fy = null, fx = null;
+  $('fita').addEventListener('pointerdown', e => { if (e.target.closest('button,select')) { fy = null; return; } fy = e.clientY; fx = e.clientX; });
+  $('fita').addEventListener('pointerup', e => { if (fy == null) return; const dy = e.clientY - fy, dx = e.clientX - fx; fy = null; if (dy < -40 && Math.abs(dx) < 80) setMapMode(true); else if (Math.hypot(dx, dy) < 12) { if (S.mode === 'full' && S.tab === 'prof') setMode('resumo'); else { ui.setTab(S, 'prof'); setMode('full'); } } });
+  let hy = null; $('topHandle').addEventListener('pointerdown', e => { hy = e.clientY; }); $('topHandle').addEventListener('pointerup', e => { if (hy == null) return; hy = null; setMapMode(false); });
   // câmera: 2D → 3ª pessoa → 1ª pessoa; satélite liga/desliga (e baixa a etapa para offline na primeira vez)
   $('btnSat').onclick = async () => {
     if (!sat.available()) { voice.banner('Satélite indisponível nesta versão', 3); return; }
-    const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); if (t3d) t3d.setSat(on); $('btnSat').classList.toggle('on', on);
+    const on = !S.prefs.sat; S.prefs.sat = on; store.setPrefs(S.prefs); R.setSat(on); updateAttr(); if (t3d) t3d.setSat(on); $('btnSat').classList.toggle('on', on);
     if (on && sat.hasStage(S.stage.key) && !store.get('satdl:' + S.stage.key, false) && navigator.onLine) {
       voice.banner('Baixando satélite da etapa', 3);
       await sat.prefetch(S.stage.key, (d, t) => { S.gpsMsg = 'satélite ' + Math.round(d / t * 100) + ' %'; refresh(); });
@@ -84,18 +91,20 @@ export function init() {
   dem.loadIndex('dem/index.json').then(ix => { if (ix) R.invalidate(); });
   shade.loadIndex('shade/index.json').then(ix => { if (ix) R.invalidate(); });   // sombra do relevo (estudo do mapa, F1)
   loadContours(S.map, 'contours.json').then(ix => { if (ix) R.invalidate(); });   // curvas de nível (só na Auvergne)
-  sat.loadIndex('sat/index.json').then(ix => { if (ix && ix.attribution) $('attr').textContent = '© OpenStreetMap contributors · ' + ix.attribution; return ix; }).then(ix => { if (ix) { R.setSat(!!S.prefs.sat); $('btnSat').classList.toggle('on', !!S.prefs.sat); $('btnSat').hidden = false; } else $('btnSat').hidden = true; setCam(S.prefs.cam || '2d'); });
+  sat.loadIndex('sat/index.json').then(ix => { if (ix && ix.attribution) { S.satAttr = ix.attribution; updateAttr(); } return ix; }).then(ix => { if (ix) { R.setSat(!!S.prefs.sat); $('btnSat').classList.toggle('on', !!S.prefs.sat); $('btnSat').hidden = false; } else $('btnSat').hidden = true; setCam(S.prefs.cam || '2d'); });
   // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
   const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
   $('panel').addEventListener('pointerdown', e => { if (e.target.closest('button,select,.tabs')) return; gy = e.clientY; gx = e.clientX; });
   $('panel').addEventListener('pointerup', e => {
     if (gy == null) return; const dy = e.clientY - gy, dx = e.clientX - gx; gy = gx = null;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { const i = TABS.indexOf(S.tab); const t = TABS[(i + (dx < 0 ? 1 : TABS.length - 1)) % TABS.length]; ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); refresh(); return; }
-    if (dy > 40) setMode('resumo'); else if (dy < -40) setMode('full');
+    if (dy > 40) { if (S.mode === 'full') setMode('resumo'); else setMapMode(true); }   // folha aberta fecha; rodapé só → modo mapa
+    else if (dy < -40) { if (S.mapMode) setMapMode(false); else setMode('full'); }
   });
   $('fDrink').onclick = () => confirmFuel('drink'); $('fEat').onclick = () => confirmFuel('eat'); $('fSnooze').onclick = () => { fuel.snooze(S.fuel, 'drink'); fuel.snooze(S.fuel, 'eat'); refresh(); };
   $('mDrink').onclick = () => confirmFuel('drink'); $('mEat').onclick = () => confirmFuel('eat');
   $('cue').onclick = () => { voice.clearBanner(); };
+  $('btnKnow').onclick = () => { S.muteRoute = Date.now() + 600000; voice.clearBanner(); S.reroute = null; $('btnKnow').hidden = true; R.invalidate(); voice.banner('Avisos de rota calados por 10 min', 3, 'volta a avisar ao reencontrar o traçado'); refresh(); };   // tela 05
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
   if (!S.prefs.voice) { voice.mute(); $('btnVoice').classList.remove('on'); } else $('btnVoice').classList.add('on');
   window.addEventListener('resize', () => { R.resize(); measurePanel(); if (t3d && S.cam3d) t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); });
@@ -112,8 +121,13 @@ export function init() {
   R.resize();
   window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
-  if (window.FREE) { S.free = true; free.init(S); S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageSel').disabled = true; R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0); }
-  ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'full');
+  if (window.FREE) { S.free = true; free.init(S); S.freeStage = S.stage; S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageSel').disabled = true; R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0);
+    // Diário: o grafo de rotas carrega já; a folha Destino abre sozinha quando não há saída em andamento
+    $('btnDest').hidden = false; $('btnDest').onclick = () => { $('dlgMenu').close(); if (diario) diario.open(); };
+    import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
+    const q0 = new URLSearchParams(location.search);
+    import('./diario.js').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
+  ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'resumo');   // F2: em repouso, sem folha aberta
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
   $('dlgPreview').addEventListener('close', () => { if (diorama) diorama.dispose(); });
@@ -136,7 +150,11 @@ export function init() {
   if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
   if (q.get('z')) { S.userZoomAt = Date.now() + 1e9; setTimeout(() => R.setView(null, null, +q.get('z')), 600); }   // zoom fixo para testes e gravações
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
-  if (S.free && q.get('vias')) setTimeout(() => { if (S.session.state === 'idle') session.start(S.session, Date.now()); S.follow = true; R.setView(null, null, 18.5); S.gpsMsg = 'Simulação'; free.simulate(q.get('vias').split(','), +q.get('sim') || 22, onFix); }, 800);
+  if (S.free && q.get('vias')) setTimeout(() => { if (S.session.state === 'idle') session.start(S.session, Date.now()); S.follow = true; R.setView(null, null, 18.5); S.gpsMsg = ''; devTag('sim'); free.simulate(q.get('vias').split(','), +q.get('sim') || 22, onFix); }, 800);
+  else if (S.free && q.get('to')) { (function tryTo(n) { if (!diario || !diario.ready()) { if (n < 100) setTimeout(() => tryTo(n + 1), 300); return; }
+      const at = q.get('at'), pl = at && (window.PLACES || []).find(p => p.name.toLowerCase() === at.toLowerCase()); if (pl) S.pos = { lat: pl.lat, lon: pl.lon, head: 0, dist: 0 };   // ?at=Casa: partida sem GPS (teste)
+      diario.open(); if (!diario.chooseByName(q.get('to'))) return;
+      if (q.get('sim')) setTimeout(() => { if (S.diario) { S.pos = null; setMode('resumo'); S.follow = true; R.view.anchorY = 0.6; S.userZoomAt = 0; startSim(+q.get('sim') || 18, +(q.get('from') || 0) * 1000); } }, 1200); })(0); }
   else if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
   // ícones carregam de forma assíncrona: redesenha a prévia quando ficarem prontos
@@ -147,7 +165,9 @@ export function selectStage(key) {
   if (!S.routes.stages[key]) key = Object.keys(S.routes.stages)[0];
   if (gps.running()) stopNavigation();
   S.stage = track.loadStage(S.routes, key); track.nameTurns(S.stage.turns, S.stage, S.map.index);
-  store.set('stage', key); $('stageSel').value = key; $('stageName').textContent = S.stage.name.replace(/^E\S+ /, ''); $('stageSub').textContent = (S.allParadas.dias[key] || '') + ' · ' + S.stage.km + ' km · ' + S.stage.up + ' m';
+  store.set('stage', key); $('stageSel').value = key;
+  { const full = S.stage.name.replace(/^E\S+ /, ''), dest = full.split('→').pop().trim(), kmUp = String(S.stage.km).replace('.', ',') + ' km · ' + Math.round(S.stage.up).toLocaleString('pt-BR') + ' m';   // regra 02: cabeçalho só com o destino; origem e data na folha Perfil
+    $('stageName').textContent = dest; $('stageSub').textContent = kmUp; if ($('profName')) { $('profName').textContent = full; $('profSub').textContent = (String(S.allParadas.dias[key] || '').trim() + ' · ' + kmUp).replace(/^· /, ''); } }
   $('stageKey').textContent = code(key); $('stageCode').className = 'code m-' + S.stage.type;
   S.paradas = S.allParadas.itens.filter(p => p.stage === key).map(p => ({ ...p }));
   S.planArrival = (S.routes.plan || {})[key] || null;
@@ -157,7 +177,7 @@ export function selectStage(key) {
   S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
   if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
   // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
-  S.eta = null; S.etaAt = 0; S.vsPlan = null; S.live = null; S.fuelStatus = null; S.light = null;
+  S.eta = null; S.etaAt = 0; S.vsPlan = null; S.planSpeed = null; S.live = null; S.fuelStatus = null; S.light = null;
   const p0 = track.pointAt(S.stage, S.proj.dist), b0 = track.bearingAt(S.stage, S.proj.dist);
   R.centerOn(p0[0], p0[1]); R.setView(null, null, R.view.mode === '2d' ? 18.5 : 16, S.prefs.orientation === 'heading' ? -b0 * Math.PI / 180 : 0); if (R.view.mode === '2d') R.view.anchorY = 0.45; S.follow = true; $('btnFollow').classList.add('on');
   S.next = guide.nextCue(S); S.live = telemetry.live(S.log, S.stage, S.session, Date.now(), session.movingTime(S.session, Date.now()));
@@ -165,7 +185,40 @@ export function selectStage(key) {
   applyTheme(); refresh(); measurePanel(); if (t3d) t3d.setStage(S.stage);
   if (S.session.state === 'running') startNavigation(true);
 }
-function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); R.invalidate(); }
+// etapa sintética (rota do Diário ou o percurso livre): o mesmo reset de selectStage, sem entrada em routes.stages
+function activateStage(st, isFree) {
+  if (gps.running() && S.session.state === 'idle') stopNavigation();
+  S.stage = st;
+  if (!isFree) { track.nameTurns(st.turns, st, S.map.index); S.free = false; S.diario = true; }
+  const key = st.key || 'SP';
+  $('stageKey').textContent = key; $('stageCode').className = 'code m-' + (st.type || 'blanc');
+  if (!isFree) { const kmUp = String(st.km).replace('.', ',') + ' km · ' + Math.round(st.up) + ' m'; const rl = $('rem').nextElementSibling; if (rl) rl.textContent = 'km restam'; const el = $('eta').nextElementSibling; if (el && el.firstChild) el.firstChild.textContent = 'chegada · '; $('stageName').textContent = st.dest || st.name; $('stageSub').textContent = kmUp; if ($('profName')) { $('profName').textContent = st.name; $('profSub').textContent = 'Diário · ' + kmUp; } }
+  S.paradas = []; S.planArrival = null;
+  S.session = session.restore(key) || session.create(key);
+  S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(st);
+  S.proj = { idx: 0, dist: 0, off: 0 }; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.reroute = null; S.muteRoute = 0; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = []; S.parado = false; S.stillAt = null;
+  S.eta = null; S.etaAt = 0; S.vsPlan = null; S.planSpeed = null; S.fuelStatus = null; S.ecart = null;
+  S.next = guide.nextCue(S); S.live = { ...telemetry.live(S.log, S.stage, S.session, Date.now(), 0), v: 0, avg: 0, vam: 0, grade: 0 };
+  refresh(); measurePanel(); R.invalidate(); if (t3d) t3d.setStage(S.stage);
+}
+function diarioCtx() {
+  return { S, $, refresh, setMode, setTab: t => ui.setTab(S, t), pos: () => S.fix || S.pos || null, activate: st => activateStage(st),
+    restoreFree: () => { if (!S.freeStage) return; S.free = true; S.diario = false; S.alts = null; S.destEta = null; activateStage(S.freeStage, true); free.reset(S.freeStage.pts[0]); $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; },
+    fitTo };
+}
+// enquadra um traçado inteiro na parte visível do mapa (acima da folha, abaixo da fita)
+function fitTo(pts) {
+  const bb = pts.reduce((a, p) => [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])], [90, 180, -90, -180]);
+  const { W, H } = R.size(), hv = Math.max(220, $('map').clientHeight - $('panel').offsetHeight), top = 104;
+  const dx = mercX(bb[3]) - mercX(bb[1]), dy = mercY(bb[0]) - mercY(bb[2]);
+  const z = Math.log2(Math.min((W - 70) / Math.max(dx, 1e-9), (hv - top - 60) / Math.max(dy, 1e-9)) / 256);
+  S.follow = false; $('btnFollow').classList.remove('on'); S.userZoomAt = Date.now() + 1e9; S.zoomTarget = null;
+  R.view.anchorY = Math.max(0.2, Math.min(0.6, (top + hv) / 2 / H));
+  R.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.max(11, Math.min(17.5, z)), 0); R.invalidate();
+}
+function devTag(txt) { const t = $('devTag'); if (!t) return; t.textContent = txt; t.hidden = !txt; }   // regra 04: estado de simulação é uma placa cinza na fita, só quando ativo
+function updateAttr() { const e = $('attr'), sat = S.prefs.sat && S.satAttr; e.textContent = '© OpenStreetMap' + (sat ? ' · ' + S.satAttr.replace(/^©\s*/, '').split(',')[0] : ''); e.title = '© OpenStreetMap contributors' + (sat ? ' · ' + S.satAttr : ''); }   // regra 05: uma linha curta; o texto completo fica no title
+function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom - 2) + 'px'; /* regra 05: na mesma linha da escala, à direita */ R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); R.invalidate(); }
 function setCam(c) {
   c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs);
   const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); }
@@ -181,7 +234,10 @@ function setCam(c) {
   } else { S.cam3d = false; $('gl').hidden = true; $('rider').hidden = false; $('rider3d').hidden = false; }
   R.invalidate();
 }
-function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
+function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); document.querySelectorAll('.cb button').forEach(b => b.classList.toggle('on', m === 'full' && S.tab === b.dataset.tab)); refresh(); measurePanel(); }
+// modo mapa (F2): recolhe a fita e a placa; sobram o mapa, a seta do agora, velocidade, rampa e os botões do rodapé.
+// Um aviso de nível 1 traz a fita de volta sozinho.
+function setMapMode(on) { S.mapMode = !!on; document.body.classList.toggle('mapmode', S.mapMode); if (S.mapMode) setMode('resumo'); else { refresh(); measurePanel(); } }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); if (t3d) t3d.setTheme(S.theme === 'night'); }
 
 export function startNavigation(silent) {
@@ -195,10 +251,28 @@ export function stopNavigation() { gps.stop(); gps.keepAwake(false); S.gpsMsg = 
 
 export function toggleSession() {
   const now = Date.now(), s = S.session;
-  if (s.state === 'idle') { session.start(s, now); startNavigation(); if (!S.free) showBriefingOnce(); }
+  if (s.state === 'idle') {
+    const go = () => { session.start(s, Date.now()); startNavigation(); S.alts = null; if (S.diario) { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; R.view.anchorY = 0.6; setMode('resumo'); } refresh(); };
+    if (!S.free && !S.diario && !store.get('brief:' + S.stage.key, false)) { showBriefingOnce(); $('dlgPreview').addEventListener('close', () => preOuting(go), { once: true }); }
+    else preOuting(go);
+  }
   else if (s.state === 'running') { session.pause(s, now, placeNow()); voice.announce({ level: 3, text: 'Pausa', sub: 'GPS segue ligado', speak: 'Pausa.' }); }
   else if (s.state === 'paused') { session.resume(s, now); if (!gps.running()) startNavigation(true); voice.announce({ level: 3, text: 'Retomada', speak: 'Retomando.' }); }
   refresh();
+}
+// tela 02 · Antes de sair: o que acompanhar nesta saída; toda vez ao tocar em Partir (decisão do Pedro). ?pre=0 pula (testes)
+function preOuting(go) {
+  const mode = (S.free || S.diario) ? 'diario' : 'viagem', list = outing.load(mode, fuel.plan(S.stage));
+  const finish = () => { outing.save(mode, list); outing.apply(S.fuelPlan, list); go(); };
+  if (/[?&]pre=0/.test(location.search)) { finish(); return; }
+  const dlg = $('dlgPre'), st = S.stage;
+  $('preSub').textContent = (st.dest || st.name.replace(/^E\S+ /, '')) + ' · ' + String(st.km).replace('.', ',') + ' km' + (S.destEta ? ' · chegada ' + S.destEta : '') + ' · sai às ' + $('clock').textContent;
+  const paint = () => { $('preBody').innerHTML = outing.html(list); outing.bind($('preBody'), list, paint); $('preGo').innerHTML = 'Partir<small>' + outing.summary(list) + '</small>'; };
+  paint();
+  $('preNote').textContent = 'Peso ' + S.prefs.weight + ' kg · 2 garrafas de 750 ml' + (mode === 'viagem' ? ' · metas do guia para o tipo desta etapa' : ' · a escolha fica guardada para a próxima saída');
+  $('preNone').onclick = () => { for (const m of list) m.on = false; dlg.close(); finish(); };
+  $('preGo').onclick = () => { dlg.close(); finish(); };
+  if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0;
 }
 export function finishStage(force) {
   if (S.session.state === 'idle') return;
@@ -206,9 +280,9 @@ export function finishStage(force) {
   session.finish(S.session, Date.now()); stopNavigation();
   telemetry.record(S.log, S.log[S.log.length - 1] || telemetry.sample({ t: Date.now(), lat: S.stage.pts[0][0], lon: S.stage.pts[0][1] }, S.stage, S.proj), S.stage.key, true);
   const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival);
-  if (S.free) { const d = new Date(S.session.startedAt || Date.now()); const hm = String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); r.stageKey = 'SP-' + d.toISOString().slice(0, 10) + '-' + hm; r.name = 'SP · ' + d.toLocaleDateString('pt-BR') + ' ' + hm; r.planKm = r.km; r.planUp = r.up; }
-  report.save(r); showReport(r);
-  if (S.free) { const c = S.fix ? [S.fix.lat, S.fix.lon] : S.stage.pts[S.stage.pts.length - 1]; store.clearStage('SP'); selectStage('SP'); free.reset(c); }
+  if (S.free || S.diario) { const d = new Date(S.session.startedAt || Date.now()); const hm = String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); r.stageKey = 'SP-' + d.toISOString().slice(0, 10) + '-' + hm; r.name = (S.diario ? S.stage.name : 'SP') + ' · ' + d.toLocaleDateString('pt-BR') + ' ' + hm; r.diario = !!S.diario; r.dest = S.diario ? S.stage.dest : null; if (!S.diario) { r.planKm = r.km; r.planUp = r.up; } }
+  report.save(r); showArrival(r);
+  if (S.free || S.diario) { const c = S.fix ? [S.fix.lat, S.fix.lon] : S.stage.pts[S.stage.pts.length - 1]; store.clearStage('SP'); S.diario = false; S.alts = null; S.destEta = null; S.free = true; selectStage('SP'); free.reset(c); S.freeStage = S.stage; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; }
 }
 function resetStage() { if (!confirm('Zerar progresso, sessão e registro desta etapa?')) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
 // cidade/vila atual: nó "place" mais próximo, cada tipo com o seu raio (cidade 4 km, town 2,5 km, vila 1,2 km, lugarejo 600 m)
@@ -228,7 +302,7 @@ function placeNow() {
   const place = near.length ? near[0].poi.n : (S.next.cp ? 'perto de ' + S.next.cp.name : '');
   return { dist: S.proj.dist, lat: S.fix.lat, lon: S.fix.lon, place };
 }
-function confirmFuel(kind) { fuel.confirm(S.fuel, S.fuelPlan, kind, session.movingTime(S.session, Date.now())); voice.banner(kind === 'drink' ? 'Bebeu 150 ml' : 'Comeu 30 g', 3); refresh(); }
+function confirmFuel(kind) { const P = S.fuelPlan || {}; fuel.confirm(S.fuel, P, kind, session.movingTime(S.session, Date.now())); const x = (P.extras || []).find(e => e.id === kind); voice.banner(kind === 'drink' ? 'Bebeu ' + Math.round(P.sipMl || 150) + ' ml' : kind === 'eat' ? 'Comeu ' + Math.round(P.biteG || 30) + ' g' : x ? x.name + ' · ' + x.dose + ' ' + x.unit : 'Registrado', 3); refresh(); }
 
 function onFix(raw) {
   const fix = gps.smooth(raw, S.prev); if (!fix) return;
@@ -247,6 +321,7 @@ function onFix(raw) {
     S.live = telemetry.live(S.log, S.stage, sess, now, moving);
     S.fuelStatus = fuel.status(S.fuel, S.fuelPlan, moving, (S.stage.total - S.proj.dist) / 1000, S.speed10 * 3.6);
     const left = S.paradas.filter(p => p.kind !== 'compras' && p.kind !== 'opcional' && !p.done && !p.skipped && p.km * 1000 > S.proj.dist).reduce((a, p) => a + p.min, 0);
+    S.planSpeed = guide.planSpeed(S.stage, S.proj.dist, S.planArrival, left, now);
     // chegada prevista: recalculada a cada 15 min (ou quando ainda não há), não a cada posição
     if (!S.eta || !S.eta.arrival || now - (S.etaAt || 0) > 900000) { const e = guide.eta(S.stage, S.proj.dist, S.speed10, left); if (e.arrival) { S.eta = e; S.etaAt = now; S.vsPlan = guide.vsPlan(S.planArrival, e.arrival); } }
     S.light = guide.daylight(new Date(now), fix.lat, fix.lon);
@@ -257,7 +332,10 @@ function onFix(raw) {
   rerouteTick(fix, now, events);
   updatePlace(now);
   S.next = guide.nextCue(S);
-  updateSituation(now, fix.v || 0);
+  // tela 05: fora da rota com a volta calculada, a placa mostra a próxima curva da nova rota e a distância até o traçado
+  if (S.off && S.reroute && !muted()) { const r2 = S.reroute, t = r2.turns.find(x => x.dist > r2.proj.dist), remR = r2.total - r2.proj.dist; S.next = { cp: { name: 'Volta ao traçado', dist: (S.proj.dist || 0) + remR, reroute: true }, turn: t ? { ...t, dist: (S.proj.dist || 0) + (t.dist - r2.proj.dist) } : null }; }
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0);
+  if (now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos', { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
   // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
@@ -279,13 +357,26 @@ function updateSituation(now, v) {
   const g = S.live && S.live.grade != null ? S.live.grade / 100 : 0, turn = S.next && S.next.turn ? S.next.turn.dist - (S.proj.dist || 0) : 1e9;
   let s;
   if (S.session.state !== 'running' || v < 0.8) s = 'parado';
-  else if (S.free) s = 'urbano';
+  else if (S.free || S.diario) s = 'urbano';
   else if ((g < -0.04 && v > 5) || (turn < 300 && v > 4)) s = 'descida';
   else if (S.climbId || g > 0.03) s = 'subida';
   else s = 'plano';
   if (s !== S.sitCand) { S.sitCand = s; S.sitSince = now; }
   if (s !== S.situation && now - (S.sitSince || 0) >= 2000) { S.situation = s; R.invalidate(); }
 }
+// tela 03 · Parado: 30 s abaixo de 2 km/h abre a folha; 3 s acima de 5 km/h fecha e devolve a tela de antes
+function stillUI(now, v) {
+  if (S.session.state !== 'running') { if (S.parado) setParado(false); S.stillAt = null; return; }
+  if (v < 0.55) { if (!S.stillAt) S.stillAt = now; S.moveAt = null; if (!S.parado && now - S.stillAt > 30000) setParado(true); }
+  else if (v > 1.4) { if (!S.moveAt) S.moveAt = now; if (S.parado) { if (now - S.moveAt > 3000) { setParado(false); S.stillAt = null; } } else S.stillAt = null; }
+}
+function setParado(on) {
+  S.parado = on;
+  if (on) { S.paradoPrev = { mode: S.mode, tab: S.tab }; ui.setTab(S, 'parado'); setMode('full'); }
+  else { const p = S.paradoPrev || { mode: 'resumo', tab: S.prefs.tab || 'tele' }; ui.setTab(S, p.tab === 'parado' || p.tab === 'dest' ? 'tele' : p.tab); setMode(p.mode === 'full' && p.tab !== 'parado' && p.tab !== 'dest' ? 'full' : 'resumo'); }
+  refresh();
+}
+const muted = () => !!(S.muteRoute && Date.now() < S.muteRoute);
 // zoom automático em 2D (estudo do mapa, D7). Largura da tela em metros a 45° N (390 px): z18,3 ≈ 130 m · z17,8 ≈ 190 m ·
 // z17,4 ≈ 250 m · z17,0 ≈ 330 m · z16,6 ≈ 440 m. Parado 18,3 · descida (curva perto ou rampa forte) 17,8 · urbano 17,6 ·
 // subida 16,6 (o que vem cabe na tela) · plano 17,4 devagar, 17,0 rápido. Desliza no loop, e só sem zoom manual recente.
@@ -304,7 +395,8 @@ function onFixFree(fix, now, running) {
   }
   for (const ev of events) handleEvent(ev);
   updatePlace(now);
-  updateSituation(now, fix.v || 0);
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0);
+  if (now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos', { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
   const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);
   const T = { lat: pos[0], lon: pos[1], v: v0, head: headDeg * Math.PI / 180, dist: S.proj.dist || 0, on: false, t: Date.now() };
@@ -319,6 +411,7 @@ function onFixFree(fix, now, running) {
 // 120 m; anuncia as curvas do caminho de volta; some ao voltar à fita amarela.
 function rerouteTick(fix, now, events) {
   const off = S.proj.off || 0; const mine = [];
+  if (muted()) { if (S.reroute) { S.reroute = null; R.invalidate(); } return; }   // tela 05: "sei o caminho"
   if (!S.off || off < 60 || off > 3000 || !router || !router.available() || S.session.state !== 'running') { if (S.reroute && !S.off) { S.reroute = null; R.invalidate(); } return; }
   const rr = S.reroute;
   const stale = !rr || now - rr.at > 30000 || haversine(rr.from[0], rr.from[1], fix.lat, fix.lon) > 120;
@@ -332,7 +425,7 @@ function rerouteTick(fix, now, events) {
       const turns = track.detectTurns(pseudo, 35, 12, 30);
       const first = !rr;
       S.reroute = { pts: res.pts, cum, total: pseudo.total, turns, at: now, from: [fix.lat, fix.lon], tgtD, proj: { idx: 0, dist: 0, off: 0 } };
-      if (first) { voice.clearBanner(); mine.push({ kind: 'reroute', level: 2, text: 'Recalculando', sub: (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(pseudo.total) + ' m') + ' até voltar ao traçado', speak: 'Recalculando. ' + (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' quilômetros' : Math.round(pseudo.total / 50) * 50 + ' metros') + ' até a rota.' }); }
+      if (first) { mine.push({ kind: 'reroute', level: 3, text: 'Nova rota', sub: (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(pseudo.total) + ' m') + ' até voltar ao traçado', speak: 'Recalculando. ' + (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' quilômetros' : Math.round(pseudo.total / 50) * 50 + ' metros') + ' até a rota.' }); }
       R.invalidate();
     } else if (rr) { S.reroute = null; R.invalidate(); }
   }
@@ -347,6 +440,8 @@ function rerouteTick(fix, now, events) {
   for (const ev of mine) handleEvent(ev);
 }
 function handleEvent(ev) {
+  if (muted() && (ev.kind === 'offRoute' || ev.kind === 'reroute')) return;
+  if (ev.kind === 'backOnRoute') S.muteRoute = 0;
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
   const POIS = '<svg class="flag" viewBox="0 0 36 26"><rect width="36" height="26" fill="#fff" stroke="#000"/><g fill="#E10D0D"><circle cx="7" cy="6" r="3.2"/><circle cx="20" cy="6" r="3.2"/><circle cx="33" cy="6" r="3.2"/><circle cx="13.5" cy="15" r="3.2"/><circle cx="26.5" cy="15" r="3.2"/><circle cx="7" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="33" cy="24" r="3.2"/></g></svg>';
   const FLAMME = '<svg class="flag" viewBox="0 0 36 26"><rect x="3" y="1" width="3" height="24" fill="#fff"/><path d="M6 2h26l-6 7 6 7H6z" fill="#fff"/><text x="17" y="14" font-family="Barlow Condensed" font-weight="900" font-size="12" fill="#E10D0D" text-anchor="middle">1</text></svg>';
@@ -369,9 +464,11 @@ function handleEvent(ev) {
   else if (ev.kind === 'offRoute' && ev.rel != null) ev.right = '<span class="arr"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(ev.rel) + 'deg)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34V8M10 18l10-10 10 10"/></svg></span><span class="pill">' + Math.round(ev.off) + ' m</span>';
   if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
   if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
-  if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
+  if (ev.kind === 'arrival') { setTimeout(() => finishStage(true), 60); return; }   // tela 04: a chegada confirmada abre o ritual sozinha
+  if (ev.kind === 'metric') ev.right = '<button class="mini-btn" data-fuel="' + ev.metric + '">Tomei</button>';
   if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.kind || ev.turn.dir, ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
+  if (ev.level === 1 && S.mapMode) setMapMode(false);
   voice.announce(ev);
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
   const fb = $('cue').querySelector('[data-finish]'); if (fb) fb.onclick = e => { e.stopPropagation(); voice.clearBanner(); finishStage(true); };
@@ -398,7 +495,7 @@ function markPlace() {
   session.mark(S.session, 'lugar', { lat: p.lat, lon: p.lon, dist: S.proj.dist, ele: Math.round(track.elevationAt(S.stage, S.proj.dist)) });
   voice.banner('Lugar marcado', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · vai para o relatório e o GPX'); R.invalidate();
 }
-function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); if (S.free) free.panel($); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
+function refresh() { if (panelTimer) return; panelTimer = setTimeout(() => { panelTimer = null; try { ui.panel(S); if (S.free) free.panel($); if (S.tab === 'parado') ui.paradoPanel(S); document.querySelectorAll('#paradoBody [data-fuel], #fExtra [data-fuel]').forEach(b => b.onclick = () => confirmFuel(b.dataset.fuel)); const bk = $('btnKnow'); if (bk) bk.hidden = !(S.off && (S.proj.off || 0) < 5000 && !muted() && S.session.state === 'running'); if (!S.mapMode) drawFita($('fitaCv'), S.stage, S.proj.dist || 0, S.theme, { paradas: S.paradas }); } catch (e) { console.error(e); } const h = $('panel').offsetHeight + 8; if (h !== S.scaleBottom) { measurePanel(); R.invalidate(); } }, 120); }
 function size3d() { if (!rider3d) return; const c = $('rider3d'); rider3d.resize(c.clientWidth, c.clientHeight, Math.min(window.devicePixelRatio || 1, 2)); }
 let riderFrame = -1, lastGlide = 0;
 function headingRot() { if (S.rotLock) return R.view.rot; return (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -S.pos.head : 0; }
@@ -463,7 +560,7 @@ function loop(ts) {
 function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); return; } startSim(22, S.proj.dist); }
 function startSim(kmh, from) {
   stopNavigation(); if (S.session.state === 'idle') session.start(S.session, Date.now()); else if (S.session.state === 'paused') session.resume(S.session, Date.now());
-  S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19); S.gpsMsg = 'Simulação ' + kmh + ' km/h'; $('btnSim').classList.add('on');
+  S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19); S.gpsMsg = ''; devTag('sim'); $('btnSim').classList.add('on');
   gps.simulate(S.stage, kmh, onFix, from, d => track.gradeAt(S.stage, d, 150));
 }
 function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
@@ -508,6 +605,19 @@ function showPreview(key) {
   }
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;
+}
+// tela 04 · Chegada: ritual antes do relatório; voz com o lugar e a diferença para o plano
+function showArrival(r) {
+  const all = report.list(), st = report.standings(all), ec = S.ecart;
+  const prev = r.diario && r.dest ? Object.values(all).filter(x => x && x.diario && x.dest === r.dest && x.stageKey !== r.stageKey).sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0] : null;
+  const stage = S.stage;
+  $('arrBody').innerHTML = ui.arrivalHtml(r, S, st, ec, prev, report.maillotSvg);
+  $('arrReport').onclick = () => { $('dlgArrive').close(); showReport(r); };
+  const vp = r.vsPlan, dest = r.dest || String(r.name).replace(/^E\S+ /, '').split('→').pop().split('·')[0].trim();
+  voice.say('Chegada em ' + dest + (vp == null ? '.' : vp < 0 ? ', ' + Math.abs(vp) + ' minutos adiantado.' : vp > 0 ? ', ' + vp + ' minutos atrasado.' : ', na hora.'), 2);
+  voice.vibrate(2);
+  $('dlgArrive').showModal(); $('dlgArrive').scrollTop = 0;
+  requestAnimationFrame(() => { try { drawFita($('arrProf'), stage, stage.total, S.theme, { paradas: S.paradas, arrived: true }); } catch (e) { } });
 }
 function showReport(r) {
   if (!r) { alert('Sem relatório desta etapa ainda.'); return; }

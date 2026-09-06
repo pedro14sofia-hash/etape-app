@@ -23,7 +23,7 @@ const ARROW = {
 ARROW.direita = ARROW.acentuada; ARROW.esquerda = '<g transform="translate(24 0) scale(-1 1)">' + ARROW.acentuada + '</g>';
 // k: leve | acentuada | retorno | reto (ou direita/esquerda); dir espelha as classes desenhadas para a direita
 export const svgArrow = (k, dir) => { const g = ARROW[k] || ARROW.reto, mir = dir === 'esquerda' && (k === 'leve' || k === 'acentuada' || k === 'retorno'); return `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${mir ? '<g transform="translate(24 0) scale(-1 1)">' + g + '</g>' : g}</svg>`; };
-export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
+export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : (k === 'ciclovia' || k === 'faixa') ? 'bike' : k === 'rua' ? 'asf' : 'trl'}">${k}</i>` : '';
 
 export function bindGestures(canvas, R, onUserPan, onUserZoom, onUserRotate) {
   const ptrs = new Map(); let pinch = null, trail = [], fling = 0, lastTap = 0, lastTapAt = null;
@@ -81,17 +81,18 @@ export function panel(S) {
   const st = S.stage, d = S.proj.dist, rem = st.total - d, sess = S.session, now = Date.now();
   const moving = session.movingTime(sess, now);
   // faixa fixa
-  $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–';
+  $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : (S.destEta && sess.state === 'idle' ? S.destEta : '–:–');
   const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem);
-  $('btnSession').innerHTML = session.label(sess.state) + '<small>' + (sess.state === 'idle' ? 'etapa' : 'mov. ' + fmtT(moving)) + '</small>';
+  const idleLbl = sess.state === 'idle' && (st.diario || S.free) ? 'Partir' : session.label(sess.state);
+  $('btnSession').innerHTML = idleLbl + '<small>' + (sess.state === 'idle' ? (st.diario ? (S.destEta ? 'chegada ' + S.destEta : 'Diário') : S.free ? 'livre' : 'etapa') : 'mov. ' + fmtT(moving)) + '</small>';
   $('btnSession').className = 'sbtn ' + sess.state;
   // linha da borne + curva
   const cp = S.next.cp, tn = S.next.turn, sf = surfaceAt(st, d), ch = nextSurfaceChange(st, d);
   $('nbName').textContent = cp ? cp.name : '–';
   const bwChip = S.bikeway === 'ciclovia' ? '<i class="chip bike">ciclovia</i>' : S.bikeway === 'faixa' ? '<i class="chip bike">faixa</i>' : '';
-  const sfTxt = bwChip + (ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf));
-  $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (sfTxt || (cp.ele ? cp.ele + ' m' : '')) : '';
+  const sfTxt = bwChip + chip(sf);   // regra 01: só a superfície de agora; a próxima mudança está na faixa da fita
+  $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (cp.reroute ? '<i class="chip rr">nova rota</i>' : (sfTxt || (cp.ele ? cp.ele + ' m' : ''))) : '';
   $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
   if (tn) { $('tcArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.label || tn.txt; }
   else { $('tcArrow').innerHTML = svgArrow('reto'); $('tcDist').textContent = fmtKm1(rem) + ' km'; $('tcSub').textContent = 'reto'; }
@@ -125,6 +126,8 @@ export function panel(S) {
     const behind = F.water < F.waterPlan * 0.8 && F.waterPlan > 300;
     $('fNext').innerHTML = 'garrafas ≈ <b>' + n1(F.bottles) + '</b>' + (S.waterAhead ? ' · fonte a <b>' + Math.round(S.waterAhead) + ' m</b>' : '') + (behind ? ' · <b class="late">água atrasada</b>' : '');
     const bd = $('fDrink'), be = $('fEat'); if (bd) bd.innerHTML = 'Bebi<small>' + Math.round(P.sipMl) + ' ml</small>'; if (be) be.innerHTML = 'Comi<small>' + Math.round(P.biteG) + ' g</small>';
+    const off = F.off || {}; $('fcD').classList.toggle('offm', !!off.water); $('fcE').classList.toggle('offm', !!off.carbs); const fw = $('fWv').closest('div'), fc = $('fCv').closest('div'); if (fw) fw.hidden = !!off.water; if (fc) fc.hidden = !!off.carbs;
+    const fx = $('fExtra'); if (fx) { const xs = F.extras || []; fx.hidden = !xs.length; fx.innerHTML = xs.map(x => `<div class="xrow${x.nextMin === 0 ? ' due' : ''}"><div class="xl"><b>${esc(x.name)}</b><span>${n0(x.taken)} de ${n0(x.total)} ${esc(x.unit)}${x.nextMin != null ? ' · ' + (x.nextMin === 0 ? 'agora' : 'em ' + fmtMin(x.nextMin)) : ''}</span><div class="bar"><i style="width:${Math.min(100, x.total ? x.taken / x.total * 100 : 0)}%"></i></div></div><button data-fuel="${x.id}">Tomei<small>${n0(x.dose)} ${esc(x.unit)}</small></button></div>`).join(''); }
   }
   // perfil
   if (S.tab === 'prof') {
@@ -142,22 +145,76 @@ export function panel(S) {
   }
   const pl = $('passages');
   if (pl && S.tab === 'prof') {
-    if (ec && ec.items.length) pl.innerHTML = ec.items.map(it => `<li${it.dist <= d ? ' class="done"' : ''}><span class="k">${it.kind === 'cat' ? '<i class="catf">' + it.cat + '</i>' : it.kind === 'start' ? '▶' : '🏁'}</span><span class="nm">${it.name}</span><span class="t">${fmtMinH(it.plan)}</span><span class="t">${it.eta == null ? '–' : fmtMinH(it.eta)}</span><span class="g ${it.gap == null ? '' : it.gap > 2 ? 'late' : it.gap < -2 ? 'ahead' : ''}">${it.gap == null ? '' : (it.gap > 0 ? '+' : it.gap < 0 ? '−' : '') + fmtGap(Math.abs(it.gap))}</span></li>`).join('');
+    if (ec && ec.items.length) pl.innerHTML = ec.items.map(it => `<li${it.dist <= d ? ' class="done"' : ''}><span class="k">${it.kind === 'cat' ? '<i class="catf">' + it.cat + '</i>' : it.kind === 'start' ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h10l-3 4 3 4H8z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2h2v20H5zm3 2h4v4H8zm4 4h4v4h-4zm4-4h4v4h-4zm-8 8h4v4H8zm8 0h4v4h-4zm-4-4h4v4h-4z"/></svg>'}</span><span class="nm">${it.name}</span><span class="t">${fmtMinH(it.plan)}</span><span class="t">${it.eta == null ? '–' : fmtMinH(it.eta)}</span><span class="g ${it.gap == null ? '' : it.gap > 2 ? 'late' : it.gap < -2 ? 'ahead' : ''}">${it.gap == null ? '' : (it.gap > 0 ? '+' : it.gap < 0 ? '−' : '') + fmtGap(Math.abs(it.gap))}</span></li>`).join('');
     else pl.innerHTML = '';
   }
-  // velocímetro estilo Tour, só no resumo
-  const sp = $('speedo'); sp.hidden = S.mode !== 'resumo';
-  if (!sp.hidden && L) { $('spV').textContent = Math.round(L.v); const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); sp.style.bottom = (S.scaleBottom + 22) + 'px'; }
-  const plc = $('place'); if (plc) { plc.textContent = S.place || ''; plc.hidden = !S.place; plc.style.bottom = (S.scaleBottom + (S.mode === 'resumo' ? 122 : 22)) + 'px'; }
+  // números soltos sobre o mapa (F2): velocidade à esquerda, rampa à direita, sempre visíveis
+  const sp = $('speedo'), gr = $('grade'); sp.hidden = !L; if (gr) gr.hidden = !L;
+  if (L) { initSpeedo(); const v = L.v < 2 ? 0 : L.v; $('spV').textContent = Math.round(v); const nd = $('spNeedle'); if (nd) nd.setAttribute('transform', 'rotate(' + spAngle(v).toFixed(1) + ' 60 60)'); const pk = $('spPlan'); if (pk) { if (S.planSpeed > 0) { pk.removeAttribute('hidden'); pk.setAttribute('transform', 'rotate(' + spAngle(S.planSpeed).toFixed(1) + ' 60 60)'); } else pk.setAttribute('hidden', ''); } /* elemento SVG não tem .hidden */ const g = $('spG'); g.textContent = (L.grade > 0 ? '+' : '') + n1(L.grade) + ' %'; g.className = 'g' + (L.grade >= 3 ? ' up' : L.grade <= -3 ? ' down' : ''); sp.style.bottom = (S.scaleBottom + 22) + 'px'; if (gr) gr.style.bottom = (S.scaleBottom + 26) + 'px'; }
+  const plc = $('place'); if (plc) { plc.textContent = S.place || ''; plc.hidden = !S.place; plc.style.bottom = (S.scaleBottom + 150) + 'px'; }   // acima do velocímetro (118 px)
   $('gpsSt').textContent = S.gpsMsg || '';
   $('clock').textContent = fmtH(new Date());
 }
+// velocímetro B (Anna, 06/09/2026): escala fixa 0–60 km/h em 120° no topo, como o mostrador da transmissão do Tour.
+// O arco é a escala (não cresce com a velocidade); o ponteiro dá o valor; a marca branca é a média que o plano pede.
+const SP_MAX = 60, SP_SWEEP = 120, SP_COLS = [[14, 154, 76], [255, 210, 0], [255, 138, 0], [228, 0, 43]], SP_STOPS = [0, .5, .78, 1];   // verde, amarelo, laranja, vermelho (tokens.json ui)
+function spAngle(v) { return -SP_SWEEP / 2 + SP_SWEEP * Math.max(0, Math.min(1, v / SP_MAX)); }
+function spPol(r, deg) { const a = (deg - 90) * Math.PI / 180; return [60 + r * Math.cos(a), 60 + r * Math.sin(a)]; }
+function spColor(t) { let i = 0; while (i < SP_STOPS.length - 2 && t > SP_STOPS[i + 1]) i++; const a = SP_COLS[i], b = SP_COLS[i + 1], f = (t - SP_STOPS[i]) / (SP_STOPS[i + 1] - SP_STOPS[i]); return 'rgb(' + a.map((x, k) => Math.round(x + (b[k] - x) * f)).join(',') + ')'; }
+function initSpeedo() {
+  const sc = $('spScale'); if (!sc || sc.childElementCount) return;
+  const N = 48, a0 = -SP_SWEEP / 2; let s = '';
+  for (let i = 0; i < N; i++) { const p = spPol(45, a0 + SP_SWEEP * i / N - .4), q = spPol(45, a0 + SP_SWEEP * (i + 1) / N + .4); s += `<path d="M${p[0].toFixed(2)} ${p[1].toFixed(2)} A45 45 0 0 1 ${q[0].toFixed(2)} ${q[1].toFixed(2)}" stroke="${spColor((i + .5) / N)}"/>`; }
+  const e0 = spPol(45, a0), e1 = spPol(45, a0 + SP_SWEEP); s += `<circle cx="${e0[0].toFixed(2)}" cy="${e0[1].toFixed(2)}" r="3" fill="${spColor(0)}"/><circle cx="${e1[0].toFixed(2)}" cy="${e1[1].toFixed(2)}" r="3" fill="${spColor(1)}"/>`;
+  sc.innerHTML = s;
+  let t = ''; for (let k = 0; k <= SP_MAX; k += 10) { const p = spPol(39.5, spAngle(k)), q = spPol(36.5, spAngle(k)); t += `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"/>`; }
+  $('spTicks').innerHTML = t;
+}
+
+// tela 04 · Chegada: papel inteiro, o dia na fita, pódio com o maillot do dia, diferença para o plano; no Diário, a última vez
+export function arrivalHtml(r, S, st, ec, prev, maillot) {
+  const code = r.diario ? 'SP' : (/^\d/.test(r.stageKey) ? 'E' + r.stageKey : r.stageKey);
+  const dest = r.dest || String(r.name).replace(/^E\S+ /, '').split('→').pop().split('·')[0].trim();
+  const vp = r.vsPlan, when = r.finishedAt ? fmtH(new Date(r.finishedAt)) : '–:–';
+  const plano = vp == null ? '' : `<i${vp > 0 ? ' class="late"' : ''}>${vp === 0 ? 'na hora' : fmtMin(vp) + (vp > 0 ? ' atrasado' : ' adiantado')}</i>${S.planArrival ? ' · plano ' + S.planArrival : ''}`;
+  const sub = r.diario ? 'Diário · ' + n1(r.km) + ' km · ' + n0(r.up) + ' m' : String(S.allParadas && S.allParadas.dias ? S.allParadas.dias[r.stageKey] || '' : '').trim() + ' · ' + n1(r.planKm) + ' km · ' + n0(r.planUp) + ' m';
+  const type = r.diario ? 'blanc' : (r.type || 'blanc');
+  const podium = `<div class="podium"><div class="step s2">${maillot('vert', 34)}<b>${n1(r.avg)}</b><span>média km/h</span></div><div class="step s1">${maillot(type, 46)}<b>${fmtT(r.moving)}</b><span>em movimento${r.diario ? '' : ' · maillot ' + ({ pois: 'à pois', jaune: 'jaune', vert: 'vert', blanc: 'blanc' }[type] || '')}</span></div><div class="step s3">${maillot('pois', 34)}<b>${Math.round(r.up)}</b><span>m subidos</span></div></div>`;
+  let pass = '';
+  if (!r.diario && ec && ec.items) { const its = ec.items.filter(it => it.kind === 'cat' && it.eta != null); if (its.length) pass = its.map(it => `${esc(it.name)} <b>${fmtMinH(it.eta)}</b> ${it.gap == null ? '' : `<i${it.gap > 2 ? ' class="late"' : ''}>${it.gap > 0 ? '+' : '−'}${Math.abs(Math.round(it.gap))}</i>`}`).join(' · '); }
+  if (pass || r.vmax) pass = `<div class="pass">${pass}${pass ? ' · ' : ''}máxima <b>${n1(r.vmax)} km/h</b></div>`;
+  let trip = '';
+  if (!r.diario && st) trip = `<div class="pass">Viagem · ${st.n} de 8 etapas · <b>${fmtT(st.moving)}</b> em movimento · <b>${n0(st.up)} m</b> subidos</div>`;
+  if (r.diario) trip = prev ? `<div class="pass">Última vez até ${esc(r.dest)}: <b>${fmtT(prev.moving)}</b> · média <b>${n1(prev.avg)} km/h</b> · hoje ${r.moving < prev.moving ? '<i>' + fmtMin((prev.moving - r.moving) / 60) + ' mais rápido</i>' : '<i class="late">' + fmtMin((r.moving - prev.moving) / 60) + ' mais lento</i>'}</div>` : `<div class="pass">Primeira vez até ${esc(r.dest)} registrada no Diário.</div>`;
+  return `<div class="arrive"><div class="hd"><div class="code m-${type}">${code}</div><div class="nm"><b>${esc(String(r.name).replace(/^E\S+ /, '').split(' · ')[0])}</b><span>${esc(sub)}</span></div></div>
+  <div class="big">Chegada</div><div class="where">${esc(dest)} · ${when}</div><div class="when">${plano || (r.diario ? n1(r.km) + ' km em ' + fmtT(r.moving) : '')}</div>
+  <canvas id="arrProf" class="arrprof"></canvas>${podium}${pass}${trip}</div>`;
+}
+// folha Parado (tela 03): seis números fixos, abastecimento com o botão amarelo só no que venceu, some sozinha ao andar
+export function paradoPanel(S) {
+  const el = $('paradoBody'); if (!el) return;
+  const L = S.live || {}, F = S.fuelStatus, d = S.proj.dist || 0, sess = S.session, now = Date.now(), moving = session.movingTime(sess, now);
+  const since = S.stillAt ? Math.max(0, Math.round((now - S.stillAt) / 1000)) : 0, mm = Math.floor(since / 60), ss = since % 60;
+  const eta = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–', vp = S.vsPlan;
+  const etaSub = vp == null ? 'chegada prevista' : 'chegada · ' + (vp > 0 ? '+' : '−') + fmtMin(vp) + (vp > 0 ? ' atrasado' : ' adiantado');
+  const place = S.place || (S.next && S.next.cp ? 'perto de ' + S.next.cp.name : '');
+  el.innerHTML = `<div class="parado-t"><h4>Parado</h4><div class="tm">${mm}:${String(ss).padStart(2, '0')}<small>min</small></div></div>
+  <div class="sub">${esc(place)}${place ? ' · ' : ''}km ${fmtKm1(d)}${S.stillAt ? ' · desde ' + fmtH(new Date(S.stillAt)) : ''}</div>
+  <div class="lbl">Até aqui</div>
+  <div class="tiles"><div><b>${fmtKm1(d)}<small>km</small></b><span>feitos</span></div><div><b>${fmtT(moving)}</b><span>em movimento</span></div><div><b>${n1(L.avg)}</b><span>média km/h</span></div>
+  <div><b>${n0(L.upRem)}<small>m</small></b><span>a subir</span></div><div class="${vp == null ? '' : vp > 10 ? 'late' : 'g'}"><b>${eta}</b><span>${etaSub}</span></div><div><b>${n0(L.ele)}<small>m</small></b><span>altitude</span></div></div>
+  ${F && (!F.off || !F.off.water || !F.off.carbs) ? '<div class="lbl">Abastecer</div>' : ''}
+  ${F && !(F.off && F.off.water) ? `<div class="fuelrow${F.nextDrinkMin === 0 ? ' due' : ''}"><div class="fl"><b>Água</b><span>${n1(F.water / 1000)} de ${n1(F.waterTotal / 1000)} L · ${F.nextDrinkMin === 0 ? 'gole agora' : 'próximo em ' + fmtMin(F.nextDrinkMin)}</span><div class="bar"><i style="width:${Math.min(100, F.waterTotal ? F.water / F.waterTotal * 100 : 0)}%"></i></div></div><button data-fuel="drink">Bebi<small>${Math.round((S.fuelPlan || {}).sipMl || 150)} ml</small></button></div>` : ''}
+  ${F && !(F.off && F.off.carbs) ? `<div class="fuelrow${F.nextEatMin === 0 ? ' due' : ''}"><div class="fl"><b>Carboidrato</b><span>${n0(F.carbs)} de ${n0(F.carbsTotal)} g · ${F.nextEatMin === 0 ? 'mordida agora' : 'próxima em ' + fmtMin(F.nextEatMin)}</span><div class="bar"><i style="width:${Math.min(100, F.carbsTotal ? F.carbs / F.carbsTotal * 100 : 0)}%"></i></div></div><button data-fuel="eat">Comi<small>${Math.round((S.fuelPlan || {}).biteG || 30)} g</small></button></div>` : ''}
+  <div class="note">Some sozinha quando você voltar a andar. A parada entra no registro com o lugar.</div>`;
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function terrainStrip(el, st) {
   if (!el || el.dataset.k === st.key) return; el.dataset.k = st.key;
   if (!st.surfaces.length) { el.innerHTML = '<i class="a" style="width:100%"></i>'; return; }
   el.innerHTML = st.surfaces.map(s => `<i class="${s.kind === 'asfalto' ? 'a' : s.kind === 'gravel' ? 'g' : 't'}" style="width:${(s.to - s.from) / st.total * 100}%"></i>`).join('');
 }
-export function setTab(S, tab) { S.tab = tab; document.querySelectorAll('#tabs div').forEach(d => d.classList.toggle('on', d.dataset.tab === tab)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== tab); document.querySelectorAll('.mini').forEach(p => p.hidden = p.dataset.tab !== tab); }
+export function setTab(S, tab) { S.tab = tab; document.querySelectorAll('.cb button').forEach(d => d.classList.toggle('on', S.mode === 'full' && d.dataset.tab === tab)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.dataset.tab !== tab); document.querySelectorAll('.mini').forEach(p => p.hidden = p.dataset.tab !== tab); }
 export function setMode(S, mode) { S.mode = mode; $('panel').classList.toggle('resumo', mode === 'resumo'); }
 export function theme(mode, S) {
   const night = mode === 'night' || (mode === 'auto' && S.light && S.light.remaining < 0 && S.light.remaining > -14 * 3600) || (mode === 'auto' && !S.light && tzHour(Date.now()) >= 19);

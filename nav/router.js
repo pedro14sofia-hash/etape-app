@@ -6,6 +6,7 @@ import { haversine } from './geo.js';
 let G = null, adj = null, gridE = null; const CELL = 0.01;
 const FACTOR = { 2: 1.6, 3: 1.25, 4: 1.0, 5: 0.95, 6: 1.1, 7: 1.15, 8: 0.85, 9: 1.6, 10: 5 };
 export function available() { return !!G; }
+export function node(i) { return G ? G.nodes[i] : null; }
 export async function load(url = 'graph.json') {
   if (G) return G;
   try { const r = await fetch(url); if (!r.ok) return null; G = await r.json(); } catch (e) { return null; }
@@ -46,8 +47,16 @@ function splitLengths(i, k, t) {
   return [before, after];
 }
 // rota de (lat,lon) a (lat,lon): { pts: [[lat,lon]...], len: m } ou null
-export function route(fromLat, fromLon, toLat, toLon, maxM = 20000) {
+// opts.profile: shortest (padrão) | bike (ciclovia e ciclofaixa valem 0,55 e 0,75 do comprimento) | climbLess (+10 m por metro
+// subido) | climbMore (−6 m por metro subido, nunca abaixo de 0,3 do custo). opts.ele(nó) devolve a altitude (m) ou null.
+// A heurística encolhe para continuar admissível nos perfis que baixam o custo. Devolve também os trechos por tipo de via
+// (segs: [de, até, k] em metros; k 2 ciclovia, 1 ciclofaixa, 0 rua) e os metros em cada um.
+export function route(fromLat, fromLon, toLat, toLon, maxM = 20000, opts = {}) {
   if (!G) return null;
+  const prof = opts.profile || 'shortest', ele = opts.ele;
+  const kf = ei => { const k = G.edges[ei][7] || 0; return prof === 'bike' ? (k === 2 ? 0.55 : k === 1 ? 0.75 : 1.05) : 1; };
+  const cost = (w, ei, a, b) => { let c = w * kf(ei); if ((prof === 'climbLess' || prof === 'climbMore') && ele) { const za = ele(a), zb = ele(b); if (za != null && zb != null) { const up = Math.max(0, zb - za); c = prof === 'climbLess' ? c + 10 * up : Math.max(0.3 * c, c - 6 * up); } } return c; };
+  const hs = prof === 'bike' ? 0.45 : prof === 'climbMore' ? 0.25 : 0.8;
   const A = nearestEdge(fromLat, fromLon), B = nearestEdge(toLat, toLon); if (!A || !B || A.d > 400 || B.d > 400) return null;
   const N = G.nodes.length, start = N, goal = N + 1;                       // nós virtuais
   const ea = G.edges[A.i], eb = G.edges[B.i], [aBefore, aAfter] = splitLengths(A.i, A.k, A.t), [bBefore, bAfter] = splitLengths(B.i, B.k, B.t);
@@ -58,9 +67,9 @@ export function route(fromLat, fromLon, toLat, toLon, maxM = 20000) {
   const goalLinks = { [eb[0]]: bBefore * fb, [eb[1]]: eb[4] ? Infinity : bAfter * fb };
   if (A.i === B.i) {                                                         // mesma aresta: caminho direto se o sentido permite
     const direct = (B.k > A.k || (B.k === A.k && B.t >= A.t)) || !ea[4];
-    if (direct) { const pts = sliceEdge(A.i, A.k, A.t, B.k, B.t); return { pts, len: pathLen(pts) }; }
+    if (direct) { const pts = sliceEdge(A.i, A.k, A.t, B.k, B.t), len = pathLen(pts), k = ea[7] || 0; return { pts, len, segs: [[0, len, k]], bikeM: k === 2 ? len : 0, laneM: k === 1 ? len : 0 }; }
   }
-  const h = n => { const p = n === start ? [fromLat, fromLon] : n === goal ? [toLat, toLon] : G.nodes[n]; return haversine(p[0], p[1], toLat, toLon) * 0.8; };
+  const h = n => { const p = n === start ? [fromLat, fromLon] : n === goal ? [toLat, toLon] : G.nodes[n]; return haversine(p[0], p[1], toLat, toLon) * hs; };
   const dist = new Map([[start, 0]]), prev = new Map(); const open = [[h(start), start]];
   const push = (f, n) => { open.push([f, n]); let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; [open[p], open[i]] = [open[i], open[p]]; i = p; } };
   const pop = () => { const top = open[0], last = open.pop(); if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; [open[m], open[i]] = [open[i], open[m]]; i = m; } } return top; };
@@ -72,22 +81,24 @@ export function route(fromLat, fromLon, toLat, toLon, maxM = 20000) {
     const links = n === start ? extra.get(start) : adj[n].slice();
     if (n !== start && goalLinks[n] != null && isFinite(goalLinks[n])) links.push([goal, goalLinks[n], B.i, 0]);
     for (const [m, w, ei, dir] of links) {
-      const nd = dn + w; if (nd < (dist.get(m) ?? Infinity)) { dist.set(m, nd); prev.set(m, [n, ei, dir]); push(nd + h(m), m); }
+      const nd = dn + (n === start || m === goal ? w * kf(ei) : cost(w, ei, n, m)); if (nd < (dist.get(m) ?? Infinity)) { dist.set(m, nd); prev.set(m, [n, ei, dir]); push(nd + h(m), m); }
     }
   }
   if (!prev.has(goal)) return null;
   // reconstrói a geometria
   const chain = []; let cur = goal; while (cur !== start) { const [p, ei, dir] = prev.get(cur); chain.push([p, cur, ei, dir]); cur = p; } chain.reverse();
-  let pts = [];
+  let pts = []; const segs = []; let bikeM = 0, laneM = 0, at = 0;
   for (const [p, c, ei, dir] of chain) {
     let seg;
     if (p === start) { const e = G.edges[ei]; seg = c === e[1] ? sliceEdge(ei, A.k, A.t, null, null) : sliceEdge(ei, A.k, A.t, 0, 0).reverse(); if (c !== e[1]) seg = sliceEdgeRev(ei, A.k, A.t); }
     else if (c === goal) { const e = G.edges[ei]; seg = p === e[0] ? sliceEdge(ei, 0, 0, B.k, B.t) : sliceEdgeRev2(ei, B.k, B.t); }
     else { seg = edgePts(ei); if (dir === -1) seg = seg.slice().reverse(); }
+    const segL = pathLen(pts.length && seg.length ? [pts[pts.length - 1]].concat(seg) : seg), k = G.edges[ei][7] || 0;
+    if (segL > 0) { const last = segs[segs.length - 1]; if (last && last[2] === k) last[1] = at + segL; else segs.push([at, at + segL, k]); at += segL; if (k === 2) bikeM += segL; else if (k === 1) laneM += segL; }
     if (pts.length && seg.length && pts[pts.length - 1][0] === seg[0][0] && pts[pts.length - 1][1] === seg[0][1]) seg = seg.slice(1);
     pts = pts.concat(seg);
   }
-  return { pts, len: pathLen(pts) };
+  return { pts, len: pathLen(pts), segs, bikeM, laneM };
 }
 function pathLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += haversine(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]); return L; }
 // trecho da aresta de (k0,t0) até (k1,t1) (k1 null = fim)
