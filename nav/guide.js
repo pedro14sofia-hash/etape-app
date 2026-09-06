@@ -41,8 +41,8 @@ export function tick(S, fix, now) {
   // curvas
   for (const t of st.turns) {
     const ahead = t.dist - dist;
-    if (ahead > 0 && ahead < 320 && !t.a300) { t.a300 = true; ev.push({ kind: 'turn300', level: 2, text: cap(t.txt) + ' · 300 m', sub: t.road ? t.road : '', speak: 'Em 300 metros, ' + t.txt + (t.road ? ', ' + t.road : '') + '.', turn: t }); }
-    if (ahead > 0 && ahead < 60 && !t.a50) { t.a50 = true; ev.push({ kind: 'turn50', level: 1, text: cap(t.txt) + ' agora', sub: t.road || '', speak: cap(t.txt) + ' agora.', turn: t, hold: 8000 }); }
+    if (ahead > 0 && ahead < 320 && !t.a300) { t.a300 = true; ev.push({ kind: 'turn300', level: 2, text: t.short || cap(t.txt), sub: 'em 300 m' + (t.road ? ' · ' + t.road : ''), speak: 'Em 300 metros, ' + t.txt + (t.road ? ', ' + t.road : '') + '.', turn: t }); }
+    if (ahead > 0 && ahead < 60 && !t.a50) { t.a50 = true; ev.push({ kind: 'turn50', level: 1, text: t.short || cap(t.txt), sub: 'agora' + (t.road ? ' · ' + t.road : ''), speak: cap(t.txt) + ' agora.', turn: t, hold: 8000 }); }
     if (ahead < -120) { t.a300 = false; t.a50 = false; }
   }
   // subidas

@@ -149,7 +149,7 @@ export function selectStage(key) {
   applyTheme(); refresh(); measurePanel();
   if (S.session.state === 'running') startNavigation(true);
 }
-function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
+function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); R.invalidate(); }
 function setCam(c) { c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); } if (c === 'tp') { S.follow = true; $('btnFollow').classList.add('on'); if (S.pos) R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, 16, S.pos ? -S.pos.head : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
 function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
@@ -241,7 +241,7 @@ function rerouteTick(fix, now, events) {
     if (res && res.pts.length > 1) {
       const cum = [0]; for (let i = 1; i < res.pts.length; i++) cum.push(cum[i - 1] + haversine(res.pts[i - 1][0], res.pts[i - 1][1], res.pts[i][0], res.pts[i][1]));
       const pseudo = { pts: res.pts, cum, total: cum[cum.length - 1] };
-      const turns = track.detectTurns(pseudo, 45, 25, 40);
+      const turns = track.detectTurns(pseudo, 35, 12, 30);
       const first = !rr;
       S.reroute = { pts: res.pts, cum, total: pseudo.total, turns, at: now, from: [fix.lat, fix.lon], tgtD, proj: { idx: 0, dist: 0, off: 0 } };
       if (first) { voice.clearBanner(); mine.push({ kind: 'reroute', level: 2, text: 'Recalculando', sub: (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(pseudo.total) + ' m') + ' até voltar ao traçado', speak: 'Recalculando. ' + (pseudo.total >= 1000 ? (pseudo.total / 1000).toFixed(1).replace('.', ',') + ' quilômetros' : Math.round(pseudo.total / 50) * 50 + ' metros') + ' até a rota.' }); }
@@ -253,8 +253,8 @@ function rerouteTick(fix, now, events) {
   const pr = track.project(r2, fix.lat, fix.lon, r2.proj.idx); if (pr.off < 80) r2.proj = pr;
   for (const t of r2.turns) {
     const ahead = t.dist - r2.proj.dist;
-    if (ahead > 0 && ahead < 320 && !t.a300) { t.a300 = true; mine.push({ kind: 'turn300', level: 2, text: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' · 300 m', sub: 'volta à rota', speak: 'Em 300 metros, ' + t.txt + '.', turn: t }); }
-    if (ahead > 0 && ahead < 60 && !t.a50) { t.a50 = true; mine.push({ kind: 'turn50', level: 1, text: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' agora', sub: 'volta à rota', speak: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' agora.', turn: t, hold: 8000 }); }
+    if (ahead > 0 && ahead < 320 && !t.a300) { t.a300 = true; mine.push({ kind: 'turn300', level: 2, text: t.short || t.txt, sub: 'em 300 m · volta à rota', speak: 'Em 300 metros, ' + t.txt + '.', turn: t }); }
+    if (ahead > 0 && ahead < 60 && !t.a50) { t.a50 = true; mine.push({ kind: 'turn50', level: 1, text: t.short || t.txt, sub: 'agora · volta à rota', speak: t.txt.charAt(0).toUpperCase() + t.txt.slice(1) + ' agora.', turn: t, hold: 8000 }); }
   }
   for (const ev of mine) handleEvent(ev);
 }
@@ -282,7 +282,7 @@ function handleEvent(ev) {
   if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
   if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
   if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
-  if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.txt.includes('retorno') ? 'retorno' : ev.turn.dir, ev.turn.dir) + '</span>';
+  if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.kind || ev.turn.dir, ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
   voice.announce(ev);
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };

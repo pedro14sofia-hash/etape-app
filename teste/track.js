@@ -12,7 +12,7 @@ export function loadStage(routes, key) {
   upRem[0] = acc;
   const stage = { key, name: routes.names[key], type: (routes.types || {})[key] || 'blanc', pts, cum, total, prof, upRem, km: s.km, up: s.up, climbs: s.climbs || [], surfaces: s.surfaces || [] };
   stage.cps = checkpoints(stage, s.wps.map(id => ({ id, ...routes.wps[id] })));
-  stage.turns = detectTurns(stage, 45, 25, 60);
+  stage.turns = detectTurns(stage, 35, 12, 40);
   return stage;
 }
 
@@ -27,18 +27,39 @@ export function checkpoints(stage, wps) {
 }
 export function shortName(label) { return label.split(' (')[0].split(' · ')[0]; }
 
-export function detectTurns(stage, minAngle, window, merge) {
-  const { pts, cum } = stage, turns = []; let lastT = -1e9;
-  for (let i = 2; i < pts.length - 2; i++) {
-    let j = i - 1; while (j > 0 && cum[i] - cum[j] < window) j--;
-    let m = i + 1; while (m < pts.length - 1 && cum[m] - cum[i] < window) m++;
-    const b1 = bearing(pts[j][0], pts[j][1], pts[i][0], pts[i][1]), b2 = bearing(pts[i][0], pts[i][1], pts[m][0], pts[m][1]);
-    const d = turnAngle(b1, b2);
-    if (Math.abs(d) >= minAngle && cum[i] - lastT > merge) {
-      const a = Math.abs(d);
-      turns.push({ i, dist: cum[i], ang: d, dir: d > 0 ? 'direita' : 'esquerda', txt: a > 110 ? 'retorno' : a > 70 ? (d > 0 ? 'direita fechada' : 'esquerda fechada') : (d > 0 ? 'direita' : 'esquerda'), road: '' });
-      lastT = cum[i];
+// Curvas: rumo suavizado (±window m) em cada ponto; uma curva é um trecho contínuo girando para o mesmo lado com taxa
+// acima de RATE °/m (raio < ~130 m); o ângulo é a soma dos giros do trecho inteiro. Classes: leve (minAngle..70°),
+// acentuada (70..140°), retorno (≥140°, a volta de 180°). `dist` é a entrada da curva (para os avisos), `i` o ápice (mapa).
+export function detectTurns(stage, minAngle = 35, window = 12, merge = 40) {
+  const { pts, cum } = stage, n = pts.length, turns = [];
+  if (n < 4) return turns;
+  const hd = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let j = i; while (j > 0 && cum[i] - cum[j] < window) j--;
+    let m = i; while (m < n - 1 && cum[m] - cum[i] < window) m++;
+    hd[i] = bearing(pts[j][0], pts[j][1], pts[m][0], pts[m][1]);
+  }
+  const RATE = 0.45, rateAt = k => { const dk = turnAngle(hd[k - 1], hd[k]), ds = Math.max(0.5, cum[k] - cum[k - 1]); return [dk, ds, dk / ds]; };
+  let i = 1;
+  while (i < n) {
+    const [, , rate] = rateAt(i);
+    if (Math.abs(rate) < RATE) { i++; continue; }
+    const sign = Math.sign(rate), start = i - 1; let sum = 0, k = i, apex = i, maxR = 0, calm = 0;
+    while (k < n) {
+      const [dk, ds, rk] = rateAt(k);
+      if (Math.sign(rk) === sign && Math.abs(rk) >= RATE * 0.5) { sum += dk; calm = 0; if (Math.abs(rk) > maxR) { maxR = Math.abs(rk); apex = k; } }
+      else { if (Math.sign(rk) === -sign && Math.abs(rk) >= RATE) break; calm += ds; if (calm > 12) break; sum += dk; }
+      k++;
     }
+    const a = Math.abs(sum);
+    if (a >= minAngle && (!turns.length || cum[start] - turns[turns.length - 1].dist > merge)) {
+      const dir = sum > 0 ? 'direita' : 'esquerda', kind = a >= 140 ? 'retorno' : a >= 70 ? 'acentuada' : 'leve';
+      const txt = kind === 'retorno' ? 'retorno à ' + dir : 'curva ' + kind + ' à ' + dir;
+      const short = (kind === 'retorno' ? 'Retorno' : kind === 'acentuada' ? 'Acentuada' : 'Leve') + ' à ' + dir;
+      const label = kind === 'retorno' ? 'Retorno' : kind === 'acentuada' ? 'Curva acentuada' : 'Curva leve';
+      turns.push({ i: apex, dist: cum[start], end: cum[Math.min(k, n - 1)], ang: Math.round(sum), dir, kind, txt, short, label, road: '' });
+    }
+    i = Math.max(k, i + 1);
   }
   return turns;
 }

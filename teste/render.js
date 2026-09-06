@@ -77,7 +77,8 @@ export function createRenderer(canvas, overlay) {
     if (!is3d()) { cam = null; return; }
     const c = CAMS[view.mode], lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI);
     const mpp = metersPerPixel(lat, view.z);   // metros por px na projeção plana base (zoom vira "densidade de detalhe")
-    const yh = c.yh * H, yr = c.yr * H, F = (yr - yh) * c.dc / c.hc;
+    const Hv = view.hv > 120 && view.hv < H ? view.hv : H;   // área visível do mapa (o painel cobre a parte de baixo do canvas)
+    const yh = c.yh * Hv, yr = c.yr * Hv, F = (yr - yh) * c.dc / c.hc;
     cam = { ...c, yh, yr, F, mpp, sr: F / c.dc };  // sr: px por metro na linha do ciclista
     // terreno: altitude do ciclista como referência (0); só quando o tile já está no aparelho
     const clat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI), clon = view.cx * 360 - 180;

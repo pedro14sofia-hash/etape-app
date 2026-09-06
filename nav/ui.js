@@ -14,8 +14,15 @@ export const fmtMin = m => { m = Math.round(Math.abs(m)); if (m < 60) return m +
 const fmtGap = m => { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') + "'" : m + "'"; };
 const fmtMinH = m => { m = Math.round(m); return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };
 const n1 = x => isFinite(x) ? (Math.round(x * 10) / 10).toFixed(1).replace('.', ',') : '–';
-const ARROW = { esquerda: '<path d="M14 20V10a3 3 0 0 0-3-3H5"/><path d="M8 4L4 7l4 3"/>', direita: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>', reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>', retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>' };
-export const svgArrow = (k, dir) => `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${k === 'retorno' && dir === 'esquerda' ? '<g transform="translate(24 0) scale(-1 1)">' + ARROW.retorno + '</g>' : (ARROW[k] || ARROW.reto)}</svg>`;
+const ARROW = {
+  reto: '<path d="M12 20V5"/><path d="M7 10l5-5 5 5"/>',
+  leve: '<path d="M9 20v-7l7-7"/><path d="M11 6h5v5"/>',                                   // desenhada para a direita
+  acentuada: '<path d="M10 20V10a3 3 0 0 1 3-3h6"/><path d="M16 4l4 3-4 3"/>',
+  retorno: '<path d="M8 20V8a4 4 0 0 1 8 0v4"/><path d="M12 9l4 3 4-3"/>'
+};
+ARROW.direita = ARROW.acentuada; ARROW.esquerda = '<g transform="translate(24 0) scale(-1 1)">' + ARROW.acentuada + '</g>';
+// k: leve | acentuada | retorno | reto (ou direita/esquerda); dir espelha as classes desenhadas para a direita
+export const svgArrow = (k, dir) => { const g = ARROW[k] || ARROW.reto, mir = dir === 'esquerda' && (k === 'leve' || k === 'acentuada' || k === 'retorno'); return `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${mir ? '<g transform="translate(24 0) scale(-1 1)">' + g + '</g>' : g}</svg>`; };
 export const chip = k => k ? `<i class="chip ${k === 'asfalto' ? 'asf' : k === 'gravel' ? 'grv' : 'trl'}">${k}</i>` : '';
 
 export function bindGestures(canvas, R, onUserPan, onUserZoom, onUserRotate) {
@@ -85,7 +92,7 @@ export function panel(S) {
   const sfTxt = ch ? chip(ch.kind) + ' em ' + fmtKm1(ch.from - d) + ' km' : chip(sf);
   $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (sfTxt || (cp.ele ? cp.ele + ' m' : '')) : '';
   $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
-  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.txt.includes('retorno') ? 'retorno' : tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.txt; }
+  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.label || tn.txt; }
   else { $('tcArrow').innerHTML = svgArrow('reto'); $('tcDist').textContent = fmtKm1(rem) + ' km'; $('tcSub').textContent = 'reto'; }
   // telemetria
   const L = S.live;

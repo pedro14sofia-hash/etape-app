@@ -50,16 +50,21 @@ export function tileMercZ(x, y, z) { const n = 2 ** z; return { mx: x / n, my: y
 // cor média por célula de 8×8 px do tile (32×32 por tile), calculada uma vez; devolve [r,g,b] ou null
 const grids = new Map();
 export function colorAt(lat, lon) {
-  const n = 2 ** Z, px = (lon + 180) / 360 * n * 256, py = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n * 256;
-  const tx = Math.floor(px / 256), ty = Math.floor(py / 256), k = tx + '/' + ty;
-  let g = grids.get(k);
-  if (!g) {
-    const im = tile(tx, ty); if (!im) return null;
-    const c = document.createElement('canvas'); c.width = c.height = 32; const cx = c.getContext('2d', { willReadFrequently: true });
-    cx.drawImage(im, 0, 0, 32, 32); g = cx.getImageData(0, 0, 32, 32).data; grids.set(k, g); if (grids.size > 300) grids.delete(grids.keys().next().value);
+  // nível mais fino já em memória: z17 (~1,2 m/px → célula de 5 m) perto do ciclista, senão z15 (célula de 19 m)
+  for (const z of (index && index.z17 ? [17, Z] : [Z])) {
+    const n = 2 ** z, px = (lon + 180) / 360 * n * 256, py = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n * 256;
+    const tx = Math.floor(px / 256), ty = Math.floor(py / 256), k = z + '/' + tx + '/' + ty;
+    let g = grids.get(k);
+    if (!g) {
+      if (z !== Z && !hasDetailTile(tx, ty, z)) continue;
+      const im = tile(tx, ty, z); if (!im) continue;
+      const c = document.createElement('canvas'); c.width = c.height = 64; const cx = c.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(im, 0, 0, 64, 64); g = cx.getImageData(0, 0, 64, 64).data; grids.set(k, g); if (grids.size > 400) grids.delete(grids.keys().next().value);
+    }
+    const i = (Math.min(63, Math.floor((py - ty * 256) / 4)) * 64 + Math.min(63, Math.floor((px - tx * 256) / 4))) * 4;
+    return [g[i], g[i + 1], g[i + 2]];
   }
-  const i = (Math.min(31, Math.floor((py - ty * 256) / 8)) * 32 + Math.min(31, Math.floor((px - tx * 256) / 8))) * 4;
-  return [g[i], g[i + 1], g[i + 2]];
+  return null;
 }
 
 // baixa todos os tiles de uma etapa para o cache do service worker (uso offline); progress(feitos, total)
