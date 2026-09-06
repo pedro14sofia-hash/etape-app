@@ -313,7 +313,7 @@ export function render(r, v, t) {
   step(v, t);
   renderer.setScissorTest(true); renderer.clear(true, true, true);
   if (!r || !r.show) { renderer.setScissorTest(false); return; }
-  const size = Math.round(184 * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.36);   // 20 % menor que a 1ª versão (230)
+  const size = Math.round(156 * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.36);   // 1ª versão 230 → −20 % → −15 %
   renderer.setViewport(x0, y0, size, size); renderer.setScissor(x0, y0, size, size);
   camera.aspect = 1;
   if (model) { camera.position.set(0.0, 1.3, 3.3); camera.fov = 30; }                // avatar: de trás e um pouco acima, como a TV do Tour
