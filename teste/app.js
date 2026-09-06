@@ -44,7 +44,7 @@ export function init() {
   const zoomBtn = dz => { S.userZoomAt = Date.now(); const { W, H } = R.size(); ui.zoomAnim(R, R.view.z + dz, W / 2, H * R.view.anchorY); };
   $('zin').onclick = () => zoomBtn(0.7); $('zout').onclick = () => zoomBtn(-0.7);
   $('map').addEventListener('wheel', () => { S.userZoomAt = Date.now(); }); $('map').addEventListener('pointerdown', e => { if (e.isPrimary === false) S.userZoomAt = Date.now(); });
-  $('btnFollow').onclick = () => { S.follow = true; S.rotLock = false; S.hideCtl(); $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
+  $('btnFollow').onclick = () => { if (t3d && S.cam3d) t3d.recenter(); S.follow = true; S.rotLock = false; S.hideCtl(); $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
   // controles escondidos por padrão: um toque no mapa mostra por 8 s; arrastar mostra até recentralizar
@@ -95,7 +95,16 @@ export function init() {
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
   if (!S.prefs.voice) { voice.mute(); $('btnVoice').classList.remove('on'); } else $('btnVoice').classList.add('on');
   window.addEventListener('resize', () => { R.resize(); measurePanel(); if (t3d && S.cam3d) t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); });
-  { let t0 = 0, p0 = null; const gl = $('gl'); gl.addEventListener('pointerdown', e => { t0 = performance.now(); p0 = [e.clientX, e.clientY]; }); gl.addEventListener('pointerup', e => { if (p0 && performance.now() - t0 < 300 && Math.hypot(e.clientX - p0[0], e.clientY - p0[1]) < 12) S.showCtl(0); p0 = null; }); }
+  { // gestos no 3D: arrastar orbita em volta do ciclista (volta sozinho ao rumo), pinça muda a distância, toque mostra os controles
+    const gl = $('gl'), ptrs = new Map(); let t0 = 0, p0 = null, pinch = 0;
+    gl.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); try { gl.setPointerCapture(e.pointerId); } catch (err) { } if (ptrs.size === 1) { t0 = performance.now(); p0 = [e.clientX, e.clientY]; } if (ptrs.size === 2) { const a = [...ptrs.values()]; pinch = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); } });
+    gl.addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId) || !t3d) return; const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+      if (ptrs.size === 1) t3d.orbit(-(e.clientX - prev[0]) * 0.006, (e.clientY - prev[1]) * 0.004);
+      else if (ptrs.size === 2 && pinch) { const a = [...ptrs.values()], d = Math.hypot(a[0][0] - a[1][0], a[0][1] - a[1][1]); if (d > 0) t3d.zoomBy(d / pinch); pinch = d; } });
+    const up = e => { const was = ptrs.size; ptrs.delete(e.pointerId); if (was === 1 && p0 && performance.now() - t0 < 300 && Math.hypot(e.clientX - p0[0], e.clientY - p0[1]) < 12) S.showCtl(0); if (!ptrs.size) { p0 = null; pinch = 0; if (t3d) t3d.release(); } };
+    gl.addEventListener('pointerup', up); gl.addEventListener('pointercancel', up);
+    gl.addEventListener('wheel', e => { e.preventDefault(); if (t3d) { t3d.zoomBy(e.deltaY < 0 ? 1.1 : 0.9); t3d.release(); } }, { passive: false });
+  }
   R.resize();
   window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
@@ -386,7 +395,7 @@ function loop(ts) {
   glide(ts);
   if (S.cam3d && t3d) {
     if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2); setCam('2d'); }
-    else { const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); requestAnimationFrame(loop); return; }
+    else { if (ts - (loop._t3d || 0) >= 15.5) { loop._t3d = ts; const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); } requestAnimationFrame(loop); return; }   // 3D: no máximo 60 qps (a tela do S23 é 120 Hz)
   }
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
   // pedalada: 4 quadros por volta, cadência que acompanha a velocidade; parado, quadro fixo

@@ -63,6 +63,8 @@ export function elevation(lat, lon) { return sample(lat, lon, Z); }
 let lowRes = 0;   // amostras que caíram para o z12 dentro do corredor z14 (tile ainda carregando)
 export function elevationHi(lat, lon) { if (sets[14]) { const e = sample(lat, lon, 14); if (e != null) return e; const n = 2 ** 14, tx = Math.floor((lon + 180) / 360 * n), ty = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n); if (hasTile(tx, ty, 14)) lowRes++; } return sample(lat, lon, Z); }
 export function takeLowRes() { const n = lowRes; lowRes = 0; return n; }
+// existe tile z12 no acervo para esse ponto? (fora da caixa das etapas: buraco permanente, não vale esperar)
+export function covered(lat, lon) { const n = 2 ** Z, tx = Math.floor((lon + 180) / 360 * n), ty = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n); return hasTile(tx, ty, Z); }
 // pré-carrega os tiles em volta de um ponto (raio em m) para o quadro seguinte
 export function warm(lat, lon, radiusM) {
   const dlat = radiusM / 111320, dlon = radiusM / (111320 * Math.cos(lat * Math.PI / 180));

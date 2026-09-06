@@ -18,11 +18,18 @@ const RINGS = [
 ];
 const CARVE = 12, ROAD_STEP = 6, RIB_CHUNK = 1000, RIB_W = 4.6, CASE_W = 6.0, RIB_Y = 0.55, CASE_Y = 0.35;
 const CAM = { dist: 40, h: 18, ahead: 70, fov: 50, rider: 2.8 };
+const OPT = { shadow: !/[?&]shadow=0/.test(location.search), aa: !/[?&]aa=0/.test(location.search), mip: !/[?&]mip=0/.test(location.search) };   // chaves de teste de desempenho
 
 let renderer = null, scene = null, camera = null, canvas = null, W = 0, H = 0, HV = 0, dpr = 1, ok = false, lost = false;
 let night = false, satOn = true, stage = null, lat0 = 0, lon0 = 0, kx = 1, ky = 1;
 let hemi = null, sun = null, rings = [], road = null, ribbons = new Map(), ribMat = null, caseMat = null, reroute = null, avatar = null;
-let nRebuild = 0, nTex = 0, tm = {}, texDirty = 0, demDirty = false, lastRender = 0, frameMs = [], camHead = null, camPos = null, camTgt = null, stats = { tri: 0, calls: 0, dpr: 1, ms: 0 };
+// órbita do usuário: azimute/elevação extras (rad) e distância; ao soltar, volta ao rumo em ~4 s
+const orb = { az: 0, el: 0, dist: CAM.dist, touching: false, releasedAt: 0 };
+export function orbit(dAz, dEl) { orb.az += dAz; orb.el = Math.max(-0.25, Math.min(0.9, orb.el + dEl)); orb.touching = true; }
+export function zoomBy(f) { orb.dist = Math.max(22, Math.min(120, orb.dist / f)); orb.touching = true; }
+export function release() { orb.touching = false; orb.releasedAt = performance.now(); }
+export function recenter() { orb.az = 0; orb.el = 0; orb.dist = CAM.dist; orb.touching = false; }
+let nRebuild = 0, nTex = 0, tm = {}, lastGround = null, texDirty = 0, demDirty = false, lastRender = 0, frameMs = [], camHead = null, camPos = null, camTgt = null, stats = { tri: 0, calls: 0, dpr: 1, ms: 0 };
 
 const toXZ = (lat, lon) => [(lon - lon0) * kx, -(lat - lat0) * ky];
 const toLL = (x, z) => [lat0 - z / ky, lon0 + x / kx];
@@ -31,8 +38,8 @@ export function init(cv) {
   canvas = cv;
   if (/[?&]nogl=1/.test(location.search)) return false;   // teste do fallback para 2D
   try {
-    renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: OPT.aa, powerPreference: 'high-performance' });
+    renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = OPT.shadow; renderer.shadowMap.type = THREE.PCFShadowMap;
   } catch (e) { renderer = null; ok = false; return false; }
   cv.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; }, false);
   scene = new THREE.Scene();
@@ -116,11 +123,12 @@ export function groundAt(lat, lon) { const [x, z] = toXZ(lat, lon); return heigh
 function buildRing(r, cx, cz) {
   const { half, step, drop } = r.cfg, nn = Math.round(2 * half / step);
   const geo = new THREE.PlaneGeometry(2 * half, 2 * half, nn, nn); geo.rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position; let holes = 0, last = 0; dem.takeLowRes();
-  for (let i = 0; i < pos.count; i++) { const x = cx + pos.getX(i), z = cz + pos.getZ(i); let y = height(x, z); if (y == null) { holes++; y = last; } else last = y; pos.setY(i, y - drop); pos.setX(i, x); pos.setZ(i, z); }
+  const pos = geo.attributes.position; let holes = 0, last = lastGround != null ? lastGround : 0; dem.takeLowRes();   // buraco de DEM: repete a última altura conhecida (nunca 0, que abriria um paredão)
+  for (let i = 0; i < pos.count; i++) { const x = cx + pos.getX(i), z = cz + pos.getZ(i); let y = height(x, z); if (y == null) { const ll = toLL(x, z); if (dem.covered(ll[0], ll[1])) holes++; y = last; } else last = y; pos.setY(i, y - drop); pos.setX(i, x); pos.setZ(i, z); }
   geo.computeVertexNormals();
   if (!r.mesh) { r.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0xB8B090 })); r.mesh.receiveShadow = r.cfg.half <= 200; r.mesh.frustumCulled = false; scene.add(r.mesh); }
   else { r.mesh.geometry.dispose(); r.mesh.geometry = geo; }
+  r.mesh.visible = holes < pos.count * 0.5 || lastGround != null;   // sem relevo ainda: não desenha (evita o paredão do primeiro quadro)
   r.cx = cx; r.cz = cz; r.holes = holes; r.low = dem.takeLowRes(); r.texStamp = -1; nRebuild++;
 }
 // textura do anel: níveis do satélite empilhados (grosso por baixo); devolve quantos tiles faltaram (para refazer depois)
@@ -142,7 +150,7 @@ function buildTexture(r) {
     }
     if (night) { g.fillStyle = 'rgba(10,12,18,.30)'; g.fillRect(0, 0, tex, tex); }
   } else { g.fillStyle = night ? '#2A3028' : '#B8B090'; g.fillRect(0, 0, tex, tex); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); t.generateMipmaps = OPT.mip; t.minFilter = OPT.mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
   const m = r.mesh.material; if (m.map) m.map.dispose(); m.map = t; m.color.set(0xFFFFFF); m.needsUpdate = true;
   r.miss = miss; r.texStamp = performance.now(); nTex++; return miss;
 }
@@ -197,11 +205,16 @@ function rerouteStrip(S, redo, gy) {
 // S: estado do app (S.pos {lat, lon, head rad}, S.proj.dist, S.reroute); devolve false se não há o que desenhar
 export function update(S, now) {
   if (!ok || lost || !stage || !road) return false;
-  const p = S.pos || S.fix; if (!p) return false; const tUpd = performance.now();
+  let p = S.pos || S.fix; const tUpd = performance.now();
+  if (!S.pos && (!p || (S.proj && S.proj.off > 50000))) { const d = S.proj ? S.proj.dist : 0, q = pointAt(stage, d), q2 = pointAt(stage, Math.min(stage.total, d + 30)); p = { lat: q[0], lon: q[1], head: Math.atan2((q2[1] - q[1]) * kx, (q2[0] - q[0]) * ky) * 180 / Math.PI, far: true }; }   // longe da etapa: câmera na largada
+  if (!p) return false;
   if (!W || !H) { if (canvas.clientWidth) resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio || 1, HV); else return false; }
-  const [x, z] = toXZ(p.lat, p.lon), head = S.pos ? S.pos.head : ((p.head || 0) * Math.PI / 180);
+  const [x, z] = toXZ(p.lat, p.lon), head = (S.pos && !p.far) ? S.pos.head : ((p.head || 0) * Math.PI / 180);
+  // órbita solta: espera 1,5 s e volta ao rumo em 2,5 s
+  if (!orb.touching && (orb.az || orb.el || orb.dist !== CAM.dist)) { const dt = now - orb.releasedAt; if (dt > 1500) { const k = Math.min(1, (now - lastRender) / 2500 * 3); orb.az *= 1 - k; orb.el *= 1 - k; orb.dist += (CAM.dist - orb.dist) * k; if (Math.abs(orb.az) < 0.005 && Math.abs(orb.el) < 0.005 && Math.abs(orb.dist - CAM.dist) < 0.5) { orb.az = 0; orb.el = 0; orb.dist = CAM.dist; } } }
   // anéis: refaz quando o ciclista se afasta do centro ou quando chegou DEM novo
   const redo = demDirty; demDirty = false;
+  { const g0 = height(x, z); if (g0 != null) lastGround = g0; else if (lastGround == null && p.alt) lastGround = p.alt; }
   for (const r of rings) {
     const { step, move } = r.cfg; const need = r.cx == null || Math.hypot(x - r.cx, z - r.cz) > move || (redo && (r.holes > 0 || r.low > 0));   // refaz se andou, ou se chegou DEM que faltava aqui
     if (need) { const cx = Math.round(x / step) * step, cz = Math.round(z / step) * step; ensureDem(r, cx, cz); buildRing(r, cx, cz); warmSat(r); }
@@ -212,13 +225,18 @@ export function update(S, now) {
   tm.tex = performance.now() - tA; const tB = performance.now();
   const dist = S.proj ? S.proj.dist : 0; ribbonChunks(dist, redo); ribMat.uniforms.uDone.value = dist;
   // ciclista e câmera
-  let gy = height(x, z); if (gy == null) { const nr = nearRoad(x, z); gy = nr ? roadY(nr.i) : NaN; if (isNaN(gy)) gy = camPos ? camPos.y - CAM.h : 0; }
+  let gy = height(x, z); if (gy == null) { const nr = nearRoad(x, z); gy = nr ? roadY(nr.i) : NaN; if (isNaN(gy)) gy = lastGround != null ? lastGround : (p.alt || 0); } lastGround = gy;
   rerouteStrip(S, redo, gy); tm.rib = performance.now() - tB;
   const ry = gy + RIB_Y;
   if (avatar) { avatar.position.set(x, ry, z); avatar.rotation.y = -head; avatar.scale.setScalar(CAM.rider); }
   if (camHead == null) camHead = head; else { let d = head - camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); camHead += d * Math.min(1, (now - lastRender) / 350); }
   const fx = Math.sin(camHead), fz = -Math.cos(camHead);
-  const want = new THREE.Vector3(x - fx * CAM.dist, ry + CAM.h, z - fz * CAM.dist), tgt = new THREE.Vector3(x + fx * CAM.ahead, ry + 6, z + fz * CAM.ahead);
+  // câmera: distância e elevação base (40 m / 18 m) mais a órbita do usuário; o alvo acompanha o relevo à frente (rampa)
+  const ca = camHead + orb.az, bx = Math.sin(ca), bz = -Math.cos(ca), el0 = Math.atan2(CAM.h, CAM.dist), el = Math.max(0.12, Math.min(1.3, el0 + orb.el));
+  const back = orb.dist * Math.cos(el), up = orb.dist * Math.sin(el);
+  const ax = x + fx * CAM.ahead, az = z + fz * CAM.ahead; let ay = height(ax, az); if (ay == null || Math.abs(ay - ry) > 40) ay = ry;
+  const want = new THREE.Vector3(x - bx * back, ry + up, z - bz * back), tgt = new THREE.Vector3(ax, ay + 6, az);
+  { const k = Math.min(1, Math.abs(orb.az) / 0.5 + Math.abs(orb.el) / 0.4); if (k > 0) tgt.lerp(new THREE.Vector3(x, ry + 3, z), k); }   // orbitando, o alvo passa a ser o ciclista
   if (!camPos) { camPos = want.clone(); camTgt = tgt.clone(); } else { const k = Math.min(1, (now - lastRender) / 250); camPos.lerp(want, k); camTgt.lerp(tgt, k); }
   // a câmera nunca entra no relevo: fica 4 m acima do chão
   const gc = height(camPos.x, camPos.z); if (gc != null && camPos.y < gc + 4) camPos.y = gc + 4;
@@ -231,5 +249,5 @@ export function update(S, now) {
   return true;
 }
 export function getStats() { return stats; }
-export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; return { reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
+export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; return { orb: { az: +orb.az.toFixed(3), el: +orb.el.toFixed(3), dist: +orb.dist.toFixed(1), touching: orb.touching }, reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
 export function dispose() { if (!ok) return; setStage(null); renderer.dispose(); ok = false; }
