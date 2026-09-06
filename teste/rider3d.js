@@ -297,6 +297,29 @@ export function init(canvas) {
   ok = true; return true;
 }
 export function isReady() { return ok; }
+// Avatar para a cena 3D (terrain3d.js): o mesmo GLB e o mesmo rig procedural, mas num Group independente da cena do
+// overlay; devolve { group, tick(v, t) } — tick avança pedivela e rodas pela velocidade (m/s) e anima o rig. Não depende
+// de init() nem do procedural. Escala real (roda 0,34 m), frente para -z, chão em y = 0.
+export function createAvatar(url) {
+  return new Promise(resolve => {
+    new GLTFLoader().load(url, gltf => {
+      try {
+        let mesh = null; gltf.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
+        if (!mesh) return resolve(null);
+        mesh.updateMatrixWorld(true); mesh.geometry.applyMatrix4(mesh.matrixWorld);
+        if (mesh.material && mesh.material.map) { const mm = mesh.material; mm.map.colorSpace = THREE.SRGBColorSpace; mm.roughness = 0.85; mm.metalness = 0; mm.emissive = new THREE.Color(0xffffff); mm.emissiveMap = mm.map; mm.emissiveIntensity = 0.45; mm.needsUpdate = true; }
+        const rig = buildRig(mesh); rig.skinned.castShadow = true;
+        const inner = new THREE.Group(); inner.add(rig.skinned);
+        const sc = 0.34 / rig.A.R; inner.scale.setScalar(sc); inner.rotation.y = -Math.PI / 2;
+        const cx = (rig.A.rearX + rig.A.frontX) / 2; inner.position.set(0, -rig.A.ymin * sc, 0); rig.skinned.position.set(-cx, 0, 0);
+        const group = new THREE.Group(); group.add(inner);
+        let last = 0;
+        const tick = (v, t) => { const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; } animateRig(rig); };
+        resolve({ group, tick });
+      } catch (e) { console.error('rider3d: createAvatar', e); resolve(null); }
+    }, undefined, () => resolve(null));
+  });
+}
 export function resize(w, h, ratio) { if (!ok) return; W = w; H = h; dpr = ratio; renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
 
 function step(v, t) {

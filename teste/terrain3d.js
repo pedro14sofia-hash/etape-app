@@ -119,15 +119,18 @@ export function setTheme(n) {
   for (const r of rings) r.texStamp = -1;   // textura refeita (véu da noite)
 }
 export function setSat(on) { if (!ok) return; satOn = !!on; for (const r of rings) r.texStamp = -1; }
-// avatar (GLB): frente −x → −z, chão em y=0, altura 1,75 m; sem pedalada ainda (F4 traz o rig do rider3d.js)
+// avatar: o GLB com o rig procedural do rider3d.js (pedivela, rodas e pernas pela velocidade); se falhar, o GLB parado
+let avatarTick = null;
 export function loadAvatar(url) {
   if (!ok || avatar) return;
-  new GLTFLoader().load(url, gltf => {
-    const g = gltf.scene; g.traverse(o => { if (o.isMesh) { o.castShadow = true; const m = o.material; if (m && m.map) { m.map.colorSpace = THREE.SRGBColorSpace; m.emissive = new THREE.Color(0xffffff); m.emissiveMap = m.map; m.emissiveIntensity = 0.45; m.needsUpdate = true; } } });
-    const bb = new THREE.Box3().setFromObject(g), s = 1.75 / (bb.max.y - bb.min.y), wrap = new THREE.Group();
-    g.scale.setScalar(s); g.position.set(-(bb.min.x + bb.max.x) / 2 * s, -bb.min.y * s, -(bb.min.z + bb.max.z) / 2 * s); g.rotation.y = -Math.PI / 2; wrap.add(g);
-    setAvatar(wrap);
-  }, undefined, () => { });
+  import('./rider3d.js').then(m => m.createAvatar(url)).then(a => {
+    if (a) { avatarTick = a.tick; setAvatar(a.group); return; }
+    new GLTFLoader().load(url, gltf => {
+      const g = gltf.scene; g.traverse(o => { if (o.isMesh) { o.castShadow = true; const mm = o.material; if (mm && mm.map) { mm.map.colorSpace = THREE.SRGBColorSpace; mm.emissive = new THREE.Color(0xffffff); mm.emissiveMap = mm.map; mm.emissiveIntensity = 0.45; mm.needsUpdate = true; } } });
+      const bb = new THREE.Box3().setFromObject(g), s = 1.75 / (bb.max.y - bb.min.y), wrap = new THREE.Group();
+      g.scale.setScalar(s); g.position.set(-(bb.min.x + bb.max.x) / 2 * s, -bb.min.y * s, -(bb.min.z + bb.max.z) / 2 * s); g.rotation.y = -Math.PI / 2; wrap.add(g); setAvatar(wrap);
+    }, undefined, () => { });
+  }).catch(() => { });
 }
 export function setAvatar(group) { if (avatar) scene.remove(avatar); avatar = group || null; if (avatar) scene.add(avatar); }
 export function setStage(st) {
@@ -271,7 +274,7 @@ export function update(S, now) {
   let gy = height(x, z); if (gy == null) { const nr = nearRoad(x, z); gy = nr ? roadY(nr.i) : NaN; if (isNaN(gy)) gy = lastGround != null ? lastGround : (p.alt || 0); } lastGround = gy;
   rerouteStrip(S, redo, gy); updateIcons(S, now, x, z, p); tm.rib = performance.now() - tB;
   const ry = gy + RIB_Y;
-  if (avatar) { avatar.position.set(x, ry, z); avatar.rotation.y = -head; avatar.scale.setScalar(CAM.rider); }
+  if (avatar) { avatar.position.set(x, ry, z); avatar.rotation.y = -head; avatar.scale.setScalar(CAM.rider); if (avatarTick) { const v = S.fix && S.session && S.session.state === 'running' ? (S.fix.v || 0) : (S.fix ? (S.fix.v || 0) : 0); avatarTick(v, now); } }
   if (camHead == null) camHead = head; else { let d = head - camHead; d = Math.atan2(Math.sin(d), Math.cos(d)); camHead += d * Math.min(1, (now - lastRender) / 350); }
   const fx = Math.sin(camHead), fz = -Math.cos(camHead);
   // câmera: distância e elevação base (40 m / 18 m) mais a órbita do usuário; o alvo acompanha o relevo à frente (rampa)
@@ -292,5 +295,5 @@ export function update(S, now) {
   return true;
 }
 export function getStats() { return stats; }
-export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; const ic = []; for (const [k, e] of iconPool) { const v = new THREE.Vector3(e.x, e.y + 3, e.z).project(camera); ic.push([k.slice(0, 18), +Math.hypot(e.x - (avatar ? avatar.position.x : 0), e.z - (avatar ? avatar.position.z : 0)).toFixed(0), +e.obj.scale.x.toFixed(2), +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3), e.obj.visible, e.obj.children.length]); } return { icons: ic, orb: { az: +orb.az.toFixed(3), el: +orb.el.toFixed(3), dist: +orb.dist.toFixed(1), touching: orb.touching }, reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
+export function debugInfo() { const rr = rerouteMesh ? rerouteMesh.children[1].geometry.attributes.position : null; const ys = []; if (rr) for (let i = 0; i < rr.count; i += 2) ys.push([+rr.getX(i).toFixed(0), +rr.getY(i).toFixed(1), +rr.getZ(i).toFixed(0)]); const scr = []; if (rr) for (let i = 0; i < rr.count; i += 4) { const v = new THREE.Vector3(rr.getX(i), rr.getY(i), rr.getZ(i)).project(camera); scr.push([+v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3)]); } const g0 = rr ? height(rr.getX(0), rr.getZ(0)) : null; const ic = []; for (const [k, e] of iconPool) { const v = new THREE.Vector3(e.x, e.y + 3, e.z).project(camera); ic.push([k.slice(0, 18), +Math.hypot(e.x - (avatar ? avatar.position.x : 0), e.z - (avatar ? avatar.position.z : 0)).toFixed(0), +e.obj.scale.x.toFixed(2), +v.x.toFixed(2), +v.y.toFixed(2), +v.z.toFixed(3), e.obj.visible, e.obj.children.length]); } const bones = []; if (avatar) avatar.traverse(o => { if (o.isBone && bones.length < 8) bones.push([o.name || '?', +o.rotation.z.toFixed(3)]); }); return { bones, tick: !!avatarTick, icons: ic, orb: { az: +orb.az.toFixed(3), el: +orb.el.toFixed(3), dist: +orb.dist.toFixed(1), touching: orb.touching }, reroute: !!rerouteMesh, visible: rerouteMesh && rerouteMesh.visible, scr, ground0: g0, holes: rerouteHoles, ys, camHead: camHead, cam: camPos && camPos.toArray().map(v => +v.toFixed(0)), avatar: avatar && avatar.position.toArray().map(v => +v.toFixed(0)) }; }
 export function dispose() { if (!ok) return; setStage(null); renderer.dispose(); ok = false; }
