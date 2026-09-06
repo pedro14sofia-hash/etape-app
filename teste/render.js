@@ -4,28 +4,30 @@
 // Só desenha quando invalidado. O ciclista tem camada própria (animação sem redesenhar o mapa).
 import { mercX, mercY, metersPerPixel } from './geo.js';
 import { query } from './data-mod.js';
-import { elevationAt, pointAt, bearingAt } from './track.js';
+import { elevationAt, pointAt, bearingAt, gradeAt } from './track.js';
 import { icon, ready, KIND_ICON, SIGHT_ICON } from './icons.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
+import * as shade from './shade.js';
+import { T as TOKENS, FLAG as TFLAG } from './tokens.js';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
 
-export const THEMES = {
-  day: { map: '#F0F0F0', forest: '#E1E6DA', res: '#E6E6E6', water: '#BFD8F0', waterLine: '#3969B7', waterTxt: '#3969B7', rail: '#777777',
-    r1: '#FFFFFF', r2: '#FFFFFF', r3: '#FFFFFF', r4: '#FFFFFF', r5: '#FFFFFF', r6: '#FFFFFF', r7: '#B08968', r8: '#1DAE50', r9: '#9A9A9A', casing: '#555555', casingMinor: '#C4C4C4',
-    ribbon: '#FFFF00', ribbonCasing: '#000000', done: '#000000', other: '#BDBDBD', gravel: '#6B4423', label: '#000000', roadLabel: '#3A3A3A', poiLabel: '#222222', halo: '#F0F0F0', borne: '#FFFFFF', forestTxt: '#3D7A34', contour: '#CCCCCC',
-    puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.2)', scale: '#000000', poiBg: '#FFFFFF', sky0: '#A9CFF0', sky1: '#F0F0F0', fog: 'rgba(240,240,240,.85)' },
-  night: { map: '#151515', forest: '#1E241C', res: '#1A1A1A', water: '#1D3A5E', waterLine: '#3969B7', waterTxt: '#6FA3E0', rail: '#666666',
-    r1: '#3A3A3A', r2: '#3A3A3A', r3: '#383838', r4: '#333333', r5: '#2E2E2E', r6: '#2A2A2A', r7: '#4A3A2A', r8: '#1F5A33', r9: '#333333', casing: '#000000', casingMinor: '#000000',
-    ribbon: '#FFFF00', ribbonCasing: '#FFFFFF', done: '#BBBBBB', other: '#333333', gravel: '#D9A066', label: '#FFFFFF', roadLabel: '#C8C8C8', poiLabel: '#DDDDDD', halo: '#151515', borne: '#FFFFFF', forestTxt: '#7FA070', contour: '#333333',
-    puck: '#FFFF00', bike: '#000000', acc: 'rgba(255,255,0,.16)', scale: '#FFFF00', poiBg: '#0A0A0A', sky0: '#05070C', sky1: '#151515', fog: 'rgba(21,21,21,.85)' }
-};
+// estilo A "relevo em papel" (estudo do mapa, 06/09/2026): chão branco (preto à noite), sombra do relevo, curvas de nível
+export const THEMES = { day: TOKENS.day, night: TOKENS.night };
 const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
 const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
+// o que o mapa mostra por situação (S.situation, calculada no app a cada fix): uma pergunta por olhada
+export const RULES = {
+  descida: { contours: false, pois: false, names: false, tracks: false, shops: false, chevrons: false, flags: true, bornes: true },
+  subida: { contours: true, pois: true, names: true, tracks: false, shops: false, chevrons: true, flags: true, bornes: true },
+  urbano: { contours: false, pois: true, names: true, tracks: true, shops: true, chevrons: false, flags: true, bornes: true },
+  plano: { contours: true, pois: true, names: true, tracks: true, shops: true, chevrons: true, flags: true, bornes: true },
+  parado: { contours: true, pois: true, names: true, tracks: true, shops: true, chevrons: true, flags: true, bornes: true }
+};
 const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000000', 'ch'], castle: ['#000000', 'ca'], viewpoint: ['#1DAE50', 'vp'], picnic: ['#1DAE50', 'pi'], water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
 
 // bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
-export const FLAG = { start: '#FFFFFF', cat: '#E10D0D', sprint: '#1DAE50', feed: '#8A8F96', sight: '#1DAE50', flamme: '#E10D0D', finish: '#FFFFFF' };
+export const FLAG = TFLAG;   // start, cat, sprint, feed, sight, flamme, finish, visit, shop
 export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
   const col = FLAG[kind] || '#E10D0D', fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
   ctx.save(); ctx.lineCap = 'butt';
@@ -65,7 +67,7 @@ export function createRenderer(canvas, overlay) {
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day, flat = null, fctx = null;
   document.addEventListener('etape:icons', () => { dirty = true; dirtyBase = true; });
   for (let i = 0; i < 4; i++) icon('bikeTop' + i, 84);   // quadros da pedalada prontos antes do primeiro fix
-  sat.setOnLoad(() => { dirty = true; dirtyBase = true; }); dem.setOnLoad(() => { dirty = true; dirtyBase = true; });   // tiles e ícones chegam depois: a base precisa ser refeita
+  sat.setOnLoad(() => { dirty = true; dirtyBase = true; }); dem.setOnLoad(() => { dirty = true; dirtyBase = true; }); shade.setOnLoad(() => { dirty = true; dirtyBase = true; });   // tiles e ícones chegam depois: a base precisa ser refeita
   function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
   const scale = () => 256 * Math.pow(2, view.z);
   // ---------- projeções ----------
@@ -174,6 +176,47 @@ export function createRenderer(canvas, overlay) {
     return true;
   }
 
+  // ---------- sombra do relevo ----------
+  // tiles de cinza (L = iluminação) compostos sobre o chão: multiply escurece as encostas à sombra; screen (dia) ou
+  // lighter (noite) devolve a luz às faces ao sol. Dois drawImage por tile, só quando a base é refeita.
+  function drawShade(box, S) {
+    if (!shade.available() || view.sat) return false;
+    const zl = shade.levelFor(view.z); if (!zl) return false;
+    const tiles = shade.tilesFor(box, zl); if (!tiles.length || tiles.length > 320) return false;
+    const th = theme, night = th === THEMES.night, s = scale(), size = s / 2 ** zl + 0.6, k = S && S.free ? 0.5 : 1;   // na cidade a sombra é só respiração
+    ctx.save(); ctx.translate(W / 2, H * view.anchorY); ctx.rotate(view.rot);
+    for (const [op, a] of [['multiply', th.shadeMul * k], [night ? 'lighter' : 'screen', th.shadeAdd * k]]) {
+      ctx.globalCompositeOperation = op; ctx.globalAlpha = a;
+      for (const [x, y] of tiles) { const im = shade.tile(x, y, zl); if (!im) continue; const m = shade.tileMerc(x, y, zl); ctx.drawImage(im, (m.mx - view.cx) * s, (m.my - view.cy) * s, size, size); }
+    }
+    ctx.restore(); return true;
+  }
+  // chevrons de rampa na fita (estilo IGN): um acima de 6 %, dois acima de 10 %, apontando para onde se sobe
+  function drawChevrons(st, fromDist) {
+    const col = theme.chevron, mpp = metersPerPixel(45.3, view.z), every = 34 * mpp, size = 7;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = col; ctx.lineWidth = 2.6;
+    for (let d = Math.ceil(fromDist / every) * every; d < st.total - 60; d += every) {
+      const g = gradeAt(st, d, 200); if (g < 6) continue;   // gradeAt devolve porcentagem
+      const p = pointAt(st, d), q = proj(p[0], p[1]); if (q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue;
+      const b = bearingAt(st, d) * Math.PI / 180 + view.rot, ux = Math.sin(b), uy = -Math.cos(b), px = -uy, py = ux;
+      for (let k = 0; k < (g >= 10 ? 2 : 1); k++) {
+        const cx = q[0] - ux * k * 5, cy = q[1] - uy * k * 5;
+        ctx.beginPath(); ctx.moveTo(cx - ux * size * .3 + px * size * .55, cy - uy * size * .3 + py * size * .55); ctx.lineTo(cx + ux * size * .6, cy + uy * size * .6); ctx.lineTo(cx - ux * size * .3 - px * size * .55, cy - uy * size * .3 - py * size * .55); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+  // bornes de km a cada 5 km (placa branca pequena), fora das bornes nomeadas
+  function drawKmMarks(st, fromDist) {
+    const f = '900 12px "Barlow Condensed", "Arial Narrow", sans-serif';
+    for (let km = 5; km * 1000 < st.total - 500; km += 5) {
+      const d = km * 1000; if (d < fromDist - 300) continue;
+      if (st.cps.some(c => Math.abs(c.dist - d) < 250)) continue;
+      const p = pointAt(st, d), q = proj(p[0], p[1]); if (q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue;
+      ctx.beginPath(); rr(q[0] - 12, q[1] - 9, 24, 18, 2); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#000000'; ctx.stroke();
+      ctx.fillStyle = '#000000'; ctx.font = f; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(km), q[0], q[1] + 0.5); ctx.textAlign = 'left';
+    }
+  }
   function draw(S) {
     if (anim) stepAnim();
     if (!dirty) return;
@@ -228,16 +271,25 @@ export function createRenderer(canvas, overlay) {
     const distMe = (lat, lon) => Math.hypot((lat - cLat) * 111320, (lon - cLon) * 111320 * cosL);
     const ESSENTIAL = { water: 1, toilets: 1, bike: 1, pharmacy: 1, hospital: 1, pass: 1, peak: 1, viewpoint: 1, castle: 1 }, SHOPS = { bakery: 1, shop: 1, cafe: 1 };
     const nearR = zBaseOf() >= 17 ? 500 : 900;
+    const rules = RULES[S.situation] || RULES.plano;
     if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let satOn = false;
     satOn = drawSat(box);
-    if (!satOn && z >= 10.5) for (const p of M.polys) if (inter(p.b, box)) { path(p.p); ctx.closePath(); ctx.fillStyle = p.t === 'wood' ? th.forest : th.res; ctx.fill(); }
+    if (!satOn) drawShade(box, S);
+    // bosque e área urbana em transparência sobre o relevo (a sombra continua visível por baixo)
+    if (!satOn && z >= 10.5) { ctx.globalAlpha = 0.6; for (const p of M.polys) if (inter(p.b, box)) { path(p.p); ctx.closePath(); ctx.fillStyle = p.t === 'wood' ? th.forest : th.res; ctx.fill(); } ctx.globalAlpha = 1; }
+    // curvas de nível a cada 20 m (contours.json): só fora da cidade, a partir do zoom médio; as de 100 m mais fortes
+    if (M.contours && !satOn && rules.contours && z >= 13.5) {
+      const minor = z >= 14.5; ctx.lineCap = 'butt';
+      for (const l of query(M.contours, box)) { const major = l.e % 100 === 0; if (!major && !minor) continue; path(l.p); ctx.strokeStyle = major ? th.contourMajor : th.contour; ctx.lineWidth = major ? 1.2 : 0.7; ctx.stroke(); }
+      ctx.lineCap = 'round';
+    }
     for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { if (satOn) continue; ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.globalAlpha = satOn ? .7 : 1; ctx.stroke(); ctx.globalAlpha = 1; } }
     if (z >= 11 && !satOn) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
-    // estradas: classe mínima e largura pela escala local (em 3D, pela distância)
+    // estradas: classe mínima e largura pela escala local (em 3D, pela distância); trilhas e caminhos só quando a situação permite
     const zBase = cam ? Math.min(19, zoomAt([0, 0, cam.sr])) : z; zBaseCache = zBase;
-    const ways = query(M.index, box).filter(w => zBase >= MINZ[w.c]);
+    const ways = query(M.index, box).filter(w => zBase >= MINZ[w.c] && (rules.tracks || (w.c !== 7 && w.c !== 9)));
     ways.sort((a, b) => b.c - a.c);
     const wz = w => { if (!cam) return z; const q = midOf(w.p); return zoomAt(q); };
     const zf = zz => Math.max(0.6, Math.min(2.6, (zz - 11) / 4 + 0.6));
@@ -255,12 +307,14 @@ export function createRenderer(canvas, overlay) {
     else { ctx.lineWidth = 10; ctx.strokeStyle = th.ribbonCasing; path(st.pts.slice(ci)); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = th.ribbon; ctx.stroke(); }
     for (const sf of st.surfaces) if (sf.kind !== 'asfalto' && sf.to > S.proj.dist) { path(sliceByDist(st, Math.max(sf.from, S.proj.dist), sf.to)); ctx.strokeStyle = th.gravel; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
     ctx.lineWidth = 3; ctx.strokeStyle = th.done; ctx.setLineDash([7, 6]); path(st.pts.slice(0, ci + 1)); ctx.stroke(); ctx.setLineDash([]);
+    // chevrons de rampa na fita e bornes de km (só na etapa com traçado, em 2D)
+    if (!cam && !st.free && st.total > 0) { if (rules.chevrons && zBase >= 13.5) drawChevrons(st, S.proj.dist || 0); if (rules.bornes && zBase >= 13) drawKmMarks(st, S.proj.dist || 0); }
     // curvas
     if (zBase >= 14) for (const t of st.turns) { if (t.dist < S.proj.dist - 200) continue; const q = proj(st.pts[t.i][0], st.pts[t.i][1]); if (!q[3]) continue; const r = 7 * sizeAt(q); ctx.beginPath(); ctx.arc(q[0], q[1], r, 0, 7); ctx.fillStyle = th.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = th.casing; ctx.stroke(); }
     // rótulos de estradas
     // faixas de bike na rua: tracejado verde ao lado da via (z ≥ 15)
     if (zBase >= 15 && !cam) for (const w of ways) if (w.k === 1) { path(w.p); ctx.strokeStyle = '#1DAE50'; ctx.lineWidth = 2.2; ctx.setLineDash([7, 6]); ctx.stroke(); ctx.setLineDash([]); }
-    if (zBase >= 13.5) { const seen = new Set(); let nlab = 0; for (const w of ways) {
+    if (zBase >= 13.5 && rules.names) { const seen = new Set(); let nlab = 0; for (const w of ways) {
         if (!w.n || seen.has(w.n) || nlab >= 8) continue;
         const major = w.c <= 4 && /^[A-Z] ?\d/.test(w.n); const mid = midOf(w.p); const near = zBase >= 15 && w.c <= 6 && w.p.some(pt => distMe(pt[0], pt[1]) < 220);
         if (!major && !near) continue;
@@ -268,11 +322,13 @@ export function createRenderer(canvas, overlay) {
         if (crowded(q[0], q[1], 70)) continue; seen.add(w.n); nlab++;
         label(w.n, q[0], q[1], 'center', (major ? '800 ' : '600 ') + Math.round((major ? 15 : 13) * Math.max(.8, sz)) + 'px "Barlow Condensed", Barlow, sans-serif', th.roadLabel); } }
     // POIs
-    if (zBase >= 14.5) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (zBase < 16 || dm > 300) continue; } else continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); }
-    // paradas (foto/visita/compras)
-    if (zBase >= 12) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; sightIcon(p, q, zBase); }
+    // POIs: cols e cumes sempre; água, WC, bicicletaria, farmácia à frente; padaria, loja e café só de perto e quando a situação permite. Teto de 12 visíveis.
+    let npoi = 0;
+    if (zBase >= 14 && rules.pois) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (!rules.shops || zBase < 16 || dm > 300) continue; } else continue; if (npoi >= 12 && p.k !== 'pass' && p.k !== 'peak') continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); npoi++; }
+    // paradas do plano como bandeirinhas do Tour: vermelha visita, verde foto, ocre compras
+    if (zBase >= 12 && rules.flags && !cam) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; paradaFlag(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
+    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if ((t === 'hamlet' || t === 'village') && !rules.names) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Barlow Condensed", Barlow, sans-serif'); }
     // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
     if (cam) for (const f of stageFlags(st, S.paradas)) {
       if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
@@ -323,6 +379,15 @@ export function createRenderer(canvas, overlay) {
   let placed = [], zBaseCache = 13; function zBaseOf() { return zBaseCache; }
   function disc(x, y, r, fill) { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = theme === THEMES.night ? '#FFFFFF' : '#000000'; ctx.stroke(); }
   function crowded(x, y, r) { for (const q of placed) if (Math.abs(q[0] - x) < r && Math.abs(q[1] - y) < r) return true; placed.push([x, y]); return false; }
+  // bandeirinha do Tour para uma parada do plano (2D): haste preta, bandeira na cor do tipo, nome ao lado a partir do zoom médio
+  function paradaFlag(p, q, z) {
+    const kind = p.kind === 'compras' ? 'shop' : p.kind === 'visita' ? 'visit' : p.kind === 'opcional' ? 'feed' : 'sight';
+    const sz = z >= 14.5 ? 1 : z >= 13 ? .8 : .6, h = 30 * sz;
+    ctx.globalAlpha = p.done ? .45 : 1;
+    flagAt(ctx, q[0], q[1] - h, q[1], kind, '', sz);
+    if (z >= 13.5 && !p.done && !crowded(q[0] + 30 * sz, q[1] - h + 8 * sz, 60)) label(p.nome.split(' · ')[0], q[0] + 30 * sz, q[1] - h + 8 * sz, 'left', '700 ' + Math.round(14 * Math.max(.85, sz)) + 'px "Barlow Condensed", Barlow, sans-serif');
+    ctx.globalAlpha = 1;
+  }
   function sightIcon(p, q, z) {
     const sz = sizeAt(q); if (sz < .35) return;
     const base = z >= 14.5 ? 48 : 36, im = icon(SIGHT_ICON[p.kind] || 'camera', base);

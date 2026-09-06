@@ -1,7 +1,7 @@
 // Étape Navegar · app.js
 // Composição: liga os módulos e controla o ciclo de vida.
 import { mercX, mercY, haversine } from './geo.js';
-import { loadMap, loadRoutes, loadParadas, poisNear } from './data-mod.js';
+import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js';
 import { createRenderer } from './render.js';
 import * as track from './track.js';
 import * as gps from './gps.js';
@@ -15,6 +15,7 @@ import * as fuel from './fuel.js';
 import * as report from './report.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
+import * as shade from './shade.js';
 import * as compass from './compass.js';
 import * as weather from './weather.js';
 import * as sensors from './sensors.js';
@@ -81,6 +82,8 @@ export function init() {
     }
   };
   dem.loadIndex('dem/index.json').then(ix => { if (ix) R.invalidate(); });
+  shade.loadIndex('shade/index.json').then(ix => { if (ix) R.invalidate(); });   // sombra do relevo (estudo do mapa, F1)
+  loadContours(S.map, 'contours.json').then(ix => { if (ix) R.invalidate(); });   // curvas de nível (só na Auvergne)
   sat.loadIndex('sat/index.json').then(ix => { if (ix && ix.attribution) $('attr').textContent = '© OpenStreetMap contributors · ' + ix.attribution; return ix; }).then(ix => { if (ix) { R.setSat(!!S.prefs.sat); $('btnSat').classList.toggle('on', !!S.prefs.sat); $('btnSat').hidden = false; } else $('btnSat').hidden = true; setCam(S.prefs.cam || '2d'); });
   // gestos no painel: vertical alterna completo/resumo; horizontal troca a aba (também no resumo)
   const TABS = ['tele', 'fuel', 'prof']; let gy = null, gx = null;
@@ -254,6 +257,7 @@ function onFix(raw) {
   rerouteTick(fix, now, events);
   updatePlace(now);
   S.next = guide.nextCue(S);
+  updateSituation(now, fix.v || 0);
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
   // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
@@ -266,9 +270,26 @@ function onFix(raw) {
   const jump = !S.pos || !prev || Date.now() - prev.t > 60000 || haversine(S.pos.lat, S.pos.lon, fix.lat, fix.lon) > 150;
   if (jump) { const p = onRoad ? track.pointAt(S.stage, T.dist) : [fix.lat, fix.lon]; S.pos = { lat: p[0], lon: p[1], head: onRoad ? track.bearingAt(S.stage, T.dist) * Math.PI / 180 : T.head, dist: T.dist }; if (S.follow) snapView(); }
   // zoom automático pela velocidade (2D): parado 19 · normal 18,2 · descida rápida 17,4; desliza no loop, e só sem zoom manual recente
-  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4); else S.zoomTarget = null;
+  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), zoomFor(v0)); else S.zoomTarget = null;
   R.invalidate(); refresh();
 }
+// situação da tela (estudo do mapa, D4): parado, descida, subida, urbano ou plano. O render escolhe as camadas por ela
+// (RULES em render.js). Troca só depois de 2 s estável, e refaz a base do mapa ao trocar.
+function updateSituation(now, v) {
+  const g = S.live && S.live.grade != null ? S.live.grade / 100 : 0, turn = S.next && S.next.turn ? S.next.turn.dist - (S.proj.dist || 0) : 1e9;
+  let s;
+  if (S.session.state !== 'running' || v < 0.8) s = 'parado';
+  else if (S.free) s = 'urbano';
+  else if ((g < -0.04 && v > 5) || (turn < 300 && v > 4)) s = 'descida';
+  else if (S.climbId || g > 0.03) s = 'subida';
+  else s = 'plano';
+  if (s !== S.sitCand) { S.sitCand = s; S.sitSince = now; }
+  if (s !== S.situation && now - (S.sitSince || 0) >= 2000) { S.situation = s; R.invalidate(); }
+}
+// zoom automático em 2D (estudo do mapa, D7). Largura da tela em metros a 45° N (390 px): z18,3 ≈ 130 m · z17,8 ≈ 190 m ·
+// z17,4 ≈ 250 m · z17,0 ≈ 330 m · z16,6 ≈ 440 m. Parado 18,3 · descida (curva perto ou rampa forte) 17,8 · urbano 17,6 ·
+// subida 16,6 (o que vem cabe na tela) · plano 17,4 devagar, 17,0 rápido. Desliza no loop, e só sem zoom manual recente.
+function zoomFor(v) { if (v < 0.8) return 18.3; const s = S.situation; if (s === 'descida') return 17.8; if (s === 'urbano') return 17.6; if (s === 'subida') return 16.6; return v < 2.5 ? 17.4 : 17.0; }
 // Navegação livre: encaixa na via (free.js), estende o percurso, telemetria e abastecimento iguais aos da etapa
 function onFixFree(fix, now, running) {
   const events = free.onFix(fix, now), sess = S.session;
@@ -283,13 +304,14 @@ function onFixFree(fix, now, running) {
   }
   for (const ev of events) handleEvent(ev);
   updatePlace(now);
+  updateSituation(now, fix.v || 0);
   const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
   const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);
   const T = { lat: pos[0], lon: pos[1], v: v0, head: headDeg * Math.PI / 180, dist: S.proj.dist || 0, on: false, t: Date.now() };
   const prev = S.viewTarget; S.viewTarget = T;
   const jump = !S.pos || !prev || Date.now() - prev.t > 60000 || haversine(S.pos.lat, S.pos.lon, pos[0], pos[1]) > 150;
   if (jump) { S.pos = { lat: pos[0], lon: pos[1], head: T.head, dist: T.dist }; if (S.follow) snapView(); }
-  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), v0 < 3 ? 19 : v0 < 9 ? 18.2 : 17.4); else S.zoomTarget = null;
+  if (S.follow && R.view.mode === '2d' && now - (S.userZoomAt || 0) > 45000) S.zoomTarget = Math.min(R.maxZ(), zoomFor(v0)); else S.zoomTarget = null;
   R.invalidate(); refresh();
 }
 // Recálculo de rota (estilo Waze): fora da rota confirmada, entre 60 m e 3 km do traçado, com o grafo carregado, calcula

@@ -13,6 +13,14 @@ export function loadMap() {
   return M;
 }
 export function loadRoutes() { return window.ROUTES; }
+// curvas de nível (contours.json, geradas no build por contours_build.py): índice espacial em M.contours quando o arquivo existe
+export async function loadContours(M, url = 'contours.json') {
+  try {
+    const r = await fetch(url); if (!r.ok) return null; const d = await r.json();
+    const lines = d.lines.filter(l => l.p.length > 1); for (const l of lines) l.b = bbox(l.p);
+    M.contours = buildIndex(lines, 0.01); M.contourStep = d.step; return M.contours;
+  } catch (e) { return null; }
+}
 export function loadParadas() { return window.PARADAS || { itens: [], regras: [], dias: {} }; }
 
 // grade espacial por caixa: célula -> lista de feições
