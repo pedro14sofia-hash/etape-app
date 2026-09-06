@@ -21,6 +21,7 @@ import * as weather from './weather.js';
 import * as sensors from './sensors.js';
 import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
 import * as outing from './outing.js';   // tela 02 · antes de sair
+import * as plan from './plan.js';   // Diário: rotas A→B e etapa refeita fora da rota
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
@@ -413,6 +414,19 @@ function onFixFree(fix, now, running) {
 function rerouteTick(fix, now, events) {
   const off = S.proj.off || 0; const mine = [];
   if (muted()) { if (S.reroute) { S.reroute = null; R.invalidate(); } return; }   // tela 05: "sei o caminho"
+  // Diário: em vez de voltar ao traçado, a etapa é refeita daqui até o destino (uma vez a cada 30 s, no máximo)
+  if (S.diario && S.off && off >= 60 && off <= 3000 && router && router.available() && S.session.state === 'running' && now - (S.rerouteAt || 0) > 30000) {
+    S.rerouteAt = now; const dest = S.stage.cps[S.stage.cps.length - 1]; let res = null;
+    try { res = router.route(fix.lat, fix.lon, dest.lat, dest.lon, 40000, { profile: S.stage.profile || 'shortest' }); } catch (e) { res = null; }
+    if (res && res.pts.length > 1) {
+      const st = plan.rerouteStage(S.stage, S.proj.dist || 0, fix, res); track.nameTurns(st.turns, st, S.map.index);
+      S.stage = st; S.proj = track.project(st, fix.lat, fix.lon, -1); S.off = false; S.offSince = 0; S.reroute = null; S.services = null; S.eta = null; S.flamme = false;
+      $('stageSub').textContent = String(st.km).replace('.', ',') + ' km · ' + Math.round(st.up) + ' m'; if (t3d) t3d.setStage(st);
+      voice.clearBanner(); handleEvent({ kind: 'reroute', level: 2, text: 'Nova rota', sub: 'até ' + (st.dest || 'o destino') + ' · ' + ((st.total - S.proj.dist) / 1000).toFixed(1).replace('.', ',') + ' km', speak: 'Nova rota até ' + (st.dest || 'o destino') + '.' });
+      R.invalidate(); refresh();
+    }
+    return;
+  }
   if (!S.off || off < 60 || off > 3000 || !router || !router.available() || S.session.state !== 'running') { if (S.reroute && !S.off) { S.reroute = null; R.invalidate(); } return; }
   const rr = S.reroute;
   const stale = !rr || now - rr.at > 30000 || haversine(rr.from[0], rr.from[1], fix.lat, fix.lon) > 120;
@@ -442,6 +456,7 @@ function rerouteTick(fix, now, events) {
 }
 function handleEvent(ev) {
   if (muted() && (ev.kind === 'offRoute' || ev.kind === 'reroute')) return;
+  if (S.diario && ev.kind === 'offRoute' && ev.rel != null && router && router.available()) return;   // Diário: a nova rota até o destino substitui o "volte à rota"
   if (ev.kind === 'backOnRoute') S.muteRoute = 0;
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
   const POIS = '<svg class="flag" viewBox="0 0 36 26"><rect width="36" height="26" fill="#fff" stroke="#000"/><g fill="#E10D0D"><circle cx="7" cy="6" r="3.2"/><circle cx="20" cy="6" r="3.2"/><circle cx="33" cy="6" r="3.2"/><circle cx="13.5" cy="15" r="3.2"/><circle cx="26.5" cy="15" r="3.2"/><circle cx="7" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="33" cy="24" r="3.2"/></g></svg>';

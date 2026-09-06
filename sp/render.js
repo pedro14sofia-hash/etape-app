@@ -412,7 +412,7 @@ export function createRenderer(canvas, overlay) {
   }
   function placeRider(q, rot) {
     const c = cam; const show = !c || c.rider;
-    const r = { x: q[0], y: q[1], rot: c ? 0 : rot, scale: c ? c.riderScale : 1, show };
+    const r = { x: q[0], y: q[1], rot: c ? 0 : rot, scale: c ? c.riderScale : Math.max(0.4, Math.min(1, (view.z - 13.5) / 3)), show };   // visão geral: ciclista menor
     if (octx) { rider = r; riderMoved = true; } else if (show) bike(ctx, r, 0);
   }
   // camada do ciclista: só ela é redesenhada a cada quadro da pedalada

@@ -109,4 +109,32 @@ export function stageFromRoute(r, from, to, key = 'SP') {
   stage.turns = track.detectTurns(stage, 35, 12, 40);
   return stage;
 }
+// fora da rota no Diário: a etapa é refeita = trecho já pedalado (até dist) + posição atual + nova rota até o destino.
+// A distância acumulada continua (o registro, a média e a fita não se perdem); o perfil, as subidas, as superfícies e as
+// curvas são recalculados; as bornes A (feita) e B continuam.
+export function rerouteStage(old, dist, pos, res) {
+  const idx = track.idxAtDist(old, Math.max(0, dist)), pts = old.pts.slice(0, Math.max(1, idx)).concat([[pos.lat, pos.lon]], res.pts.slice(1));
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + haversine(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]));
+  const d0 = cum[Math.max(1, idx)];
+  const segs = old.surfaces.filter(s => s.from < d0).map(s => [s.from, Math.min(s.to, d0), s.kind === 'ciclovia' ? 2 : s.kind === 'faixa' ? 1 : 0]).concat((res.segs || []).map(s => [d0 + s[0], d0 + s[1], s[2]]));
+  const from = { name: old.origin || 'Partida' }, to = { name: old.dest || 'Destino' };
+  const st = stageFromRoute({ pts, cum, segs, key: old.profile }, from, to, old.key);
+  st.cps[0].done = true; st.rerouted = (old.rerouted || 0) + 1;
+  return st;
+}
+// (3) endereço com número: Nominatim, só com internet, limitado à caixa do mapa; devolve {name, lat, lon, kind:'endereço'}
+let bboxCache = null;
+function bboxOf(map) {
+  if (bboxCache) return bboxCache; let s = 90, w = 180, n = -90, e = -180;
+  for (const x of map.ways) { if (!x.b) continue; if (x.b[0] < s) s = x.b[0]; if (x.b[1] < w) w = x.b[1]; if (x.b[2] > n) n = x.b[2]; if (x.b[3] > e) e = x.b[3]; }
+  return bboxCache = [s, w, n, e];
+}
+export async function searchOnline(map, q) {
+  if (!navigator.onLine) return [];
+  const [s, w, n, e] = bboxOf(map);
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=br&bounded=1&viewbox=' + [w, n, e, s].map(x => x.toFixed(4)).join(',') + '&q=' + encodeURIComponent(q);
+  const r = await fetch(url, { headers: { 'Accept': 'application/json', 'Accept-Language': 'pt-BR' } }); if (!r.ok) return [];
+  const list = await r.json();
+  return list.map(x => { const parts = String(x.display_name || '').split(', '); return { name: parts.slice(0, 2).join(', '), sub: parts.slice(2, 4).join(', '), lat: +x.lat, lon: +x.lon, kind: 'endereço' }; });
+}
 export const fmtTime = s => { const m = Math.round(s / 60); return m < 60 ? m + ' min' : Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0'); };

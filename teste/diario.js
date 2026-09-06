@@ -11,7 +11,7 @@ import * as voice from './voice.js';
 import { haversine } from './geo.js';
 
 let C = null;   // contexto do app: { S, $, refresh, setMode, setTab, activate(stage), restoreFree(), fitTo(pts), pos() }
-const D = { dest: null, from: null, alts: null, sel: 'shortest', third: null, q: '', busy: false };
+const D = { dest: null, from: null, alts: null, sel: 'shortest', third: null, q: '', busy: false, online: [], onlineQ: '' };
 const fmtKm1 = m => (m / 1000).toFixed(1).replace('.', ',');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -72,10 +72,13 @@ export function setThird(k) { D.third = k; store.set('third', k); if (D.dest && 
 function render() {
   const $ = C.$, el = $('destBody'); if (!el) return;
   const S = C.S, from = D.from || fromPos();
-  const places = plan.places(), res = D.q.length >= 2 ? plan.search(S.map, D.q) : [];
+  const places = plan.places(), local = D.q.length >= 2 ? plan.search(S.map, D.q) : [];
+  const res = local.concat(D.onlineQ === D.q ? D.online.filter(o => !local.some(l => l.name === o.name)) : []).slice(0, 10);
+  // endereço com número: pergunta à Nominatim (só com internet), com 600 ms de espera depois da última tecla
+  if (!D.dest && D.q.length >= 5 && /\d/.test(D.q) && D.onlineQ !== D.q && navigator.onLine) { clearTimeout(render._ot); render._ot = setTimeout(() => { const q = D.q; plan.searchOnline(S.map, q).then(list => { if (D.q !== q) return; D.online = list; D.onlineQ = q; render(); }).catch(() => { }); }, 600); }
   let h = `<div class="lbl">De · ${esc(from ? from.name : 'sem posição')}</div>
   <div class="field"><input id="destQ" type="search" placeholder="Para onde?" value="${esc(D.dest ? D.dest.name : D.q)}" autocomplete="off" enterkeyhint="search"><button id="destClr" aria-label="Limpar"${D.dest || D.q ? '' : ' hidden'}>×</button></div>`;
-  if (res.length && !D.dest) h += `<ul class="dres">${res.map((r, i) => `<li data-r="${i}"><b>${esc(r.name)}</b><span>${r.kind === 'lugar' ? 'guardado' : r.kind === 'via' ? 'via' : esc(r.kind)}</span></li>`).join('')}</ul>`;
+  if (res.length && !D.dest) h += `<ul class="dres">${res.map((r, i) => `<li data-r="${i}"><b>${esc(r.name)}</b><span>${r.kind === 'lugar' ? 'guardado' : r.kind === 'via' ? 'via' : r.kind === 'endereço' ? esc(r.sub || 'endereço') : esc(r.kind)}</span></li>`).join('')}</ul>`;
   else if (!D.dest) h += `<div class="chips">${places.map((p, i) => `<button data-p="${i}">${esc(p.name)}</button>`).join('')}<button id="destSave" class="ghost">+ guardar aqui</button><button id="destFree" class="ghost">Navegar livre</button></div>`;
   if (D.dest) {
     h += `<div class="lbl row3l"><span>Três rotas</span><span class="third"><button data-third="climbLess"${D.third === 'climbLess' ? ' class="on"' : ''}>Menos subida</button><button data-third="climbMore"${D.third === 'climbMore' ? ' class="on"' : ''}>Mais subida</button></span></div>`;
