@@ -5,7 +5,9 @@
 const Z = 15, MAX = 260;
 const cache = new Map(); let index = null, onLoad = null, base = 'sat/';
 
-export function setOnLoad(cb) { onLoad = cb; }
+const listeners = [];
+export function setOnLoad(cb) { if (cb && !listeners.includes(cb)) listeners.push(cb); onLoad = () => { for (const f of listeners) f(); }; }   // acumula: o 2D e o 3D ouvem juntos
+export function listenerCount() { return listeners.length; }
 export async function loadIndex(url = 'sat/index.json') {
   try { const r = await fetch(url); if (!r.ok) return null; index = await r.json(); base = url.replace(/index\.json$/, ''); return index; } catch (e) { return null; }
 }

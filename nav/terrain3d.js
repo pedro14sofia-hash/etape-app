@@ -12,7 +12,7 @@ import { GLTFLoader } from './vendor/GLTFLoader.js';
 
 // anéis: meio-lado (m), passo da malha (m), textura (px) e níveis do satélite (de baixo para cima), rebuild ao andar `move` m
 const RINGS = [
-  { half: 200, step: 8, tex: 2048, levels: [16, 17, 18], move: 64, drop: 0 },
+  { half: 200, step: 8, tex: 2048, levels: [15, 16, 17, 18], move: 64, drop: 0 },   // z15 sempre por baixo: onde só há z15 (rota de teste) o chão não fica liso
   { half: 800, step: 20, tex: 1024, levels: [15, 16], move: 200, drop: 0.9 },
   { half: 2600, step: 80, tex: 1024, levels: [15], move: 800, drop: 2.5 }
 ];
@@ -42,6 +42,7 @@ export function init(cv) {
     renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.shadowMap.enabled = OPT.shadow; renderer.shadowMap.type = THREE.PCFShadowMap;
   } catch (e) { renderer = null; ok = false; return false; }
   cv.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; }, false);
+  cv.addEventListener('webglcontextrestored', () => { lost = false; for (const r of rings) r.texStamp = -1; camPos = null; }, false);   // o three refaz geometrias e texturas; as do canvas são recompostas
   scene = new THREE.Scene();
   hemi = new THREE.HemisphereLight(0xFFFFFF, 0x8A8070, 1.0); scene.add(hemi);
   sun = new THREE.DirectionalLight(0xFFF4E0, 1.6); sun.position.set(-900, 1200, 400); sun.castShadow = true;

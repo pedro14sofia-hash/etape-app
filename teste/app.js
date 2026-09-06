@@ -394,7 +394,7 @@ function loop(ts) {
   try {
   glide(ts);
   if (S.cam3d && t3d) {
-    if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2); setCam('2d'); }
+    if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2, 'toque em 3ª para tentar de novo'); setCam('2d'); }
     else { if (ts - (loop._t3d || 0) >= 15.5) { loop._t3d = ts; const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); } requestAnimationFrame(loop); return; }   // 3D: no máximo 60 qps (a tela do S23 é 120 Hz)
   }
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);

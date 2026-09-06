@@ -6,7 +6,9 @@
 const Z = 12, MAX = 200;
 const tiles = new Map(); let index = null, base = 'dem/', onLoad = null; const sets = {};
 
-export function setOnLoad(cb) { onLoad = cb; }
+const listeners = [];
+export function setOnLoad(cb) { if (cb && !listeners.includes(cb)) listeners.push(cb); onLoad = () => { for (const f of listeners) f(); }; }   // acumula: o 2D e o 3D ouvem juntos
+export function listenerCount() { return listeners.length; }
 export async function loadIndex(url = 'dem/index.json') {
   try {
     const r = await fetch(url); if (!r.ok) return null; index = await r.json(); base = url.replace(/index\.json$/, '');
