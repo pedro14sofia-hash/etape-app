@@ -93,6 +93,8 @@ export function init() {
   const inFrame = window.parent && window.parent !== window;
   if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
     navigator.serviceWorker.register('sw.js').catch(() => { });
+    navigator.serviceWorker.ready.then(r => { if (navigator.onLine && r.active) r.active.postMessage({ type: 'fillSat', base: './' }); }).catch(() => { });
+    navigator.serviceWorker.addEventListener('message', e => { const m = e.data || {}; if (m.type === 'satProgress') { S.gpsMsg = m.done >= m.total ? 'satélite completo' : 'satélite ' + Math.round(m.done / m.total * 100) + ' %'; refresh(); } });
     // versão nova instalada: recarrega quando não há etapa rodando
     let had = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && S.session && S.session.state !== 'running') location.reload(); had = true; });
