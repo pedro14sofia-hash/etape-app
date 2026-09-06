@@ -387,7 +387,7 @@ export function createRenderer(canvas, overlay) {
   function drawDynamic(S) {
     const th = theme;
     // fora da rota: linha tracejada e seta da posição até o ponto mais próximo do traçado, com a distância
-    if (S.fix && (S.off || (S.proj && S.proj.off > 60)) && !cam) {
+    if (S.fix && S.pos && (S.off || (S.proj && S.proj.off > 60)) && S.proj.off < 5000 && !cam) {
       const pp = S.pos || S.fix, q0 = proj(pp.lat, pp.lon), tp = pointAt(S.stage, S.proj.dist || 0), q1 = proj(tp[0], tp[1]);
       ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E10D0D'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
       const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E10D0D'; ctx.fill(); ctx.restore();
@@ -396,11 +396,11 @@ export function createRenderer(canvas, overlay) {
     // lugares marcados
     if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFFF00'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
     // posição
-    if (!S.fix && S.stage.cps.length) {
+    if ((!S.fix || (S.proj && S.proj.off > 50000)) && S.stage.cps.length) {
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 44); const sz = 44 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
       if (S.showStart !== false) { const p = pointAt(S.stage, S.proj.dist || 0), q = proj(p[0], p[1]); placeRider(q, bearingAt(S.stage, S.proj.dist || 0) * Math.PI / 180 + view.rot); }
     }
-    if (S.fix) { const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (!cam && accPx > 40) { const qa = proj(S.fix.lat, S.fix.lon); ctx.beginPath(); ctx.arc(qa[0], qa[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); }
+    if (S.fix && (S.pos || (S.proj && S.proj.off <= 50000))) { const mpp = metersPerPixel(S.fix.lat, view.z); const accPx = Math.min(200, (S.fix.acc || 0) / mpp); if (!cam && accPx > 40) { const qa = proj(S.fix.lat, S.fix.lon); ctx.beginPath(); ctx.arc(qa[0], qa[1], accPx, 0, 7); ctx.fillStyle = th.acc; ctx.fill(); }
       const pp = S.pos || { lat: S.fix.lat, lon: S.fix.lon, head: (S.fix.head || 0) * Math.PI / 180 }; const q = proj(pp.lat, pp.lon); placeRider(q, pp.head + view.rot); }
     // escala (só em 2D)
     if (!cam) {

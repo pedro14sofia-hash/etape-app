@@ -17,6 +17,11 @@ export function tick(S, fix, now) {
   }
   if (pr.off < 250) S.proj = pr; else S.proj = { ...S.proj, off: pr.off };
   const dist = S.proj.dist;
+  // longe da etapa (> 5 km): só o aviso, sem curvas, bornes ou paradas
+  if (pr.off > 5000) {
+    if (!S.off) { S.off = true; const km = pr.off / 1000; ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 }); }
+    S.offDist = pr.off; return ev;
+  }
   // fora de rota
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
       if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });

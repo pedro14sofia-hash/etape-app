@@ -29,7 +29,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide };
+  if (/[?&]debug=1/.test(location.search)) window.__etape = { R, S, gps, track, guide, onFix };
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq === '1' || r3dq === '2') import('./rider3d.js').then(async m => {   // desligado por padrão a pedido do Pedro; ?r3d=2 liga o avatar
@@ -47,6 +47,7 @@ export function init() {
   $('btnFollow').onclick = () => { S.follow = true; S.rotLock = false; $('btnFollow').classList.add('on'); $('btnFollow').classList.remove('pulse'); S.userZoomAt = 0; const p = S.pos || S.fix; if (p) { const head = S.pos ? S.pos.head : ((S.fix.head || 0) * Math.PI / 180); const rot = (R.view.mode !== '2d' || S.prefs.orientation === 'heading') ? -head : 0; R.animateTo({ cx: mercX(p.lon), cy: mercY(p.lat), z: R.view.mode === '2d' ? (S.zoomTarget || 19) : R.view.z, rot }, 500); } };
   $('btnVoice').onclick = () => { const on = voice.isMuted(); if (on) voice.unmute(); else voice.mute(); S.prefs.voice = on; store.setPrefs(S.prefs); $('btnVoice').classList.toggle('on', on); if (on) voice.say('Voz ligada.', 2); };
   $('btnTheme').onclick = () => { S.prefs.theme = S.theme === 'night' ? 'day' : 'night'; store.setPrefs(S.prefs); applyTheme(); };
+  $('btnCam').onclick = () => setCam(S.prefs.cam === 'tp' ? '2d' : 'tp');
   $('btnSos').onclick = showSos; $('btnMark').onclick = () => markPlace(); $('sosMark').onclick = () => { markPlace(); $('dlgSos').close(); };
   $('btnSens').onclick = async () => { if (sensors.connected()) { sensors.disconnect(); $('btnSens').classList.remove('on'); S.sensors = null; refresh(); return; } if (!sensors.supported()) { voice.banner('Bluetooth indisponível neste navegador', 2); return; } try { const nm = await sensors.connect(); $('btnSens').classList.add('on'); voice.banner('Sensor ligado', 3, nm || ''); } catch (e) { voice.banner('Sem sensor', 2, (e && e.message || '').slice(0, 60)); } };
   sensors.onData(d => { S.sensors = d; refresh(); });
@@ -103,7 +104,7 @@ export function init() {
   if (q.get('stage')) selectStage(q.get('stage'));
   if (q.get('mode')) setMode(q.get('mode'));
   if (q.get('theme')) { S.prefs.theme = q.get('theme'); applyTheme(); }
-  S.prefs.cam = '2d';   // só o mapa 2D (com ou sem satélite): as câmeras 3D foram desligadas por decisão do usuário
+  if (q.get('cam') === 'tp') S.prefs.cam = 'tp'; else if (!S.prefs.cam || S.prefs.cam === 'fp') S.prefs.cam = '2d';   // 2D por padrão; 3ª pessoa opcional; 1ª pessoa removida
   if (q.get('sat')) S.prefs.sat = q.get('sat') === '1';
   if (q.get('tab')) { ui.setTab(S, q.get('tab')); }
   if (q.get('sim')) setTimeout(() => startSim(+q.get('sim') || 22, +(q.get('from') || 0) * 1000), 500);
@@ -135,7 +136,7 @@ export function selectStage(key) {
   if (S.session.state === 'running') startNavigation(true);
 }
 function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom + 4) + 'px'; }
-function setCam(c) { S.prefs.cam = '2d'; store.setPrefs(S.prefs); R.setMode('2d'); R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
+function setCam(c) { c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs); R.setMode(c); const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); } if (c === 'tp') { S.follow = true; $('btnFollow').classList.add('on'); if (S.pos) R.centerOn(S.pos.lat, S.pos.lon); R.setView(null, null, 16, S.pos ? -S.pos.head : R.view.rot); } else R.view.anchorY = S.mode === 'resumo' ? 0.6 : 0.45; R.invalidate(); }
 function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs); document.body.classList.toggle('full', m !== 'resumo'); if (R.view.mode === '2d') R.view.anchorY = m === 'resumo' ? 0.6 : 0.45; $('btnMode').textContent = m === 'resumo' ? '▴' : '▾'; $('btnMode').classList.toggle('on', m === 'resumo'); refresh(); measurePanel(); }
 function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); }
 
@@ -195,6 +196,8 @@ function onFix(raw) {
   }
   for (const ev of events) handleEvent(ev);
   S.next = guide.nextCue(S);
+  // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
+  if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
   // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
   const onRoad = (S.proj.off || 0) <= 30 && !S.off, v0 = fix.v || 0;
   if (S.gpsMsg === 'GPS perdido · estimando') { S.gpsMsg = 'GPS ligado'; }
@@ -224,7 +227,8 @@ function handleEvent(ev) {
   if (ev.kind === 'toilets') ev.right = '<span class="pill bleu">' + Math.round((ev.m || 0) / 50) * 50 + ' m</span>';
   if (ev.kind === 'bikeshop') ev.right = '<span class="pill vert">' + (ev.m >= 1000 ? (ev.m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(ev.m / 50) * 50 + ' m') + '</span>';
   if (ev.kind === 'rec') ev.right = '<span class="pill rouge">● REC</span>';
-  if (ev.kind === 'offRoute' && ev.rel != null) ev.right = '<span class="arr"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(ev.rel) + 'deg)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34V8M10 18l10-10 10 10"/></svg></span><span class="pill">' + Math.round(ev.off) + ' m</span>';
+  if (ev.kind === 'offRoute' && ev.off > 5000 && !/\/teste\//.test(location.pathname)) ev.right = '<a class="mini-btn" href="../teste/" target="_top">Rota de teste</a>';
+  else if (ev.kind === 'offRoute' && ev.rel != null) ev.right = '<span class="arr"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(ev.rel) + 'deg)" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 34V8M10 18l10-10 10 10"/></svg></span><span class="pill">' + Math.round(ev.off) + ' m</span>';
   if (ev.kind === 'drink') ev.right = '<button class="mini-btn" data-fuel="drink">Bebi</button>';
   if (ev.kind === 'eat') ev.right = '<button class="mini-btn" data-fuel="eat">Comi</button>';
   if (ev.kind === 'arrival') { ev.right = '<button class="mini-btn" data-finish>Encerrar</button>'; ev.hold = 120000; ev.level = 1; }
