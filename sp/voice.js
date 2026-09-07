@@ -8,7 +8,14 @@ export function mute() { muted = true; try { speechSynthesis.cancel(); } catch (
 export function unmute() { muted = false; }
 export function isMuted() { return muted; }
 
-export function say(text, level = 3) {
+let lastSaid = '', lastLevel = 3;
+export function last() { return lastSaid; }
+// nível da faixa ativa agora (9 = nenhuma): o volume baixo dispensa um aviso vermelho
+export function activeLevel() { return curUntil > Date.now() ? curLevel : 9; }
+// repete a última instrução (volume baixo sem nada pendente); false quando não há o que repetir
+export function repeat() { if (!lastSaid) return false; banner(lastSaid, 3, 'repetindo'); say(lastSaid, Math.max(2, lastLevel), true); return true; }
+export function say(text, level = 3, isRepeat = false) {
+  if (!isRepeat && level <= 2 && text && String(text).length > 3) { lastSaid = String(text); lastLevel = level; }   // o que vale repetir: instruções e avisos, não a conversa de nível 3
   if (muted) return;
   if (native.hasTts()) { if (level <= 2 || !native.speaking()) native.speak(text, level === 1, level); return; }   // casca: voz do Android, offline
   if (!('speechSynthesis' in window)) return;
@@ -40,6 +47,7 @@ export function vibrate(level) {
 export function announce(ev) {
   banner(ev.text, ev.level, ev.sub || '', ev.right || '', ev.hold || 0, ev.kind || '');
   vibrate(ev.level);
+  if (ev.level === 1) native.toFront();   // a casca por fora: um aviso vermelho traz o Étape à frente de qualquer app
   if (ev.voice !== false) say(ev.speak || ev.text, ev.level);
 }
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }

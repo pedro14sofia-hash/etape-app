@@ -17,7 +17,7 @@ export function init(state) {
   S = state; S.cinema = false; S.rec = { estrada: null, rosto: null }; S.sun = null;
   S.prefs.cineMode = S.prefs.cineMode || 'nitidez';
   S.prefs.keys = { ...DEFAULT_KEYS, ...(S.prefs.keys || {}) };
-  document.addEventListener('etape:rec', e => onRec(e.detail || {}));
+  document.addEventListener('etape:rec', e => { const d = e.detail || {}; if (/^(foto|fotoWarn|fotoErro|probe)$/.test(d.kind)) onFoto(d); else onRec(d); });
   // segundo plano: a casca fecha as câmeras (onPause); a tela sai do Cinema para não ficar transparente e sem prévia
   document.addEventListener('visibilitychange', () => { if (document.hidden && S.cinema) exit(); });
 }
@@ -29,10 +29,11 @@ let frameTimer = 0;
 export function enter(opts) {
   opts = opts || {};
   if (!available()) { voice.banner('Cinema só na casca', 2); return false; }
-  if (!S.session || S.session.state !== 'running') { voice.banner('Cinema só com a saída em andamento', 3, 'toque em Partir primeiro'); return false; }
   if (S.cinema) return true;
+  if (!S.session || S.session.state !== 'running') voice.banner('Cinema sem saída em andamento', 3, 'filma, mas não entra no relatório do dia');   // decisão 4 (07/09): filmar parado, na vila, antes de Partir
   if (!native.cinemaPreview(true, false)) { voice.banner('Câmera sem permissão', 2); return false; }
   native.previewLook(S.prefs.previewLook !== false, S.prefs.cineLook || 1);
+  if (S.prefs.cineFoto) native.photoMode('estrada', true);
   S.cinema = true; document.documentElement.classList.add('cinema'); emit('enter');
   voice.say('Cinema', 3);
   // enquadramento do dia: na primeira entrada do dia, a frontal aparece numa janela por 8 s para ajustar o suporte
@@ -41,6 +42,44 @@ export function enter(opts) {
   return true;
 }
 export function frame(on) { native.cinemaFrame(on); }
+// ---- Modo Foto v0 (estudo aprovado em 07/09): chave dentro do Cinema; nada dispara sozinho
+export const FOTO_MODES = ['movimento', 'velocidade', 'paisagem'];
+export const FOTO_LABEL = { movimento: 'Em movimento', velocidade: 'Velocidade', paisagem: 'Paisagem' };
+export function foto() { return !!S.prefs.cineFoto; }
+export function setFoto(on) {
+  on = !!on; if (S.prefs.cineFoto === on) return;
+  if (on && (S.rec.estrada || S.rec.rosto)) { voice.banner('Pare o REC antes de passar para Foto', 3); return; }
+  S.prefs.cineFoto = on; store.setPrefs(S.prefs); native.photoMode('estrada', on); native.photoMode('rosto', on); if (S.cinema) voice.say(on ? 'Foto' : 'Vídeo', 3); emit('foto');
+}
+export function setFotoMode(m) { if (!FOTO_MODES.includes(m)) return; S.prefs.fotoMode = m; store.setPrefs(S.prefs); emit('foto'); }
+export function setFotoCfg(c) { S.prefs.fotoCfg = c === 'rastro' ? 'rastro' : 'arrasto'; store.setPrefs(S.prefs); emit('foto'); }
+function teleSnap() {
+  const p = S.pos, f = S.fix, live = S.live || {}, sen = S.sensors || {};
+  return { place: S.place || '', ele: native.alt() != null ? Math.round(native.alt()) : (live.ele != null ? Math.round(live.ele) : null), v: f && f.v != null ? +(f.v * 3.6).toFixed(1) : (live.v != null ? +live.v.toFixed(1) : null), grade: live.grade != null ? +(+live.grade).toFixed(1) : null, hr: sen.hr || null, lat: p ? +p.lat.toFixed(6) : null, lon: p ? +p.lon.toFixed(6) : null, stage: S.stage ? S.stage.name : '', dist: Math.round(S.proj && S.proj.dist || 0), t: Date.now() };
+}
+// disparo: Estrada (traseira, no modo escolhido) ou Rosto (frontal, rajada de 4). Devolve 'ok' ou o motivo.
+export function shoot(slot, opts) {
+  if (!S.cinema) { if (!enter()) return 'sem cinema'; }
+  if (!foto()) return 'em vídeo';
+  const tele = teleSnap(); const v = tele.v || 0;
+  const mode = slot === 'rosto' ? 'rosto' : (S.prefs.fotoMode || 'movimento'); const cfg = mode === 'velocidade' ? (S.prefs.fotoCfg || 'arrasto') : '';
+  if (slot === 'rosto') { native.photoMode('rosto', true); native.camOpen('rosto', 'rosto_qhd'); }   // a frontal abre sem janela (prévia descartável); a janela do rosto é só para enquadrar
+  let r = native.shoot(slot, mode, cfg, v, tele);
+  const tries = (opts && opts.retry) || 0;
+  if (slot === 'rosto' && (r === 'câmera fechada' || r === 'sem sessão') && tries < 3) {   // a frontal ainda está abrindo: tenta de novo em 1,5 s, até 3 vezes
+    if (!tries) voice.banner('Abrindo a frontal…', 3); setTimeout(() => shoot('rosto', { retry: tries + 1 }), 1500); return 'abrindo';
+  }
+  if (r === 'ok') { native.beep('shot'); S.fotoBusy = { slot, at: Date.now() }; emit('foto'); }
+  else voice.banner(({ 'ainda revelando': 'Espere: revelando a anterior', 'sem espaço': 'Sem espaço para fotos', 'gravando vídeo': 'Pare o REC para fotografar', 'câmera fechada': 'Câmera fechada: abra o Cinema', 'sem sessão': 'Câmera preparando; tente de novo' })[r] || 'Foto recusada', 2, r);
+  return r;
+}
+function onFoto(ev) {
+  if (ev.kind === 'foto') { S.fotoBusy = null; const c = ev.clip || {}; if (c.slot === 'rosto') native.cinemaFrame(false); /* a frontal fecha depois da foto: duas câmeras com leitor de 12 MP pesam no HAL */ if (S.session) session.mark(S.session, 'foto', { name: c.name, mode: c.mode, cfg: c.cfg, files: c.files, lat: c.tele && c.tele.lat, lon: c.tele && c.tele.lon, place: c.tele && c.tele.place }); voice.banner('Foto · ' + (FOTO_LABEL[c.mode] || c.mode) + (c.cfg ? ' · ' + c.cfg : ''), 3, (c.warn ? c.warn + ' · ' : '') + (c.files && c.files.length > 1 ? c.files.length + ' arquivos' : '1/' + (c.expUs ? Math.round(1000000 / c.expUs) : '?') + ' s · ISO ' + c.iso)); emit('foto'); }
+  if (ev.kind === 'fotoWarn') voice.banner('Luz não dá para a velocidade pedida', 2, String(ev.detail || '').slice(0, 60));
+  if (ev.kind === 'fotoErro') { S.fotoBusy = null; voice.banner('Foto falhou', 2, String(ev.detail || '').slice(0, 60)); emit('foto'); }
+  if (ev.kind === 'probe') { let d = {}; try { d = JSON.parse(ev.detail); } catch (e) { } const n = (d.vendorRequestKeys || []).length; voice.banner('Teste Samsung: ' + n + ' chaves do fabricante', 3, d.expGotMs != null ? 'pediu 2000 ms, o sensor deu ' + Math.round(d.expGotMs) + ' ms' : (d.error || '')); }
+}
+export function probe() { if (!S.cinema || !foto()) { voice.banner('Abra o Cinema em Foto para o teste', 3); return; } native.photoProbe('estrada'); }
 export function setLook(look) { S.prefs.cineLook = look; store.setPrefs(S.prefs); native.previewLook(S.prefs.previewLook !== false, look); native.nightLook(look); emit('look'); }
 export function togglePreviewLook() { S.prefs.previewLook = S.prefs.previewLook === false; store.setPrefs(S.prefs); native.previewLook(S.prefs.previewLook, S.prefs.cineLook || 1); return S.prefs.previewLook; }
 export function exit() {
@@ -58,6 +97,7 @@ export function setMode(m) { if (m !== 'nitidez' && m !== 'aberto') return; S.pr
 // ---- REC por câmera: liga ou desliga
 export function rec(slot, opts) {
   if (!S.cinema) { if (!enter(opts)) return 'sem cinema'; }
+  if (foto() && !(opts && opts.auto)) return shoot(slot);   // Modo Foto: o mesmo botão dispara em vez de gravar (gatilhos automáticos nunca fotografam)
   if (S.rec[slot]) { if (!S.rec[slot].pending) { native.recStop(slot); return 'stop'; } return 'pending'; }
   // frontal sempre em 1440p dentro do Cinema: junto com a Estrada em 4K, a frontal em 4K cai para 23 fps, e a ordem dos toques não importa
   const r = native.rec(slot, slot === 'rosto' ? 'rosto_qhd' : S.prefs.cineMode);
@@ -86,7 +126,7 @@ export function onKey(k) {
   const K = S.prefs.keys;
   if (k === K.rec1) { rec('estrada'); return true; }
   if (k === K.rec2) { rec('rosto'); return true; }
-  if (K.mode && k === K.mode) { setMode(S.prefs.cineMode === 'nitidez' ? 'aberto' : 'nitidez'); return true; }
+  if (K.mode && k === K.mode) { if (foto()) setFotoMode(FOTO_MODES[(FOTO_MODES.indexOf(S.prefs.fotoMode || 'movimento') + 1) % FOTO_MODES.length]); else setMode(S.prefs.cineMode === 'nitidez' ? 'aberto' : 'nitidez'); return true; }
   if (S.cinema && k === 'up') { rec('estrada'); return true; }
   if (S.cinema && k === 'down') { rec('rosto'); return true; }
   return false;   // fora do Cinema, volume ± continuam com marcar lugar e abastecer

@@ -23,7 +23,8 @@ export function init() {
     music(st) { document.dispatchEvent(new CustomEvent('etape:music', { detail: st })); },
     night(st) { N.night = st; document.dispatchEvent(new CustomEvent('etape:night', { detail: st })); },
     drive(st) { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); },
-    rotate(deg) { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); }
+    rotate(deg) { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); },
+    away(id) { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); }
   };
   try { if (B.hasBaro()) B.baroStart(); } catch (e) { }
   try { B.brightness(-1); B.keepOn(true); } catch (e) { }
@@ -145,3 +146,17 @@ export function battery() { try { return N.on ? window.EtapeNative.battery() : '
 export function saveReport(day, name, json) { try { return N.on && !!window.EtapeNative.saveReport(String(day), String(name), json); } catch (e) { return false; } }
 export function driveCell(gb) { try { if (N.on) window.EtapeNative.driveCell(+gb || 0); } catch (e) { } }
 export function driveCellGB() { try { return N.on ? +window.EtapeNative.driveCellGB() || 0 : 0; } catch (e) { return 0; } }
+// ---- Modo Foto v0 (07/09): foto dentro do Cinema
+export function photoMode(slot, on) { try { if (N.on) window.EtapeNative.photoMode(String(slot), !!on); } catch (e) { } }
+export function shoot(slot, mode, cfg, speedKmh, tele) { try { return N.on ? String(window.EtapeNative.shoot(String(slot), String(mode), String(cfg || ''), +speedKmh || 0, JSON.stringify(tele || {}))) : 'sem casca'; } catch (e) { return 'erro: ' + e; } }
+export function photoProbe(slot) { try { if (N.on) window.EtapeNative.photoProbe(String(slot)); } catch (e) { } }
+export function roll() { try { return N.on ? +window.EtapeNative.roll() || 0 : 0; } catch (e) { return 0; } }
+// ---- a casca por fora (07/09): os quatro apps de fora, a aba amarela, a volta ao Étape, reiniciar
+export function apps() { try { return N.on && window.EtapeNative.apps ? JSON.parse(window.EtapeNative.apps()) : []; } catch (e) { return []; } }
+export function openApp(id, lat, lon, q) { try { return N.on ? String(window.EtapeNative.openApp(String(id), +lat || 0, +lon || 0, String(q || ''))) : 'sem casca'; } catch (e) { return 'erro: ' + e; } }
+export function appReturn(id, min) { try { if (N.on) window.EtapeNative.appReturn(String(id), +min || 0); } catch (e) { } }
+export function awayApp() { try { return N.on ? String(window.EtapeNative.awayApp() || '') : ''; } catch (e) { return ''; } }
+export function tabText(t) { try { if (N.on && window.EtapeNative.tabText && N.tabLast !== t) { N.tabLast = t; window.EtapeNative.tabText(String(t || '')); } } catch (e) { } }
+export function tabAllowed() { try { return N.on && !!window.EtapeNative.tabAllowed(); } catch (e) { return false; } }
+export function toFront() { try { if (N.on && window.EtapeNative.toFront) window.EtapeNative.toFront(); } catch (e) { } }
+export function reboot(pin) { try { return N.on && !!window.EtapeNative.reboot(String(pin)); } catch (e) { return false; } }

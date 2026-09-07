@@ -10,7 +10,8 @@ import * as music from './music.js';
 import * as sensors from './sensors.js';
 import { svgArrow } from './ui.js';
 
-let S = null, timer = 0, rot = 0, bare = false;
+let S = null, timer = 0, rot = 0, bare = false, toggleBareFn = null;
+export function toggleBare() { if (toggleBareFn) toggleBareFn(); }   // volume baixo segurado no Cinema: mostra ou esconde o placar
 const $ = id => document.getElementById(id);
 const n0 = v => Math.round(v).toLocaleString('pt-BR');
 const fmt1 = v => (Math.round(v * 10) / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -27,13 +28,20 @@ export function init(state) {
   $('cnRosto').onclick = () => cinema.rec('rosto');
   $('cnNitidez').onclick = () => cinema.setMode('nitidez');
   $('cnAberto').onclick = () => cinema.setMode('aberto');
-  $('cnTap').onclick = () => { bare = !bare; root.classList.toggle('bare', bare); };
+  // Modo Foto: chave Vídeo/Foto no alto à direita; seletor de modos no lugar do Nitidez/Aberto
+  $('cnVideo').onclick = () => cinema.setFoto(false); $('cnFoto').onclick = () => cinema.setFoto(true);
+  for (const m of cinema.FOTO_MODES) $('cnF_' + m).onclick = () => cinema.setFotoMode(m);
+  $('cnArrasto').onclick = () => cinema.setFotoCfg('arrasto'); $('cnRastro').onclick = () => cinema.setFotoCfg('rastro');
+  $('cnProbe').onclick = () => cinema.probe();
+  let bareTimer = 0; const setBare = b => { bare = b; root.classList.toggle('bare', bare); };
+  toggleBareFn = () => { setBare(!bare); clearTimeout(bareTimer); if (!bare) bareTimer = setTimeout(() => setBare(true), 8000); };
+  $('cnTap').onclick = toggleBareFn;
   $('cnExit').onclick = () => cinema.exit();
   $('mbToggle').onclick = e => { e.stopPropagation(); music.toggle(); };
   $('mbNext').onclick = e => { e.stopPropagation(); music.next(); };
   musicBar();
 }
-function show() { $('cinema').hidden = false; bare = false; $('cinema').classList.remove('bare'); rot = native.rotation(); applyRot(); render(); if (!timer) timer = setInterval(render, 250); }
+function show() { $('cinema').hidden = false; bare = true; $('cinema').classList.add('bare'); rot = native.rotation(); applyRot(); render(); if (!timer) timer = setInterval(render, 250); }
 function hide() { $('cinema').hidden = true; if (timer) { clearInterval(timer); timer = 0; } }
 function applyRot() { const r = $('cinema'); r.classList.toggle('land', rot === 90 || rot === 270); r.classList.toggle('r270', rot === 270); r.classList.toggle('r180', rot === 180); }
 
@@ -50,17 +58,29 @@ function render() {
   // botões
   for (const [id, slot, label, sub] of [['cnEstrada', 'estrada', 'Estrada', S.prefs.cineMode === 'aberto' ? 'ultrawide · toque para gravar' : 'principal · toque para gravar'], ['cnRosto', 'rosto', 'Rosto', 'frontal · toque para gravar']]) {
     const b = $(id), r = S.rec[slot]; b.classList.toggle('on', !!r);
-    b.querySelector('span').textContent = r ? 'gravando · toque para parar' : sub;
+    if (!cinema.foto()) b.querySelector('span').textContent = r ? 'gravando · toque para parar' : sub;
   }
   const th = native.thermal ? native.thermal() : 0; $('cinema').classList.toggle('warm', th === 2); $('cinema').classList.toggle('hot', th >= 3);
   $('cnHot').hidden = th < 3; $('cnEstrada').disabled = th >= 3; $('cnRosto').disabled = th >= 3;
+  // Modo Foto: chave, seletor de modos, botões como disparadores, linha de nível nos modos parados
+  const foto = cinema.foto(); const fm = S.prefs.fotoMode || 'movimento'; const fc = S.prefs.fotoCfg || 'arrasto';
+  $('cinema').classList.toggle('foto', foto);
+  $('cnVideo').classList.toggle('on', !foto); $('cnFoto').classList.toggle('on', foto); $('cnVideo').setAttribute('aria-pressed', String(!foto)); $('cnFoto').setAttribute('aria-pressed', String(foto));
+  $('cnMode').hidden = foto; $('cnFotoMode').hidden = !foto; $('cnFotoCfg').hidden = !foto || fm !== 'velocidade';
+  if (foto) { for (const m of cinema.FOTO_MODES) $('cnF_' + m).classList.toggle('on', fm === m); $('cnArrasto').classList.toggle('on', fc === 'arrasto'); $('cnRastro').classList.toggle('on', fc === 'rastro');
+    const busy = S.fotoBusy && Date.now() - S.fotoBusy.at < 8000;
+    const subE = fm === 'movimento' ? 'rajada de 6 · 1/1000' : fm === 'velocidade' ? (fc === 'rastro' ? 'rastro · 8 quadros somados' : 'arrasto · 1/30') : 'três exposições + RAW';
+    $('cnEstrada').querySelector('span').textContent = busy && S.fotoBusy.slot === 'estrada' ? 'revelando…' : subE; $('cnRosto').querySelector('span').textContent = busy && S.fotoBusy.slot === 'rosto' ? 'revelando…' : 'frontal · rajada de 4';
+    const lv = $('cnLevel'); lv.hidden = fm !== 'paisagem'; if (!lv.hidden) { const r = native.roll(); lv.style.transform = 'translate(-50%,-50%) rotate(' + (-r).toFixed(1) + 'deg)'; lv.classList.toggle('ok', Math.abs(r) < 1); }
+    const fotos = (S.session && S.session.marks || []).filter(m => m.kind === 'foto').length; $('cnCount').textContent = 'fotos ' + pad(fotos) + (render._free || '');
+  } else $('cnLevel').hidden = true;
   // seletor
   const ab = S.prefs.cineMode === 'aberto'; $('cnNitidez').classList.toggle('on', !ab); $('cnAberto').classList.toggle('on', ab); $('cnNitidez').setAttribute('aria-pressed', String(!ab)); $('cnAberto').setAttribute('aria-pressed', String(ab));
   $('cnMode').classList.toggle('locked', !!S.rec.estrada);
   // contador e espaço
   const clips = (S.session && S.session.marks || []).filter(m => m.kind === 'clipe').length + recs.length;
   if (Date.now() - (render._stAt || 0) > 10000) { render._stAt = Date.now(); try { const stg = native.storage ? native.storage() : null; render._free = stg && stg.freeMB ? ' · ' + (stg.freeMB / 1024).toFixed(0) + ' GB livres' : ''; } catch (e) { render._free = ''; } }   // StatFs a cada 10 s, não a 4 Hz
-  $('cnCount').textContent = 'clipes ' + pad(clips) + (render._free || '');
+  if (!cinema.foto()) $('cnCount').textContent = 'clipes ' + pad(clips) + (render._free || '');
   // tulipa
   const tn = S.next && S.next.turn, ahead = tn ? tn.dist - d : null;
   $('cnTulipa').hidden = !tn || ahead > 2000; if (tn && ahead <= 2000) { $('cnArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('cnTDist').textContent = ahead < 950 ? Math.round(ahead / 10) * 10 + ' m' : fmt1(ahead / 1000) + ' km'; $('cnTDir').textContent = (tn.dir || tn.short || '').toString().toUpperCase().slice(0, 14); }

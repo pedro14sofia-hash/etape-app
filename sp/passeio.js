@@ -9,7 +9,7 @@ let S = null; const D = { battery: [], events: [], triggers: [] };
 
 export function init(state) {
   S = state;
-  document.addEventListener('etape:rec', e => { const d = e.detail || {}; if (['warm', 'hot', 'hd', 'error', 'rec', 'stop'].includes(d.kind)) D.events.push({ t: Date.now(), kind: d.kind, slot: d.slot || '', detail: String(d.detail || '').slice(0, 80), mode: d.mode || '' }); });
+  document.addEventListener('etape:rec', e => { const d = e.detail || {}; if (['warm', 'hot', 'hd', 'error', 'rec', 'stop', 'foto', 'fotoWarn', 'fotoErro'].includes(d.kind)) D.events.push({ t: Date.now(), kind: d.kind, slot: d.slot || '', detail: String(d.detail || '').slice(0, 80), mode: d.mode || '' }); });
   document.addEventListener('etape:auto', e => { const d = e.detail || {}; D.triggers.push({ t: Date.now(), slot: d.slot, why: d.why, sec: d.sec }); });
   document.addEventListener('etape:night', e => { const d = e.detail || {}; if (d.phase === 'done' || d.phase === 'error') D.events.push({ t: Date.now(), kind: 'noite', detail: String(d.detail || '').slice(0, 80) }); });
   document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'paused' || d.phase === 'error' || d.phase === 'done') D.events.push({ t: Date.now(), kind: 'drive', detail: String(d.detail || '').slice(0, 80) }); });
@@ -38,8 +38,9 @@ export function finish(r) {
     startedAt: t0, finishedAt: t1, km: r ? r.km : null, up: r ? r.up : null, moving: r ? r.moving : null, elapsed: r ? r.elapsed : null,
     battery: { samples: bat, perHour, drop, hours: +hours.toFixed(2) },
     clips: clips.map(c => ({ name: c.name, slot: c.slot, mode: c.mode, ms: c.ms, scene: c.scene, at: c.at })),
+    fotos: (sess.marks || []).filter(m => m.kind === 'foto').map(f => ({ name: f.name, mode: f.mode, cfg: f.cfg, files: f.files, place: f.place, lat: f.lat, lon: f.lon, at: f.at })),
     triggers: D.triggers, events: D.events, alerts: { hot, warm, hd },
-    marks: (sess.marks || []).filter(m => m.kind !== 'clipe'), track,
+    marks: (sess.marks || []).filter(m => m.kind !== 'clipe' && m.kind !== 'foto'), track,
     autoRec: S.prefs.autoRec, cineLook: S.prefs.cineLook, cineMode: S.prefs.cineMode
   };
   const d = new Date(t0); const name = 'diario-' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');

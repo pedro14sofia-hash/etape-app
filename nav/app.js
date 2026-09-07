@@ -42,8 +42,19 @@ export function init() {
   R = createRenderer($('map'), $('rider'));
   cinema.init(S); cinemaUi.init(S);
   if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); passeio.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
-    // botões de volume: para cima marca o lugar; para baixo confirma o abastecimento que venceu (ou o próximo a vencer)
-    native.onKey(k => { if (cinema.onKey(k)) return; if (k === 'up') markPlace(); else if (k === 'down') { const F = S.fuelStatus; if (!F || S.session.state !== 'running') { voice.banner('Sem saída em andamento', 3); return; } confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); } });
+    // a casca por fora (estudo aprovado 07/09) · gramática das teclas: volume cima GUARDA (clique marca o lugar, segurar pula a
+    // música; no Cinema, REC Estrada e Nitidez ↔ Aberto); volume baixo RESPONDE ao que a Fita pede (aviso vermelho → dispensa;
+    // Bebi/Comi vencido → confirma; folha aberta → fecha; fora do traçado → "sei o caminho"; nada pendente → repete a voz;
+    // segurar = tocar/pausar; no Cinema, REC Rosto e placar); lateral ×2 troca de mundo (cinema.onKey). Todo aperto tem som.
+    native.onKey(k => {
+      if (S.cinema && k === 'up_hold') { cinema.setMode(S.prefs.cineMode === 'nitidez' ? 'aberto' : 'nitidez'); voice.say(S.prefs.cineMode, 3); return; }
+      if (S.cinema && k === 'down_hold') { cinemaUi.toggleBare(); return; }
+      if (cinema.onKey(k)) return;
+      if (k === 'up') { markPlace(); return; }
+      if (k === 'up_hold') { if (music.available()) { music.next(); voice.say('próxima', 3); } else native.beep('no'); return; }
+      if (k === 'down_hold') { if (music.available()) { const was = music.playing(); music.toggle(); voice.say(was ? 'pausa' : 'toca', 3); } else native.beep('no'); return; }
+      if (k === 'down') respond();
+    });
     $('btnPhoto').hidden = false; $('btnScreen').hidden = false;
     $('btnPhoto').onclick = () => { $('dlgMenu').close(); takePhoto(); };
     $('btnScreen').onclick = () => { S.prefs.screen = S.prefs.screen === 'economia' ? 'sempre' : 'economia'; store.setPrefs(S.prefs); applyScreen(); $('dlgMenu').close(); voice.banner(S.prefs.screen === 'economia' ? 'Tela apaga sozinha' : 'Tela sempre ligada', 3, S.prefs.screen === 'economia' ? 'acende nos avisos' : ''); };
@@ -62,12 +73,24 @@ export function init() {
       const cellLabel = () => { const g = native.driveCellGB(); $('btnCell').hidden = false; $('btnCell').querySelector('b').textContent = 'Subir pelo celular: ' + (g ? g + ' GB por dia' : 'desligado'); }; cellLabel();
       $('btnCell').onclick = () => { const g = native.driveCellGB(); const nx = CELL[(CELL.indexOf(g) + 1) % CELL.length]; native.driveCell(nx); cellLabel(); voice.banner(nx ? 'Sobe pelo celular até ' + nx + ' GB por dia' : 'Só pelo Wi-Fi', 3, nx ? 'fora da saída; Wi-Fi continua sem limite' : ''); };
     }
+    // a casca por fora · os quatro apps no menu (folha Aparelho vem com Ajustes, fase 3); só os instalados aparecem
+    { const here = () => { const p = S.pos || S.fix; return p ? [p.lat, p.lon] : [0, 0]; };
+      const open = (id, q) => { $('dlgMenu').close(); const [la, lo] = here(); const r = native.openApp(id, la, lo, q || ''); if (r !== 'ok') voice.banner('Não abriu: ' + r, 2); };
+      const end = () => { const st = S.stage; if (!st || S.free || !st.pts || !st.pts.length) return ''; const e = st.pts[st.pts.length - 1]; return e[0].toFixed(5) + ',' + e[1].toFixed(5); };
+      for (const a of native.apps()) { const b = $({ music: 'btnAppMusic', organic: 'btnAppOrganic', maps: 'btnAppMaps', meteo: 'btnAppMeteo' }[a.id]); if (!b) continue; b.hidden = !a.installed;
+        b.onclick = () => open(a.id, a.id === 'music' ? (S.stage && S.prefs.playlists && S.prefs.playlists[S.stage.key] || '') : a.id === 'maps' ? end() : ''); }
+      // a aba amarela: a próxima curva em uma linha enquanto outro app está na frente
+      document.addEventListener('etape:away', e => { if (!e.detail) native.tabText(''); });
+      setInterval(() => { if (!native.awayApp()) return; const tn = S.next && S.next.turn, d = S.proj && S.proj.dist || 0; const ahead = tn ? tn.dist - d : null;
+        native.tabText(tn && ahead != null && ahead < 5000 ? (tn.short || tn.txt || 'curva') + ' em ' + (ahead < 950 ? Math.round(ahead / 10) * 10 + ' m' : (ahead / 1000).toFixed(1).replace('.', ',') + ' km') : ''); }, 2000); }
     // N2b · modo dedicado (só com Device Owner): menu Mais → Travar/Liberar com PIN; toque longo de 5 s no relógio faz o mesmo
     if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
         if (locked) { if (native.kioskUnlock(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado', 2); }
         else { if (native.kioskPin(pin, pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'Mais → Liberar o aparelho, ou toque longo no relógio'); } else voice.banner('PIN errado', 2); } kioskLabel(); };
       const kioskLabel = () => { $('btnKiosk').hidden = false; $('btnKiosk').querySelector('b').textContent = native.kioskLocked() ? 'Liberar o aparelho' : 'Travar o aparelho'; }; kioskLabel();
       $('btnKiosk').onclick = () => { $('dlgMenu').close(); ask(); };
+      $('btnReboot').hidden = false;
+      $('btnReboot').onclick = () => { $('dlgMenu').close(); const pin = prompt('PIN para reiniciar o aparelho'); if (pin == null) return; if (!native.reboot(pin)) voice.banner('PIN errado ou sem dono', 2); };
       $('btnNormal').hidden = false;
       $('btnNormal').onclick = () => { $('dlgMenu').close(); const pin = prompt('PIN para devolver o aparelho ao normal (sem trava e sem dono; só um reset de fábrica refaz o dono)'); if (pin == null) return;
         if (native.kioskReset(pin)) { $('btnKiosk').hidden = true; $('btnNormal').hidden = true; voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); } else voice.banner('PIN errado', 2); };
@@ -112,11 +135,13 @@ export function init() {
   $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
   if (/[?&]debug=/.test(location.search)) document.body.classList.add('dev');
   setTimeout(() => { import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
+  // a casca por fora (07/09): a engrenagem nos controles do mapa é a porta única de Ajustes (o rodapé do Pedal não é exibido)
+  $('btnCfg').onclick = () => { $('menuSt').textContent = (S.stage.name || '') + ' · ' + session.label(S.session.state).toLowerCase(); $('dlgMenu').showModal(); };
   $('btnMenu').onclick = () => { $('menuSt').textContent = (S.stage.name || '') + ' · ' + session.label(S.session.state).toLowerCase(); $('dlgMenu').showModal(); };
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => { $('dlgMenu').close(); showReport(report.list()[S.stage.key]); };
   // computador de bordo (F2): três botões fixos no rodapé abrem a folha de cada aba; o mesmo botão fecha
   document.querySelectorAll('.cb button[data-tab]').forEach(b => b.onclick = () => { const t = b.dataset.tab; if (S.mode === 'full' && S.tab === t) setMode('resumo'); else { ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); setMode('full'); } });
-  $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
+  { const bm = $('btnMode'); if (bm) bm.onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full'); }
   // fita do dia: toque abre o perfil; arrastar para cima entra no modo mapa. A alça do modo mapa (ou arrastar o rodapé para cima) volta
   let fy = null, fx = null;
   $('fita').addEventListener('pointerdown', e => { if (e.target.closest('button,select')) { fy = null; return; } fy = e.clientY; fx = e.clientX; });
@@ -146,7 +171,7 @@ export function init() {
     else if (dy < -40) { if (S.mapMode) setMapMode(false); else setMode('full'); }
   });
   $('fDrink').onclick = () => confirmFuel('drink'); $('fEat').onclick = () => confirmFuel('eat'); $('fSnooze').onclick = () => { fuel.snooze(S.fuel, 'drink'); fuel.snooze(S.fuel, 'eat'); refresh(); };
-  $('mDrink').onclick = () => confirmFuel('drink'); $('mEat').onclick = () => confirmFuel('eat');
+  { const md = $('mDrink'), me = $('mEat'); if (md) md.onclick = () => confirmFuel('drink'); if (me) me.onclick = () => confirmFuel('eat'); }
   $('cue').onclick = () => { voice.clearBanner(); };
   $('btnKnow').onclick = () => { S.muteRoute = Date.now() + 600000; voice.clearBanner(); S.reroute = null; $('btnKnow').hidden = true; R.invalidate(); voice.banner('Avisos de rota calados por 10 min', 3, 'volta a avisar ao reencontrar o traçado'); refresh(); };   // tela 05
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
@@ -165,13 +190,14 @@ export function init() {
   R.resize();
   window.addEventListener('resize', size3d);
   selectStage(store.get('stage', '1'));
-  if (window.FREE) { S.free = true; free.init(S); S.freeStage = S.stage; S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageSel').disabled = true; R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0);
+  if (window.FREE) { document.body.classList.add('free'); S.free = true; free.init(S); S.freeStage = S.stage; S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageSel').disabled = true; R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0);
     // Diário: o grafo de rotas carrega já; a folha Destino abre sozinha quando não há saída em andamento
     $('btnDest').hidden = false; $('btnDest').onclick = () => { $('dlgMenu').close(); if (diario) diario.open(); };
     import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
     const q0 = new URLSearchParams(location.search);
     import('./diario.js').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
-  ui.setTab(S, S.prefs.tab || 'tele'); setMode('resumo');   /* crítica 06/09: abre sempre na fita do stem, a folha é sob demanda */   // F2: em repouso, sem folha aberta
+  ui.setTab(S, S.prefs.tab || 'tele'); setMode('resumo');
+  largadaInit();   /* crítica 06/09: abre sempre na fita do stem, a folha é sob demanda */   // F2: em repouso, sem folha aberta
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
   $('dlgPreview').addEventListener('close', () => { if (diorama) diorama.dispose(); });
@@ -219,7 +245,7 @@ export function selectStage(key) {
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
   { const simKey = store.get('sim:on', null); if (simKey) { store.clearStage(simKey); store.del('sim:on'); } }   // crítica 06/09: sessão e progresso de simulação não sobrevivem
   S.session = session.restore(key) || session.create(key);
-  S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
+  S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage); if ($('largada')) largadaRender();
   S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
   if (S.log.length) { const l = S.log[S.log.length - 1]; S.proj = track.project(S.stage, l.lat, l.lon, track.idxAtDist(S.stage, l.dist)); }
   // tela inicial: a bike na porta do hotel (ou onde parou), no zoom de rua, com o rumo da largada
@@ -235,7 +261,7 @@ export function selectStage(key) {
 function activateStage(st, isFree) {
   if (gps.running() && S.session.state === 'idle') stopNavigation();
   S.stage = st;
-  if (!isFree) { track.nameTurns(st.turns, st, S.map.index); S.free = false; S.diario = true; }
+  if (!isFree) { track.nameTurns(st.turns, st, S.map.index); S.free = false; S.diario = true; document.body.classList.add('diario'); }
   const key = st.key || 'SP';
   $('stageKey').textContent = key; $('stageCode').className = 'code m-' + (st.type || 'blanc');
   if (!isFree) { const kmUp = String(st.km).replace('.', ',') + ' km · ' + Math.round(st.up) + ' m'; const rl = $('rem').nextElementSibling; if (rl) rl.textContent = 'km restam'; const el = $('eta').nextElementSibling; if (el && el.firstChild) el.firstChild.textContent = 'chegada · '; $('stageName').textContent = st.dest || st.name; $('stageSub').textContent = kmUp; if ($('profName')) { $('profName').textContent = st.name; $('profSub').textContent = 'Diário · ' + kmUp; } }
@@ -272,7 +298,7 @@ function takePhoto() {
 }
 function devTag(txt) { const t = $('devTag'); if (!t) return; t.textContent = txt; t.hidden = !txt; }   // regra 04: estado de simulação é uma placa cinza na fita, só quando ativo
 function updateAttr() { const e = $('attr'), sat = S.prefs.sat && S.satAttr; e.textContent = '© OpenStreetMap' + (sat ? ' · ' + S.satAttr.replace(/^©\s*/, '').split(',')[0] : ''); e.title = '© OpenStreetMap contributors' + (sat ? ' · ' + S.satAttr : ''); }   // regra 05: uma linha curta; o texto completo fica no title
-function measurePanel() { S.scaleBottom = $('panel').offsetHeight + 8; $('attr').style.bottom = (S.scaleBottom - 2) + 'px'; /* regra 05: na mesma linha da escala, à direita */ R.view.hv = Math.max(0, $('map').clientHeight - $('panel').offsetHeight); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); R.invalidate(); }
+function measurePanel() { const rd = $('panel').querySelector('.rodape'); S.scaleBottom = (rd ? rd.offsetHeight : $('panel').offsetHeight) + 8; $('attr').style.bottom = (S.scaleBottom - 2) + 'px'; /* regra 05: na mesma linha da escala, à direita */ R.view.hv = Math.max(0, $('map').clientHeight - (S.scaleBottom - 8)); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); R.invalidate(); }
 function setCam(c) {
   c = c === 'tp' ? 'tp' : '2d'; S.prefs.cam = c; store.setPrefs(S.prefs);
   const b = $('btnCam'); if (b) { b.textContent = c === 'tp' ? '3ª' : '2D'; b.classList.toggle('on', c === 'tp'); }
@@ -304,6 +330,7 @@ export function startNavigation(silent) {
 export function stopNavigation() { if (cinema.active()) cinema.exit(); gps.stop(); gps.keepAwake(false); S.gpsMsg = 'GPS desligado'; refresh(); }
 
 export function toggleSession() {
+  { const L = $('largada'); if (L) L.hidden = true; document.body.classList.remove('largada'); }
   const now = Date.now(), s = S.session;
   if (s.state === 'idle') {
     const go = () => { session.start(s, Date.now()); startNavigation(); S.alts = null; setMode('resumo'); if (S.diario) { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; R.view.anchorY = 0.6; setMode('resumo'); } refresh(); };
@@ -362,6 +389,15 @@ function placeNow() {
   const near = poisNear(S.map.poiIndex, S.fix.lat, S.fix.lon, 400, ['place:village', 'place:hamlet', 'place:town', 'bakery', 'water', 'pass', 'shop']);
   const place = near.length ? near[0].poi.n : (S.next.cp ? 'perto de ' + S.next.cp.name : '');
   return { dist: S.proj.dist, lat: S.fix.lat, lon: S.fix.lon, place };
+}
+// volume baixo: responde à Fita, nesta ordem (o ciclista não precisa saber qual das cinco coisas fez)
+function respond() {
+  if (voice.activeLevel() === 1) { voice.clearBanner(); native.beep(''); voice.say('ok', 3); return; }
+  const F = S.fuelStatus; if (F && S.session.state === 'running' && (F.nextDrinkMin <= 0 || F.nextEatMin <= 0)) { confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); voice.say(F.nextDrinkMin <= F.nextEatMin ? 'bebi' : 'comi', 3); return; }
+  const dlg = document.querySelector('dialog[open]'); if (dlg) { dlg.close(); native.beep(''); return; }
+  if (S.mapMode) { setMapMode(false); native.beep(''); return; }
+  const bk = $('btnKnow'); if (bk && !bk.hidden) { bk.click(); return; }
+  if (!voice.repeat()) { native.beep('no'); voice.banner('Nada a repetir', 3); }
 }
 function confirmFuel(kind) { const P = S.fuelPlan || {}; fuel.confirm(S.fuel, P, kind, session.movingTime(S.session, Date.now())); const x = (P.extras || []).find(e => e.id === kind); voice.banner(kind === 'drink' ? 'Bebeu ' + Math.round(P.sipMl || 150) + ' ml' : kind === 'eat' ? 'Comeu ' + Math.round(P.biteG || 30) + ' g' : x ? x.name + ' · ' + x.dose + ' ' + x.unit : 'Registrado', 3); refresh(); }
 
@@ -525,7 +561,7 @@ function handleEvent(ev) {
   const POIS = '<svg class="flag" viewBox="0 0 36 26"><rect width="36" height="26" fill="#fff" stroke="#000"/><g fill="#E10D0D"><circle cx="7" cy="6" r="3.2"/><circle cx="20" cy="6" r="3.2"/><circle cx="33" cy="6" r="3.2"/><circle cx="13.5" cy="15" r="3.2"/><circle cx="26.5" cy="15" r="3.2"/><circle cx="7" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="33" cy="24" r="3.2"/></g></svg>';
   const FLAMME = '<svg class="flag" viewBox="0 0 36 26"><rect x="3" y="1" width="3" height="24" fill="#fff"/><path d="M6 2h26l-6 7 6 7H6z" fill="#fff"/><text x="17" y="14" font-family="Antonio" font-weight="900" font-size="12" fill="#E10D0D" text-anchor="middle">1</text></svg>';
   const MUSETTE = '<svg class="flag" viewBox="0 0 36 26"><path d="M1 25L6 1h29l-5 24z" fill="#B9BCC2" stroke="#000"/><path d="M15 8h7l3 12H12z" fill="#fff"/></svg>';
-  if (ev.kind === 'sight') { ev.right = '<button class="mini-btn vert" data-done="' + ev.parada.id + '">Feito</button>'; }
+  if (ev.kind === 'sight') { ev.right = (S.native ? '<button class="mini-btn" data-photo="1">Foto</button>' : '') + '<button class="mini-btn vert" data-done="' + ev.parada.id + '">Feito</button>'; }
   if (ev.kind === 'climbStart' && ev.cat) ev.right = '<span class="plate' + (ev.cat === 'HC' ? ' hc' : '') + ' ' + ui.catCls(ev.cat) + '">' + ev.cat + '</span>';
   if (ev.kind === 'summit') ev.right = POIS;
   if (ev.kind === 'flamme') ev.right = FLAMME;
@@ -553,6 +589,7 @@ function handleEvent(ev) {
   voice.announce(ev);
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
   const fb = $('cue').querySelector('[data-finish]'); if (fb) fb.onclick = e => { e.stopPropagation(); voice.clearBanner(); finishStage(true); };
+  const fp = $('cue').querySelector('[data-photo]'); if (fp) fp.onclick = e => { e.stopPropagation(); takePhoto(); };
   const b = $('cue').querySelector('[data-done]'); if (b) b.onclick = e => { e.stopPropagation(); const p = S.paradas.find(x => x.id === b.dataset.done); if (p) { p.done = true; const prog = store.progress(S.stage.key); prog.sights.push(p.id); store.setProgress(S.stage.key, prog); } voice.clearBanner(); };
 }
 // SOS: números da França, posição atual para ditar, ligar/compartilhar, hotel do dia
@@ -568,7 +605,7 @@ function showSos() {
     : '<div class="sos-nums"><a class="pri" href="tel:112"><b>112</b><span>Emergência europeia</span></a><a href="tel:15"><b>15</b><span>SAMU · médico</span></a><a href="tel:18"><b>18</b><span>Bombeiros</span></a><a href="tel:17"><b>17</b><span>Polícia</span></a></div>';
   $('sosBody').innerHTML = nums +
     '<div class="sos-pos"><b>' + pos + '</b><span>' + (sp ? (S.place ? 'perto de ' + S.place + ' · ' : '') + 'km ' + km + ' rodados' : 'km ' + km + ' da ' + S.stage.name.replace(/^E\S+ /, '') + ' · ' + (cp ? 'perto de ' + cp.name : '')) + ' · ' + ele + ' m</span><div class="acts"><button id="sosCopy">Copiar posição</button><button id="sosShare">Compartilhar</button></div></div>' +
-    (sp ? '<div class="sos-card"><b>Diga ao operador</b>"Sou ciclista, sofri um acidente. Estou em ' + (S.place || 'São Paulo') + ', posição ' + pos + '."</div>' : '<div class="sos-card"><b>Diga ao operador</b>"Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>') +
+    (sp ? '<div class="sos-card"><b>Diga ao operador</b>“Sou ciclista, sofri um acidente. Estou em ' + (S.place || 'São Paulo') + ', posição ' + pos + '.”</div>' : '<div class="sos-card"><b>Diga ao operador</b>“Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>') +
     (hotel.nome ? '<div class="sos-card"><b>Hotel de hoje</b>' + hotel.nome + '<br>' + (hotel.end || '') + (hotel.tel ? '<br>' + (hotel.tel.replace(/[^\d]/g, '').length >= 8 ? '<a href="tel:' + hotel.tel.split('·')[0].replace(/[^+\d]/g, '') + '">' + hotel.tel + '</a>' : hotel.tel) : '') + '</div>' : '') +
     (d.hospital ? '<div class="sos-card"><b>Hospital mais perto</b>' + d.hospital + '</div>' : '');
   $('sosCopy').onclick = async () => { try { await navigator.clipboard.writeText(pos + ' ' + maps); voice.banner('Posição copiada', 3); } catch (e) { } };
@@ -651,6 +688,46 @@ function startSim(kmh, from) {
   S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19); S.gpsMsg = ''; devTag('sim'); $('btnSim').classList.add('on');
   gps.simulate(S.stage, kmh, onFix, from, d => track.gradeAt(S.stage, d, 150));
 }
+// ---- Largada (mundo Transmissão, 07/09/2026): o dia numa tela, um botão
+function largadaInit() {
+  const L = $('largada'); if (!L) return;
+  const q = new URLSearchParams(location.search);
+  const skip = q.get('sim') || q.get('mode') || q.get('preview') || q.get('to') || q.get('vias') || q.get('nolargada') || (S.session && S.session.state !== 'idle');
+  $('lgGo').onclick = () => { L.hidden = true; document.body.classList.remove('largada'); if (!S.free && !S.diario && !store.get('brief:' + S.stage.key, false)) showBriefingOnce(); };
+  $('lgAjustes').onclick = () => $('dlgMenu').showModal();
+  // a casca por fora (07/09): de qualquer lugar de volta à Largada, pelo menu (o Pedal não tinha saída)
+  $('btnLargada').onclick = () => { $('dlgMenu').close(); largadaRender(); L.hidden = false; document.body.classList.add('largada'); L.classList.add('ready'); };
+  $('lgEtapas').onclick = () => showPreview('trip');
+  $('lgGuia').onclick = () => { const g = $('btnGuide'); if (g && !g.hidden) g.click(); else showPreview(S.stage.key); };
+  const sw = $('lgSwitch'); if (S.free || S.diario) { sw.textContent = 'Viagem'; sw.href = '../nav/index.html'; } else { sw.textContent = 'Diário · SP'; sw.href = '../sp/index.html'; }
+  if (window !== window.parent) sw.onclick = e => { e.preventDefault(); try { parent.postMessage({ etape: 'switch', to: S.free || S.diario ? 'nav' : 'sp' }, '*'); } catch (x) { } };
+  largadaRender();
+  if (skip) { L.hidden = true; return; }
+  L.hidden = false; document.body.classList.add('largada'); requestAnimationFrame(() => requestAnimationFrame(() => L.classList.add('ready')));
+}
+function largadaRender() {
+  const L = $('largada'); if (!L || !S.stage) return;
+  const st = S.stage, key = st.key, d = (S.routes.days || {})[key] || {}, dia = String((S.allParadas && S.allParadas.dias ? S.allParadas.dias[key] : '') || d.dia || '').trim();
+  const keys = Object.keys(S.routes.stages).filter(k => k !== '4b'), idx = keys.indexOf(key);
+  if (S.free || S.diario) {
+    const last = store.get('lastdest:sp', null);
+    $('lgK').innerHTML = 'Diário · São Paulo<small>' + new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) + '</small>';
+    $('lgName').innerHTML = 'Para<br><i>onde</i><br>hoje?';
+    $('lgS').innerHTML = last ? 'Último trajeto · <b>' + esc(last.name) + '</b>' : 'Escolha o destino ou navegue livre; a hora cheia lembra água e comida.';
+    $('lgRow').innerHTML = '';
+    $('lgGoSub').textContent = last ? esc(last.name) : 'DESTINO OU LIVRE';
+    $('lgEtapas').textContent = 'Lugares'; $('lgGuia').textContent = 'Filmes';
+  } else {
+    const full = st.name.replace(/^E\S+ /, ''), parts = full.split('→').map(x => x.trim()), mid = parts.length > 2 ? parts.slice(1, -1).join(' · ') : (st.climbs && st.climbs.length ? st.climbs.slice().sort((x, y) => y.gain - x.gain)[0].name : '');
+    $('lgK').innerHTML = 'Viagem · dia ' + (idx + 1) + ' de ' + keys.length + '<small>' + esc(dia) + (d.sol ? ' · sol ' + esc(d.sol) : '') + '</small>';
+    $('lgName').innerHTML = esc(parts[0]) + '<br><i>' + esc(mid || parts[parts.length - 1]) + '</i>' + (mid ? '<br>' + esc(parts[parts.length - 1]) : '');
+    $('lgS').innerHTML = (d.tipo ? 'Etapa ' + esc(d.tipo) + ' · ' : '') + (d.sub ? esc(d.sub) : '') + (d.saida ? ' · saída ' + esc(d.saida) : '') + (d.chegada ? ', chegada prevista ' + esc(d.chegada) : '');
+    $('lgRow').innerHTML = '<div><b>' + String(st.km).replace('.', ',') + '<small>KM</small></b><span>distância</span></div><div><b>' + Math.round(st.up).toLocaleString('pt-BR') + '<small>M</small></b><span>subida</span></div><div><b>' + (st.climbs ? st.climbs.length : 0) + '</b><span>' + (st.climbs && st.climbs.length === 1 ? 'col' : 'cols') + '</span></div>';
+    $('lgGoSub').textContent = 'ETAPA ' + key + (store.get('brief:' + key, false) ? '' : ' · PRÉVIA ANTES DE PARTIR');
+  }
+  const t = $('lgTerr'); if (t && !t.style.backgroundImage) t.style.backgroundImage = 'none';
+}
+function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 function showBriefingOnce() { if (!store.get('brief:' + S.stage.key, false)) { store.set('brief:' + S.stage.key, true); showPreview(S.stage.key); } }
 function showBriefing() { if (S.free) { voice.banner('Sem prévia no modo livre', 3, 'o percurso nasce com o pedal'); return; } showPreview(S.stage.key); }
 // prévia do dia: mapa inteiro, perfil, cronograma, paradas, compras, hospedagem; ou a viagem inteira

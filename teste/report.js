@@ -58,14 +58,14 @@ export function render(r, all) {
   const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
   const bar = (lab, v, p, unit, f) => `<div class="fb"><div class="lab">${lab}</div><div class="bar"><i style="width:${Math.min(100, p ? v / p * 100 : 0)}%"></i><em style="left:90%"></em></div><b>${f(v)} / ${f(p)}${unit}</b></div>`;
   const st = all ? standings(all) : null;
-  const podium = `<div class="podium"><div class="step s2">${maillotSvg('vert', 34)}<b>${n1(r.avg)}</b><span>média km/h</span></div><div class="step s1">${maillotSvg(r.type, 46)}<b>${fmtT(r.moving)}</b><span>tempo da etapa</span></div><div class="step s3">${maillotSvg('pois', 34)}<b>${Math.round(r.up)}</b><span>m de subida</span></div></div>`;
+  const podium = `<div class="podium"><div class="step s1">${maillotSvg(r.type, 22)}<b>${fmtT(r.moving)}</b><span>em movimento</span></div><div class="step s2">${maillotSvg('vert', 22)}<b>${n1(r.avg)}</b><span>média km/h</span></div><div class="step s3">${maillotSvg('pois', 22)}<b>${Math.round(r.up)}</b><span>m de subida</span></div></div>`;
   const geral = st ? `<h4>Classificação geral · ${st.n} etapa${st.n > 1 ? 's' : ''}</h4><table class="cls">
    <tr><td>${maillotSvg('jaune', 26)}</td><td><b>Maillot jaune</b><small>tempo total em movimento</small></td><td class="r"><b>${fmtT(st.moving)}</b><small>${n1(st.km)} km</small></td></tr>
    <tr><td>${maillotSvg('pois', 26)}</td><td><b>Rei da montanha</b><small>maior subida: ${esc(st.pois.name.replace(/^E\S+ /, ''))}</small></td><td class="r"><b>${Math.round(st.pois.up)} m</b><small>${Math.round(st.up)} m no total</small></td></tr>
    <tr><td>${maillotSvg('vert', 26)}</td><td><b>Maillot vert</b><small>melhor média: ${esc(st.vert.name.replace(/^E\S+ /, ''))}</small></td><td class="r"><b>${n1(st.vert.avg)} km/h</b><small>${n1(st.avg)} na viagem</small></td></tr>
    <tr><td>${maillotSvg('blanc', 26)}</td><td><b>Ponta de velocidade</b><small>máxima: ${esc(st.vmax.name.replace(/^E\S+ /, ''))}</small></td><td class="r"><b>${n1(st.vmax.vmax)} km/h</b><small>mais longa ${n1(st.longest.km)} km</small></td></tr></table>` : '';
   return `<div class="rep m-${r.type}">
-  <div class="hd m-${r.type || 'jaune'}"><div class="eyebrow">Relatório do dia · ${dia}</div><h3>${esc(r.name)}</h3>${r.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
+  <div class="hd m-${r.type || 'jaune'}"><div class="eyebrow">Relatório · ${dia}</div><h3>O dia em <i>números</i></h3><div class="sub">${esc(String(r.name).replace(/^E\S+ /, ''))} · ${n1(r.km)} km · ${Math.round(r.up)} m · ${fmtT(r.moving)} em movimento</div></div>
   ${podium}
   <div class="big"><div><b>${n1(r.km)}</b><span>km</span></div><div><b>${fmtT(r.moving)}</b><span>em movimento</span></div><div><b>${Math.round(r.up)}</b><span>m subida</span></div></div>
   <div class="grid"><div><b>${fmtT(r.elapsed)}</b><span>total</span></div><div><b>${fmtT(r.stopped)}</b><span>parado</span></div><div><b>${n1(r.avg)}</b><span>média km/h</span></div><div><b>${n1(r.vmax)}</b><span>máx km/h</span></div></div>

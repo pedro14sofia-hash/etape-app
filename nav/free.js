@@ -115,7 +115,7 @@ export function panel($) {
   const w = S.streetWay;
   $('nbName').textContent = S.street || (S.fix ? 'Fora das vias' : 'Aguardando GPS');
   const parts = w ? [match.bikewayLabel(w) ? '<i class="chip bike">' + match.bikewayLabel(w) + '</i>' : match.classLabel(w), match.surfaceLabel(w), w.o === 1 ? 'mão única' : '', w.v ? w.v + ' km/h' : ''].filter(Boolean) : [];
-  $('nbSub').innerHTML = parts.join(' · '); $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
+  $('nbSub').innerHTML = parts.join(' · '); if ($('mName')) { $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML; }
   const c = S.cross;
   if (c) { $('tcArrow').innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M6 11l6-6 6 6"/><path d="M4 20h16" opacity=".5"/></svg>'; $('tcDist').textContent = Math.round(c.dist / 10) * 10 + ' m'; $('tcSub').textContent = c.name; }
   else { $('tcArrow').innerHTML = ''; $('tcDist').textContent = ''; $('tcSub').textContent = 'sem cruzamento à vista'; }
