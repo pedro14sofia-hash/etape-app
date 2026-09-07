@@ -1,11 +1,13 @@
 // Étape Navegar · gps.js
 // Posição, rumo, velocidade, qualidade do sinal, simulação, tela acesa.
 import { haversine, bearing } from './geo.js';
+import * as native from './native.js';
 
-let watchId = null, wake = null, simTimer = null;
+let watchId = null, wake = null, simTimer = null, nativeRide = false;
 
 export function start(onFix, onError) {
-  if (watchId != null) return true;
+  if (watchId != null || nativeRide) return true;
+  if (native.available() && native.rideStart(onFix)) { nativeRide = true; return true; }   // casca: serviço em primeiro plano, segue com a tela apagada
   if (!navigator.geolocation) { onError && onError({ message: 'sem GPS neste navegador' }); return false; }
   watchId = navigator.geolocation.watchPosition(
     p => onFix({ t: p.timestamp || Date.now(), lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy || 0, ele: p.coords.altitude, speed: p.coords.speed, head: p.coords.heading, src: 'gps' }),
@@ -13,10 +15,11 @@ export function start(onFix, onError) {
   return true;
 }
 export function stop() {
+  if (nativeRide) { native.rideStop(); nativeRide = false; }
   if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
   stopSim();
 }
-export function running() { return watchId != null || simTimer != null; }
+export function running() { return watchId != null || nativeRide || simTimer != null; }
 
 // filtra saltos e suaviza rumo; prev = fix anterior aceito
 export function smooth(fix, prev) {

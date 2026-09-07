@@ -188,7 +188,7 @@ function flagSprite(kind, text, x, y, z, hgt) {
   sp.scale.set(hgt * 64 / 96, hgt, 1); sp.position.set(x, y, z); sp.renderOrder = 5; return sp;
 }
 function textSprite(txt, x, y, z, col, big) {
-  const c = document.createElement('canvas'); const g = c.getContext('2d'); const font = '800 34px "Barlow Condensed", "Arial Narrow", sans-serif';
+  const c = document.createElement('canvas'); const g = c.getContext('2d'); const font = '700 34px "Antonio", "Arial Narrow", sans-serif';
   g.font = font; const w = Math.ceil(g.measureText(txt).width) + 26; c.width = w; c.height = 48; g.font = font; g.textBaseline = 'middle';
   g.fillStyle = col ? '#E10D0D' : INK; roundRect(g, 0, 4, w, 40, 4); g.fill(); g.fillStyle = col ? '#FFFFFF' : '#FFFF00'; g.fillText(txt, 13, 26);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;

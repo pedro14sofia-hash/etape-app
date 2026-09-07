@@ -1,5 +1,6 @@
 // Étape Navegar · voice.js
 // Voz em pt-BR, faixa de aviso (três níveis), borda vermelha e vibração.
+import * as native from './native.js';
 let muted = false, bannerTimer = null, edgeTimer = null, holdUntil = 0;
 const $ = id => document.getElementById(id);
 
@@ -8,7 +9,9 @@ export function unmute() { muted = false; }
 export function isMuted() { return muted; }
 
 export function say(text, level = 3) {
-  if (muted || !('speechSynthesis' in window)) return;
+  if (muted) return;
+  if (native.hasTts()) { if (level <= 2 || !native.speaking()) native.speak(text, level === 1, level); return; }   // casca: voz do Android, offline
+  if (!('speechSynthesis' in window)) return;
   try {
     const u = new SpeechSynthesisUtterance(text); u.lang = 'pt-BR'; u.rate = 1.05; u.pitch = 1;
     if (level <= 2 || !speechSynthesis.speaking) { if (level === 1) speechSynthesis.cancel(); speechSynthesis.speak(u); }

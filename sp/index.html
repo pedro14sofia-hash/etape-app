@@ -31,12 +31,12 @@
 </header>
 <canvas id="fitaCv" aria-label="Perfil do dia"></canvas>
 </div>
-<div id="topHandle" class="handle" aria-label="Mostrar a fita"></div>
+<button id="topHandle" class="handle" aria-label="Mostrar a fita"></button>
 <!-- placa do próximo evento: texto com halo direto sobre o mapa -->
-<div id="plate" class="placa"><span id="tcArrow"></span><div class="pt"><em id="nbName">–</em><span id="nbSub" class="ps"></span></div><div class="pd"><span id="tcDist">–</span><small id="tcSub"></small></div></div>
+<div id="plate" class="placa"><div class="pt"><em id="nbName">–</em><span id="nbSub" class="ps"></span></div><div class="pd"><span class="pdn"><span id="tcDist">–</span><span id="tcArrow"></span></span><small id="tcSub"></small></div></div>
 <button id="btnKnow" class="knowpill" hidden>Sei o caminho · calar 10 min</button>
 <div id="edge"></div>
-<div id="cue" class="cue"></div>
+<div id="cue" class="cue" aria-live="polite"></div>
 <div id="ctl">
   <button id="zin" aria-label="Aproximar">+</button>
   <button id="zout" aria-label="Afastar">−</button>
@@ -46,7 +46,6 @@
   <button id="btnSat" aria-label="Satélite" hidden><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2c1.2 0 2.6 2.4 3.1 6H8.9c.5-3.6 1.9-6 3.1-6zM6.9 10c.1-1.9.6-3.6 1.4-4.9A8 8 0 0 0 4.3 10zm-2.6 2h2.6c.1 1.9.6 3.6 1.4 4.9A8 8 0 0 1 4.3 12zm4.6 0h6.2c-.5 3.6-1.9 6-3.1 6s-2.6-2.4-3.1-6zm8.2 0h2.6a8 8 0 0 1-4 4.9c.8-1.3 1.3-3 1.4-4.9zm0-2c-.1-1.9-.6-3.6-1.4-4.9a8 8 0 0 1 4 4.9z"/></svg></button>
   <button id="btnCam" aria-label="Câmera: 2D ou terceira pessoa">2D</button>
   <button id="btnMode" aria-label="Recolher ou expandir o painel">▾</button>
-  <button id="btnSos" class="sos" aria-label="Emergência">SOS</button>
 </div>
 <div id="attr" title="© OpenStreetMap contributors">© OpenStreetMap</div>
 <div id="ecart" class="ecart" hidden></div>
@@ -77,10 +76,7 @@
     <div class="tele">
       <div><b><span id="tV">–</span><small>km/h</small></b><span>velocidade</span></div>
       <div><b><span id="tG">–</span><small>%</small></b><span>rampa agora</span></div>
-      <div><b><span id="tDone">–</span><small>km</small></b><span>feitos</span></div>
-      <div><b><span id="tVam">–</span><small>m/h</small></b><span>VAM 5 min</span></div>
-      <div><b><span id="tEle">–</span><small>m</small></b><span>altitude</span></div>
-      <div><b><span id="tUp">–</span><small>m</small></b><span>subida restante</span></div>
+      <div><b><span id="tEta">–:–</span></b><span id="tVs">chegada</span></div>
     </div>
     <div id="ctx" hidden></div>
   </section>
@@ -107,6 +103,12 @@
       <div class="terr" id="terr"></div>
       <div class="lg"><span><i class="a"></i>asfalto</span><span><i class="g"></i>gravel</span><span><i class="t"></i>trilha</span></div>
       <div class="ahead" id="pAhead"></div>
+      <div class="tele t4">
+        <div><b><span id="tDone">–</span><small>km</small></b><span>feitos</span></div>
+        <div><b><span id="tVam">–</span><small>m/h</small></b><span>VAM 5 min</span></div>
+        <div><b><span id="tEle">–</span><small>m</small></b><span>altitude</span></div>
+        <div><b><span id="tUp">–</span><small>m</small></b><span>subida restante</span></div>
+      </div>
       <div class="pass-h"><span></span><span>Passagem</span><span>Plano</span><span>Previsto</span><span>Diferença</span></div><ul class="passages" id="passages"></ul>
     </div>
   </section>
@@ -134,32 +136,38 @@
       <button data-tab="tele" aria-label="Telemetria"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 6a10 10 0 0 0-10 10h4a6 6 0 0 1 12 0h4A10 10 0 0 0 12 6zm4.6 3.9l-3.8 5.2a2 2 0 1 1-1.6-1.2l5.4-4z"/></svg><span>Tele</span></button>
       <button data-tab="fuel" aria-label="Abastecer"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M9 2h6v4l1.5 2v12a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V8L9 6zm-1 10v3h8v-3z" fill-rule="evenodd"/></svg><span>Abast.</span></button>
       <button data-tab="prof" aria-label="Perfil"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2 20l5-9 4 5 4-9 7 13z"/></svg><span>Perfil</span></button>
+      <button id="btnSos" class="sos" aria-label="Emergência"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M11 2h2v7h7v2h-7v7h-2v-7H4V9h7z"/></svg><span>SOS</span></button>
     </div>
     <button id="btnSession" class="sbtn idle">Iniciar<small>etapa</small></button>
   </div>
 </footer>
 
-<dialog id="dlgBrief"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
-<dialog id="dlgPreview">
+<dialog id="dlgBrief" aria-label="Briefing da etapa"><div id="briefBody"></div><div class="dlg-acts"><button data-close class="pri">Vamos</button></div></dialog>
+<dialog id="dlgPreview" aria-label="Prévia do dia">
   <div class="pv-tabs" id="pvTabs"></div>
   <div id="pvBody"></div>
   <div class="dlg-acts"><button id="pvGo" class="pri">Navegar esta etapa</button><button data-close>Fechar</button></div>
 </dialog>
-<dialog id="dlgMenu"><div class="menu-hd"><b>Mais</b><span id="menuSt"></span></div><div class="menu">
+<dialog id="dlgMenu" aria-labelledby="menuTitle"><div class="menu-hd"><b id="menuTitle">Mais</b><span id="menuSt"></span></div><div class="menu">
+  <button id="btnGuide" hidden><b>Guia</b><span>fichas do dia, comer, SOS, planejar, check</span></button>
   <button id="btnDest" hidden><b>Destino</b><span>para onde vamos hoje · três rotas</span></button>
+  <button id="btnPhoto" hidden><b>Foto com posição</b><span>câmera do aparelho; entra no relatório e na galeria</span></button>
+  <button id="btnKiosk" hidden><b>Travar o aparelho</b><span>modo dedicado: sem barra, sem bloqueio, só o Étape</span></button>
+  <button id="btnScreen" hidden><b>Tela: sempre ligada</b><span>toque para deixar apagar e acender só nos avisos</span></button>
   <button id="btnReport"><b>Relatório do dia</b><span>resumo, pódio, GPX</span></button>
   <button id="btnTheme"><b>Tema</b><span>alterna dia e noite (automático pelo pôr do sol)</span></button>
   <button id="btnSens"><b>Sensores</b><span>frequência cardíaca, cadência, potência por Bluetooth</span></button>
   <button id="btnSim" class="dev"><b>Simulação</b><span>percorre a etapa a 22 km/h (teste)</span></button>
-  <button id="btnFinish" class="danger"><b>Encerrar etapa</b><span>toque duas vezes · fecha a sessão e gera o relatório</span></button>
   <button id="btnReset" class="danger dev"><b>Zerar etapa</b><span>apaga progresso, sessão e registro</span></button>
+  <div class="note">Para encerrar a etapa, segure Pausar por um segundo.</div>
 </div><div class="dlg-acts"><button data-close class="pri">Fechar</button></div></dialog>
-<dialog id="dlgSos"><div class="sos-hd"><b>Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
+<dialog id="dlgSos" aria-labelledby="sosTitle"><div class="sos-hd"><b id="sosTitle">Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
 <!-- tela 02 · Antes de sair: o que acompanhar nesta saída (outing.js) -->
-<dialog id="dlgPre"><div class="pre"><div class="pre-hd"><b>Antes de sair</b><span id="preSub"></span></div><div class="lbl">Acompanhar nesta saída</div><div id="preBody"></div><div class="note" id="preNote"></div></div><div class="dlg-acts"><button id="preNone">Sem acompanhamento hoje</button><button id="preGo" class="pri">Partir</button></div></dialog>
+<dialog id="dlgPre" aria-labelledby="preTitle"><div class="pre"><div class="pre-hd"><b id="preTitle">Antes de sair</b><span id="preSub"></span></div><div class="lbl">Acompanhar nesta saída</div><div id="preBody"></div><div class="note" id="preNote"></div><div id="preCheck" hidden></div></div><div class="dlg-acts"><button id="preNone">Sem acompanhamento hoje</button><button id="preGo" class="pri">Partir</button></div></dialog>
 <!-- tela 04 · Chegada: papel inteiro, pódio, maillot, diferença para o plano (ui.arrivalHtml) -->
-<dialog id="dlgArrive"><div id="arrBody"></div><div class="dlg-acts"><button id="arrReport" class="pri">Ver relatório</button><button data-close>Guardar e fechar</button></div></dialog>
-<dialog id="dlgReport"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
+<dialog id="dlgAsk" class="ask-dlg" aria-labelledby="askTitle"><div class="ask"><b id="askTitle"></b><span id="askSub"></span></div><div class="dlg-acts"><button id="askNo">Voltar</button><button id="askYes" class="pri">Sim</button></div></dialog>
+<dialog id="dlgArrive" aria-label="Chegada"><div id="arrBody"></div><div class="dlg-acts"><button id="arrReport" class="pri">Ver relatório</button><button data-close>Guardar e fechar</button></div></dialog>
+<dialog id="dlgReport" aria-label="Relatório do dia"><div id="repBody"></div><div class="dlg-acts"><button id="repShare" class="pri">Enviar resumo</button><button id="repGpx">GPX</button><button data-close>Fechar</button></div></dialog>
 
 <script src="data.js"></script>
 <script type="module" src="app.js"></script>

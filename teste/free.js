@@ -118,7 +118,7 @@ export function panel($) {
   $('nbSub').innerHTML = parts.join(' · '); $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
   const c = S.cross;
   if (c) { $('tcArrow').innerHTML = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M6 11l6-6 6 6"/><path d="M4 20h16" opacity=".5"/></svg>'; $('tcDist').textContent = Math.round(c.dist / 10) * 10 + ' m'; $('tcSub').textContent = c.name; }
-  else { $('tcArrow').innerHTML = ''; $('tcDist').textContent = '–'; $('tcSub').textContent = 'sem cruzamento à vista'; }
+  else { $('tcArrow').innerHTML = ''; $('tcDist').textContent = ''; $('tcSub').textContent = 'sem cruzamento à vista'; }
   const cl = climb, ctx = $('ctx');
   if (cl && ctx) { ctx.hidden = false; ctx.className = 'climb'; ctx.innerHTML = `<div class="cat">${cl.cat || '·'}</div><div class="t"><b>${cl.name}</b><span>${fmtKm1(cl.len)} km · ${Math.round(cl.gain)} m · ${cl.pct.toFixed(1).replace('.', ',')} %</span></div><div class="r"><b>${Math.round(S.live ? S.live.grade : 0)} %</b><span>agora</span></div>`; }
 }

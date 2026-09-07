@@ -19,12 +19,12 @@ export function tick(S, fix, now) {
   const dist = S.proj.dist;
   // longe da etapa (> 5 km): só o aviso, sem curvas, bornes ou paradas
   if (pr.off > 5000) {
-    if (!S.off) { S.off = true; const km = pr.off / 1000; ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 }); }
+    if (!S.off) { S.off = true; const km = pr.off / 1000; ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 }); }
     S.offDist = pr.off; return ev;
   }
   // fora de rota
   if (offRoute(pr.off, S.offSince, now)) { if (!S.off) { S.off = true; const km = pr.off / 1000;
-      if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado · para treinar, use a rota de teste', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
+      if (km > 5) ev.push({ kind: 'offRoute', off: pr.off, level: 2, text: 'Longe da etapa', sub: (km > 100 ? Math.round(km).toLocaleString('pt-BR') : km.toFixed(1).replace('.', ',')) + ' km do traçado', speak: 'Você está a ' + Math.round(km) + ' quilômetros da etapa.', hold: 120000 });
       else { const q = pointAt(st, S.proj.dist); const back = bearing(fix.lat, fix.lon, q[0], q[1]); const rel = ((back - (fix.head || 0)) + 540) % 360 - 180, side = Math.abs(rel) < 25 ? 'à frente' : Math.abs(rel) > 155 ? 'atrás' : rel > 0 ? 'à sua direita' : 'à sua esquerda'; ev.push({ kind: 'offRoute', off: pr.off, back, rel, side, level: 1, text: 'Volte à rota', sub: 'traçado ' + Math.round(pr.off) + ' m ' + side, speak: 'Fora da rota. Traçado a ' + Math.round(pr.off) + ' metros ' + side + '.', hold: 12000 }); } } }
   else if (pr.off <= 120) { S.offSince = 0; if (S.off) { S.off = false; S.reroute = null; ev.push({ kind: 'backOnRoute', level: 3, text: 'De volta à rota', speak: 'De volta à rota.' }); } }
   if (pr.off > 120 && !S.offSince) S.offSince = now;

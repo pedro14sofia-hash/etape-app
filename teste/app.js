@@ -22,6 +22,10 @@ import * as sensors from './sensors.js';
 import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
 import * as outing from './outing.js';   // tela 02 · antes de sair
 import * as plan from './plan.js';   // Diário: rotas A→B e etapa refeita fora da rota
+import * as native from './native.js';   // casca nativa (N3a): barômetro, brilho, térmico
+import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
+import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
+import * as cinema from './cinema.js';   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
@@ -33,9 +37,26 @@ let R, panelTimer = null;
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
+  cinema.init(S);
+  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
+    // botões de volume: para cima marca o lugar; para baixo confirma o abastecimento que venceu (ou o próximo a vencer)
+    native.onKey(k => { if (cinema.onKey(k)) return; if (k === 'up') markPlace(); else if (k === 'down') { const F = S.fuelStatus; if (!F || S.session.state !== 'running') { voice.banner('Sem saída em andamento', 3); return; } confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); } });
+    $('btnPhoto').hidden = false; $('btnScreen').hidden = false;
+    $('btnPhoto').onclick = () => { $('dlgMenu').close(); takePhoto(); };
+    $('btnScreen').onclick = () => { S.prefs.screen = S.prefs.screen === 'economia' ? 'sempre' : 'economia'; store.setPrefs(S.prefs); applyScreen(); $('dlgMenu').close(); voice.banner(S.prefs.screen === 'economia' ? 'Tela apaga sozinha' : 'Tela sempre ligada', 3, S.prefs.screen === 'economia' ? 'acende nos avisos' : ''); };
+    applyScreen();
+    // N2b · modo dedicado (só com Device Owner): menu Mais → Travar/Liberar com PIN; toque longo de 5 s no relógio faz o mesmo
+    if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
+        if (locked) { if (native.kioskUnlock(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado', 2); }
+        else { if (native.kioskPin(pin, pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'Mais → Liberar o aparelho, ou toque longo no relógio'); } else voice.banner('PIN errado', 2); } kioskLabel(); };
+      const kioskLabel = () => { $('btnKiosk').hidden = false; $('btnKiosk').querySelector('b').textContent = native.kioskLocked() ? 'Liberar o aparelho' : 'Travar o aparelho'; }; kioskLabel();
+      $('btnKiosk').onclick = () => { $('dlgMenu').close(); ask(); };
+      let hold = 0; const clk = $('clock').parentElement; clk.addEventListener('contextmenu', e => e.preventDefault());
+      clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(ask, 5000); });
+      ['pointerup', 'pointercancel'].forEach(ev => clk.addEventListener(ev, () => clearTimeout(hold))); } }
   if (document.fonts) Promise.all([document.fonts.load('700 16px Antonio'), document.fonts.load('600 13px "Work Sans"')]).then(() => { R.setTheme(S.theme); R.invalidate(); }).catch(() => { });   // rótulos do mapa na fonte do sistema
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, cinema, sidecar, music }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
@@ -64,16 +85,17 @@ export function init() {
   $('btnSos').onclick = showSos; $('btnMark').onclick = () => markPlace(); $('sosMark').onclick = () => { markPlace(); $('dlgSos').close(); };
   $('btnSens').onclick = async () => { if (sensors.connected()) { sensors.disconnect(); $('btnSens').classList.remove('on'); S.sensors = null; refresh(); return; } if (!sensors.supported()) { voice.banner('Bluetooth indisponível neste navegador', 2); return; } try { const nm = await sensors.connect(); $('btnSens').classList.add('on'); voice.banner('Sensor ligado', 3, nm || ''); } catch (e) { voice.banner('Sem sensor', 2, (e && e.message || '').slice(0, 60)); } };
   sensors.onData(d => { S.sensors = d; refresh(); });
-  $('btnSession').onclick = toggleSession; $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
-  if (/[?&](debug|sim)=/.test(location.search)) document.body.classList.add('dev');
+  { let lp = 0, fired = false; const sb = $('btnSession');
+    sb.addEventListener('pointerdown', () => { if (S.session.state === 'idle') return; fired = false; lp = setTimeout(() => { lp = 0; fired = true; askFinish(); }, 1000); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sb.addEventListener(ev, () => { if (lp) { clearTimeout(lp); lp = 0; } }));
+    sb.onclick = () => { if (fired) { fired = false; return; } toggleSession(); }; }   // crítica 06/09: encerrar é segurar Pausar
+  $('btnSim').onclick = toggleSim; $('btnReset').onclick = resetStage;
+  if (/[?&]debug=/.test(location.search)) document.body.classList.add('dev');
   setTimeout(() => { import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
   $('btnMenu').onclick = () => { $('menuSt').textContent = (S.stage.name || '') + ' · ' + session.label(S.session.state).toLowerCase(); $('dlgMenu').showModal(); };
-  // encerrar em dois toques: o primeiro arma por 5 s, o segundo encerra
-  let finishArm = 0; const fb = $('btnFinish');
-  fb.onclick = () => { if (S.session.state === 'idle') { voice.banner('Nenhuma etapa em andamento', 3); return; } if (Date.now() - finishArm < 5000) { finishArm = 0; fb.classList.remove('armed'); $('dlgMenu').close(); finishStage(true); return; } finishArm = Date.now(); fb.classList.add('armed'); fb.querySelector('b').textContent = 'Toque de novo para encerrar'; setTimeout(() => { fb.classList.remove('armed'); fb.querySelector('b').textContent = 'Encerrar etapa'; }, 5000); };
   $('btnBrief').onclick = showBriefing; $('btnReport').onclick = () => { $('dlgMenu').close(); showReport(report.list()[S.stage.key]); };
   // computador de bordo (F2): três botões fixos no rodapé abrem a folha de cada aba; o mesmo botão fecha
-  document.querySelectorAll('.cb button').forEach(b => b.onclick = () => { const t = b.dataset.tab; if (S.mode === 'full' && S.tab === t) setMode('resumo'); else { ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); setMode('full'); } });
+  document.querySelectorAll('.cb button[data-tab]').forEach(b => b.onclick = () => { const t = b.dataset.tab; if (S.mode === 'full' && S.tab === t) setMode('resumo'); else { ui.setTab(S, t); S.prefs.tab = t; store.setPrefs(S.prefs); setMode('full'); } });
   $('btnMode').onclick = () => setMode(S.mode === 'full' ? 'resumo' : 'full');
   // fita do dia: toque abre o perfil; arrastar para cima entra no modo mapa. A alça do modo mapa (ou arrastar o rodapé para cima) volta
   let fy = null, fx = null;
@@ -129,13 +151,14 @@ export function init() {
     import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
     const q0 = new URLSearchParams(location.search);
     import('./diario.js').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
-  ui.setTab(S, S.prefs.tab || 'tele'); setMode(typeof S.prefs.mode === 'string' ? S.prefs.mode : 'resumo');   // F2: em repouso, sem folha aberta
+  ui.setTab(S, S.prefs.tab || 'tele'); setMode('resumo');   /* crítica 06/09: abre sempre na fita do stem, a folha é sob demanda */   // F2: em repouso, sem folha aberta
   requestAnimationFrame(loop);
   // dentro do app Étape (quadro): a etapa vem por mensagem e o service worker é o da raiz
   $('dlgPreview').addEventListener('close', () => { if (diorama) diorama.dispose(); });
   if (window !== window.parent) { try { parent.postMessage({ etape: 'ready' }, '*'); } catch (e) { } }   // avisa o guia que já aceita selectStage
-  window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key] && m.key !== S.stage.key) selectStage(m.key); if (m.etape === 'resize') { R.resize(); measurePanel(); size3d(); } });
+  window.addEventListener('message', e => { const m = e.data || {}; if (m.etape === 'selectStage' && m.key && S.routes.stages[m.key]) { if (m.key !== S.stage.key) selectStage(m.key); if (m.preview) setTimeout(() => showPreview(m.key), 150); } /* preview: o guia pede a prévia offline da etapa */ if (m.etape === 'resize') { R.resize(); measurePanel(); size3d(); } });
   const inFrame = window.parent && window.parent !== window;
+  if (inFrame) { const g = $('btnGuide'); g.hidden = false; g.onclick = () => { $('dlgMenu').close(); try { parent.postMessage({ etape: 'showGuide', view: 'hoje' }, '*'); } catch (e) { } }; }   // volta ao guia por um alvo só (crítica 06/09)
   if (!inFrame && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !new URLSearchParams(location.search).get('nosw')) {
     navigator.serviceWorker.register('sw.js').catch(() => { });
     navigator.serviceWorker.ready.then(r => { if (navigator.onLine && r.active) r.active.postMessage({ type: 'fillSat', base: './' }); }).catch(() => { });
@@ -174,6 +197,7 @@ export function selectStage(key) {
   S.paradas = S.allParadas.itens.filter(p => p.stage === key).map(p => ({ ...p }));
   S.planArrival = (S.routes.plan || {})[key] || null;
   const prog = store.progress(key); for (const c of S.stage.cps) c.done = prog.done.includes(c.id); for (const p of S.paradas) { p.done = prog.sights.includes(p.id); }
+  { const simKey = store.get('sim:on', null); if (simKey) { store.clearStage(simKey); store.del('sim:on'); } }   // crítica 06/09: sessão e progresso de simulação não sobrevivem
   S.session = session.restore(key) || session.create(key);
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(S.stage);
   S.proj = { idx: 0, dist: 0, off: 0 }; S.fix = null; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = [];
@@ -196,6 +220,7 @@ function activateStage(st, isFree) {
   $('stageKey').textContent = key; $('stageCode').className = 'code m-' + (st.type || 'blanc');
   if (!isFree) { const kmUp = String(st.km).replace('.', ',') + ' km · ' + Math.round(st.up) + ' m'; const rl = $('rem').nextElementSibling; if (rl) rl.textContent = 'km restam'; const el = $('eta').nextElementSibling; if (el && el.firstChild) el.firstChild.textContent = 'chegada · '; $('stageName').textContent = st.dest || st.name; $('stageSub').textContent = kmUp; if ($('profName')) { $('profName').textContent = st.name; $('profSub').textContent = 'Diário · ' + kmUp; } }
   S.paradas = []; S.planArrival = null;
+  { const simKey = store.get('sim:on', null); if (simKey) { store.clearStage(simKey); store.del('sim:on'); } }   // crítica 06/09: sessão e progresso de simulação não sobrevivem
   S.session = session.restore(key) || session.create(key);
   S.log = store.log(key); S.fuel = fuel.create(key); S.fuelPlan = fuel.plan(st);
   S.proj = { idx: 0, dist: 0, off: 0 }; S.prev = null; S.pos = null; S.viewTarget = null; S.zoomTarget = null; S.globalAt = 0; S.offSince = 0; S.hotelCued = false; S.services = null; S.toiletCueAt = 0; S.off = false; S.reroute = null; S.muteRoute = 0; S.climbId = null; S.surface = ''; S.flamme = false; S.hist = []; S.parado = false; S.stillAt = null;
@@ -217,6 +242,13 @@ function fitTo(pts) {
   S.follow = false; $('btnFollow').classList.remove('on'); S.userZoomAt = Date.now() + 1e9; S.zoomTarget = null;
   R.view.anchorY = Math.max(0.2, Math.min(0.6, (top + hv) / 2 / H));
   R.setView((mercX(bb[1]) + mercX(bb[3])) / 2, (mercY(bb[0]) + mercY(bb[2])) / 2, Math.max(11, Math.min(17.5, z)), 0); R.invalidate();
+}
+// N3b · política da tela: 'sempre' (padrão) ou 'economia' (apaga pelo tempo do aparelho e acende nos avisos de nível 1 e 2)
+function applyScreen() { const eco = S.prefs.screen === 'economia'; native.keepOn(!eco); const b = $('btnScreen'); if (b) { b.querySelector('b').textContent = eco ? 'Tela: apaga sozinha' : 'Tela: sempre ligada'; b.querySelector('span').textContent = eco ? 'acende nos avisos; toque para deixar sempre ligada' : 'toque para deixar apagar e acender só nos avisos'; } }
+// N3b · foto pela câmera do sistema, gravada com a posição (vai para o relatório e para a galeria em Pictures/Etape)
+function takePhoto() {
+  const p = S.pos || S.fix; const name = 'etape-' + (S.stage.key || 'SP') + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  if (!native.photo(name, file => { if (!file) { voice.banner('Foto cancelada', 3); return; } session.mark(S.session, 'foto', { lat: p ? p.lat : null, lon: p ? p.lon : null, dist: S.proj.dist, file }); voice.banner('Foto guardada', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · Pictures/Etape'); R.invalidate(); })) voice.banner('Câmera indisponível', 2);
 }
 function devTag(txt) { const t = $('devTag'); if (!t) return; t.textContent = txt; t.hidden = !txt; }   // regra 04: estado de simulação é uma placa cinza na fita, só quando ativo
 function updateAttr() { const e = $('attr'), sat = S.prefs.sat && S.satAttr; e.textContent = '© OpenStreetMap' + (sat ? ' · ' + S.satAttr.replace(/^©\s*/, '').split(',')[0] : ''); e.title = '© OpenStreetMap contributors' + (sat ? ' · ' + S.satAttr : ''); }   // regra 05: uma linha curta; o texto completo fica no title
@@ -240,7 +272,7 @@ function setMode(m) { ui.setMode(S, m); S.prefs.mode = m; store.setPrefs(S.prefs
 // modo mapa (F2): recolhe a fita e a placa; sobram o mapa, a seta do agora, velocidade, rampa e os botões do rodapé.
 // Um aviso de nível 1 traz a fita de volta sozinho.
 function setMapMode(on) { S.mapMode = !!on; document.body.classList.toggle('mapmode', S.mapMode); if (S.mapMode) setMode('resumo'); else { refresh(); measurePanel(); } }
-function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); if (t3d) t3d.setTheme(S.theme === 'night'); }
+function applyTheme() { S.theme = ui.theme(S.prefs.theme, S); R.setTheme(S.theme); if (window !== window.parent) { try { parent.postMessage({ etape: 'theme', night: S.theme === 'night' }, '*'); } catch (e) { } } if (t3d) t3d.setTheme(S.theme === 'night'); if (S.native) native.setNight(S.theme === 'night'); }
 
 export function startNavigation(silent) {
   const ok = gps.start(onFix, e => { S.gpsMsg = 'GPS: ' + (e.message || 'erro'); refresh(); });
@@ -254,7 +286,7 @@ export function stopNavigation() { gps.stop(); gps.keepAwake(false); S.gpsMsg = 
 export function toggleSession() {
   const now = Date.now(), s = S.session;
   if (s.state === 'idle') {
-    const go = () => { session.start(s, Date.now()); startNavigation(); S.alts = null; if (S.diario) { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; R.view.anchorY = 0.6; setMode('resumo'); } refresh(); };
+    const go = () => { session.start(s, Date.now()); startNavigation(); S.alts = null; setMode('resumo'); if (S.diario) { S.follow = true; $('btnFollow').classList.add('on'); S.userZoomAt = 0; R.view.anchorY = 0.6; setMode('resumo'); } refresh(); };
     if (!S.free && !S.diario && !store.get('brief:' + S.stage.key, false)) { showBriefingOnce(); $('dlgPreview').addEventListener('close', () => preOuting(go), { once: true }); }
     else preOuting(go);
   }
@@ -270,23 +302,30 @@ function preOuting(go) {
   const dlg = $('dlgPre'), st = S.stage;
   $('preSub').textContent = (st.dest || st.name.replace(/^E\S+ /, '')) + ' · ' + String(st.km).replace('.', ',') + ' km' + (S.destEta ? ' · chegada ' + S.destEta : '') + ' · sai às ' + $('clock').textContent;
   const paint = () => { $('preBody').innerHTML = outing.html(list); outing.bind($('preBody'), list, paint); $('preGo').innerHTML = 'Partir<small>' + outing.summary(list) + '</small>'; };
-  paint();
+  const saved = mode === 'diario' && store.get('metrics:' + mode, null);   // clarify 06/09: no dia a dia, só o resumo; Mudar abre a lista
+  const paintCompact = () => { const on = list.filter(m => m.on); $('preBody').innerHTML = '<div class="pre-sum"><b>' + (on.length ? outing.summary(list).replace(/^com /, '') : 'sem acompanhamento') + '</b><span>' + (on.map(m => m.name).join(' · ') || 'nenhuma métrica ligada') + '</span><button id="preEdit" type="button">Mudar</button></div>'; $('preEdit').onclick = paint; $('preGo').innerHTML = 'Partir<small>' + outing.summary(list) + '</small>'; };
+  if (saved) paintCompact(); else paint();
   $('preNote').textContent = 'Peso ' + S.prefs.weight + ' kg · 2 garrafas de 750 ml' + (mode === 'viagem' ? ' · metas do guia para o tipo desta etapa' : ' · a escolha fica guardada para a próxima saída');
+  // N4 · checklist de partida (só com a casca): bateria, espaço, GPS, barômetro, voz, temperatura
+  const ck = $('preCheck'); if (ck) { ck.hidden = !S.native; if (S.native) { ck.innerHTML = '<div class="lbl">Aparelho</div><div class="note">conferindo…</div>'; native.checklist(S).then(list => { if (!list) return; ck.innerHTML = '<div class="lbl">Aparelho</div>' + list.map(i => `<div class="ck${i.ok ? '' : ' warn'}"><i>${i.ok ? '✓' : '!'}</i>${i.txt}</div>`).join(''); }); } }
   $('preNone').onclick = () => { for (const m of list) m.on = false; dlg.close(); finish(); };
   $('preGo').onclick = () => { dlg.close(); finish(); };
   if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0;
 }
+// pergunta em papel (substitui confirm/alert nativos): título, subtítulo, rótulo do sim
+export function ask(title, sub, yes) { return new Promise(res => { const d = $('dlgAsk'); $('askTitle').textContent = title; $('askSub').textContent = sub || ''; $('askYes').textContent = yes || 'Sim'; const done = v => { d.close(); res(v); }; $('askYes').onclick = () => done(true); $('askNo').onclick = () => done(false); d.onclose = null; d.showModal(); }); }
+async function askFinish() { if (S.session.state === 'idle') return; if (await ask('Encerrar a etapa?', 'Fecha a sessão e gera o relatório do dia.', 'Encerrar')) finishStage(true); }
 export function finishStage(force) {
   if (S.session.state === 'idle') return;
-  if (!force && !confirm('Encerrar a etapa e gerar o relatório?')) return;
-  session.finish(S.session, Date.now()); stopNavigation();
+  if (!force) { askFinish(); return; }
+  session.finish(S.session, Date.now()); stopNavigation(); if (S.native) music.onFinish();
   telemetry.record(S.log, S.log[S.log.length - 1] || telemetry.sample({ t: Date.now(), lat: S.stage.pts[0][0], lon: S.stage.pts[0][1] }, S.stage, S.proj), S.stage.key, true);
   const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival);
   if (S.free || S.diario) { const d = new Date(S.session.startedAt || Date.now()); const hm = String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); r.stageKey = 'SP-' + d.toISOString().slice(0, 10) + '-' + hm; r.name = (S.diario ? S.stage.name : 'SP') + ' · ' + d.toLocaleDateString('pt-BR') + ' ' + hm; r.diario = !!S.diario; r.dest = S.diario ? S.stage.dest : null; if (!S.diario) { r.planKm = r.km; r.planUp = r.up; } }
   report.save(r); showArrival(r);
   if (S.free || S.diario) { const c = S.fix ? [S.fix.lat, S.fix.lon] : S.stage.pts[S.stage.pts.length - 1]; store.clearStage('SP'); S.diario = false; S.alts = null; S.destEta = null; S.free = true; selectStage('SP'); free.reset(c); S.freeStage = S.stage; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; }
 }
-function resetStage() { if (!confirm('Zerar progresso, sessão e registro desta etapa?')) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
+async function resetStage() { if (!(await ask('Zerar a etapa?', 'Apaga progresso, sessão e registro desta etapa.', 'Zerar'))) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
 // cidade/vila atual: nó "place" mais próximo, cada tipo com o seu raio (cidade 4 km, town 2,5 km, vila 1,2 km, lugarejo 600 m)
 const PLACE_R = { 'place:city': 4000, 'place:town': 2500, 'place:village': 1200, 'place:hamlet': 600 };
 let placeAt = 0;
@@ -316,7 +355,9 @@ function onFix(raw) {
   if (S.free) { onFixFree(fix, now, running); return; }
   const events = running ? guide.tick(S, fix, now) : (S.proj = track.project(S.stage, fix.lat, fix.lon, S.proj.idx), []);
   if (running && !S.off) {
-    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr; telemetry.record(S.log, smp, S.stage.key);
+    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr;
+    if (S.native && !gps.simulating()) { if ((S.proj.off || 0) < 30) native.calibrate(track.elevationAt(S.stage, S.proj.dist), S.proj.dist, now); const ba = native.alt(), bg = native.grade(); if (ba != null) smp.ele = Math.round(ba); if (bg != null && (fix.v || 0) > 1) smp.grade = +bg.toFixed(1); }
+    telemetry.record(S.log, smp, S.stage.key);
     const moving = session.movingTime(sess, now);
     events.push(...fuel.tick(S.fuel, S.fuelPlan, moving, now, { waterAhead: S.waterAhead }));
     events.push(...guide.shopWindow(S, S.speed10, now));
@@ -325,7 +366,7 @@ function onFix(raw) {
     const left = S.paradas.filter(p => p.kind !== 'compras' && p.kind !== 'opcional' && !p.done && !p.skipped && p.km * 1000 > S.proj.dist).reduce((a, p) => a + p.min, 0);
     S.planSpeed = guide.planSpeed(S.stage, S.proj.dist, S.planArrival, left, now);
     // chegada prevista: recalculada a cada 15 min (ou quando ainda não há), não a cada posição
-    if (!S.eta || !S.eta.arrival || now - (S.etaAt || 0) > 900000) { const e = guide.eta(S.stage, S.proj.dist, S.speed10, left); if (e.arrival) { S.eta = e; S.etaAt = now; S.vsPlan = guide.vsPlan(S.planArrival, e.arrival); } }
+    if (!S.eta || !S.eta.arrival || now - (S.etaAt || 0) > 60000) { const e = guide.eta(S.stage, S.proj.dist, gps.speedWindow(S.hist, 300) || S.speed10, left);   /* crítica 06/09: chegada desde o 1º minuto, média móvel de 5 min */ if (e.arrival) { S.eta = e; S.etaAt = now; S.vsPlan = guide.vsPlan(S.planArrival, e.arrival); } }
     S.light = guide.daylight(new Date(now), fix.lat, fix.lon);
     S.ecart = guide.ecart(S, S.speed10, now, (S.routes.days || {})[S.stage.key]);
     if (S.prefs.theme === 'auto') applyTheme();
@@ -336,8 +377,8 @@ function onFix(raw) {
   S.next = guide.nextCue(S);
   // tela 05: fora da rota com a volta calculada, a placa mostra a próxima curva da nova rota e a distância até o traçado
   if (S.off && S.reroute && !muted()) { const r2 = S.reroute, t = r2.turns.find(x => x.dist > r2.proj.dist), remR = r2.total - r2.proj.dist; S.next = { cp: { name: 'Volta ao traçado', dist: (S.proj.dist || 0) + remR, reroute: true }, turn: t ? { ...t, dist: (S.proj.dist || 0) + (t.dist - r2.proj.dist) } : null }; }
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0);
-  if (now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos', { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun();
+  if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
   // modelo de movimento (estilo Waze): o fix vira um alvo; o loop prevê a posição ao longo da estrada e desliza até ela
@@ -364,7 +405,7 @@ function updateSituation(now, v) {
   else if (S.climbId || g > 0.03) s = 'subida';
   else s = 'plano';
   if (s !== S.sitCand) { S.sitCand = s; S.sitSince = now; }
-  if (s !== S.situation && now - (S.sitSince || 0) >= 2000) { S.situation = s; R.invalidate(); }
+  if (s !== S.situation && now - (S.sitSince || 0) >= 2000) { S.situation = s; R.invalidate(); if (S.native) music.onSituation(s); }
 }
 // tela 03 · Parado: 30 s abaixo de 2 km/h abre a folha; 3 s acima de 5 km/h fecha e devolve a tela de antes
 function stillUI(now, v) {
@@ -387,7 +428,9 @@ function zoomFor(v) { if (v < 0.8) return 18.3; const s = S.situation; if (s ===
 function onFixFree(fix, now, running) {
   const events = free.onFix(fix, now), sess = S.session;
   if (running) {
-    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr; telemetry.record(S.log, smp, S.stage.key);
+    const smp = telemetry.sample(fix, S.stage, S.proj, null); const sn = sensors.current(); if (sn.hr) smp.hr = sn.hr; if (sn.cad) smp.cad = sn.cad; if (sn.pwr) smp.pwr = sn.pwr;
+    if (S.native && !gps.simulating()) { let ref = null; try { ref = dem.available() ? dem.elevation(fix.lat, fix.lon) : null; } catch (e) { } native.calibrate(ref, S.proj.dist, now); const ba = native.alt(), bg = native.grade(); if (ba != null) smp.ele = Math.round(ba); if (bg != null && (fix.v || 0) > 1) smp.grade = +bg.toFixed(1); }
+    telemetry.record(S.log, smp, S.stage.key);
     const moving = session.movingTime(sess, now);
     try { events.push(...fuel.tick(S.fuel, S.fuelPlan, moving, now, {})); } catch (e) { }
     S.live = telemetry.live(S.log, S.stage, sess, now, moving);
@@ -397,8 +440,8 @@ function onFixFree(fix, now, running) {
   }
   for (const ev of events) handleEvent(ev);
   updatePlace(now);
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0);
-  if (now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos', { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun();
+  if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
   const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);
   const T = { lat: pos[0], lon: pos[1], v: v0, head: headDeg * Math.PI / 180, dist: S.proj.dist || 0, on: false, t: Date.now() };
@@ -460,7 +503,7 @@ function handleEvent(ev) {
   if (ev.kind === 'backOnRoute') S.muteRoute = 0;
   if (ev.kind === 'checkpoint' || ev.kind === 'arrival') { const prog = store.progress(S.stage.key); if (!prog.done.includes(ev.cp.id)) prog.done.push(ev.cp.id); store.setProgress(S.stage.key, prog); session.mark(S.session, 'borne', { id: ev.cp.id, dist: ev.cp.dist }); }
   const POIS = '<svg class="flag" viewBox="0 0 36 26"><rect width="36" height="26" fill="#fff" stroke="#000"/><g fill="#E10D0D"><circle cx="7" cy="6" r="3.2"/><circle cx="20" cy="6" r="3.2"/><circle cx="33" cy="6" r="3.2"/><circle cx="13.5" cy="15" r="3.2"/><circle cx="26.5" cy="15" r="3.2"/><circle cx="7" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="33" cy="24" r="3.2"/></g></svg>';
-  const FLAMME = '<svg class="flag" viewBox="0 0 36 26"><rect x="3" y="1" width="3" height="24" fill="#fff"/><path d="M6 2h26l-6 7 6 7H6z" fill="#fff"/><text x="17" y="14" font-family="Barlow Condensed" font-weight="900" font-size="12" fill="#E10D0D" text-anchor="middle">1</text></svg>';
+  const FLAMME = '<svg class="flag" viewBox="0 0 36 26"><rect x="3" y="1" width="3" height="24" fill="#fff"/><path d="M6 2h26l-6 7 6 7H6z" fill="#fff"/><text x="17" y="14" font-family="Antonio" font-weight="900" font-size="12" fill="#E10D0D" text-anchor="middle">1</text></svg>';
   const MUSETTE = '<svg class="flag" viewBox="0 0 36 26"><path d="M1 25L6 1h29l-5 24z" fill="#B9BCC2" stroke="#000"/><path d="M15 8h7l3 12H12z" fill="#fff"/></svg>';
   if (ev.kind === 'sight') { ev.right = '<button class="mini-btn vert" data-done="' + ev.parada.id + '">Feito</button>'; }
   if (ev.kind === 'climbStart' && ev.cat) ev.right = '<span class="plate' + (ev.cat === 'HC' ? ' hc' : '') + ' ' + ui.catCls(ev.cat) + '">' + ev.cat + '</span>';
@@ -485,6 +528,7 @@ function handleEvent(ev) {
   if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.kind || ev.turn.dir, ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
   if (ev.level === 1 && S.mapMode) setMapMode(false);
+  if (S.native && S.prefs.screen === 'economia' && ev.level <= 2) native.wake(ev.level === 1 ? 20000 : 12000);   // N3b: o aviso acende a tela
   voice.announce(ev);
   const ff = $('cue').querySelector('[data-fuel]'); if (ff) ff.onclick = e => { e.stopPropagation(); confirmFuel(ff.dataset.fuel); };
   const fb = $('cue').querySelector('[data-finish]'); if (fb) fb.onclick = e => { e.stopPropagation(); voice.clearBanner(); finishStage(true); };
@@ -497,9 +541,13 @@ function showSos() {
   const ele = Math.round(track.elevationAt(S.stage, S.proj.dist));
   const pos = p ? p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) : 'sem GPS';
   const maps = p ? 'https://maps.google.com/?q=' + p.lat.toFixed(5) + ',' + p.lon.toFixed(5) : '';
-  $('sosBody').innerHTML = '<div class="sos-nums"><a class="pri" href="tel:112"><b>112</b><span>Emergência europeia</span></a><a href="tel:15"><b>15</b><span>SAMU · médico</span></a><a href="tel:18"><b>18</b><span>Bombeiros</span></a><a href="tel:17"><b>17</b><span>Polícia</span></a></div>' +
-    '<div class="sos-pos"><b>' + pos + '</b><span>km ' + km + ' da ' + S.stage.name.replace(/^E\S+ /, '') + ' · ' + (cp ? 'perto de ' + cp.name : '') + ' · ' + ele + ' m</span><div class="acts"><button id="sosCopy">Copiar posição</button><button id="sosShare">Compartilhar</button></div></div>' +
-    '<div class="sos-card"><b>Diga ao operador</b>"Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>' +
+  const sp = !!(S.diario || S.free);   // crítica 06/09: SOS na realidade de SP quando o mapa é SP
+  const hd = $('dlgSos').querySelector('.sos-hd span'); if (hd) hd.textContent = sp ? 'São Paulo · Brasil' : 'Auvergne · França';
+  const nums = sp ? '<div class="sos-nums"><a class="pri" href="tel:192"><b>192</b><span>SAMU · ambulância</span></a><a href="tel:193"><b>193</b><span>Bombeiros · resgate</span></a><a href="tel:190"><b>190</b><span>Polícia Militar</span></a><a href="tel:188"><b>188</b><span>CVV · apoio</span></a></div>'
+    : '<div class="sos-nums"><a class="pri" href="tel:112"><b>112</b><span>Emergência europeia</span></a><a href="tel:15"><b>15</b><span>SAMU · médico</span></a><a href="tel:18"><b>18</b><span>Bombeiros</span></a><a href="tel:17"><b>17</b><span>Polícia</span></a></div>';
+  $('sosBody').innerHTML = nums +
+    '<div class="sos-pos"><b>' + pos + '</b><span>' + (sp ? (S.place ? 'perto de ' + S.place + ' · ' : '') + 'km ' + km + ' rodados' : 'km ' + km + ' da ' + S.stage.name.replace(/^E\S+ /, '') + ' · ' + (cp ? 'perto de ' + cp.name : '')) + ' · ' + ele + ' m</span><div class="acts"><button id="sosCopy">Copiar posição</button><button id="sosShare">Compartilhar</button></div></div>' +
+    (sp ? '<div class="sos-card"><b>Diga ao operador</b>"Sou ciclista, sofri um acidente. Estou em ' + (S.place || 'São Paulo') + ', posição ' + pos + '."</div>' : '<div class="sos-card"><b>Diga ao operador</b>"Je suis cycliste, j\'ai besoin d\'aide. Ma position: ' + pos + '." · Route: ' + (cp ? cp.full || cp.name : '') + '</div>') +
     (hotel.nome ? '<div class="sos-card"><b>Hotel de hoje</b>' + hotel.nome + '<br>' + (hotel.end || '') + (hotel.tel ? '<br>' + (hotel.tel.replace(/[^\d]/g, '').length >= 8 ? '<a href="tel:' + hotel.tel.split('·')[0].replace(/[^+\d]/g, '') + '">' + hotel.tel + '</a>' : hotel.tel) : '') + '</div>' : '') +
     (d.hospital ? '<div class="sos-card"><b>Hospital mais perto</b>' + d.hospital + '</div>' : '');
   $('sosCopy').onclick = async () => { try { await navigator.clipboard.writeText(pos + ' ' + maps); voice.banner('Posição copiada', 3); } catch (e) { } };
@@ -552,7 +600,8 @@ function perfHud(ts, ms) {
   if (!PERF.el) { PERF.el = document.createElement('div'); PERF.el.id = 'perf'; PERF.el.style.cssText = 'position:fixed;left:8px;top:64px;z-index:50;font:600 12px/1.3 monospace;background:rgba(23,25,28,.8);color:#FFFF00;padding:4px 6px;border-radius:4px;pointer-events:none;white-space:pre'; document.body.appendChild(PERF.el); }
   const st = R.stats(), mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '';
   if (S.cam3d && t3d) { const g = t3d.getStats(); PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · 3D ' + g.ms + ' ms (+' + g.upd + ' prep) · ' + g.icons + ' ícones · ' + g.tri + ' tri · ' + g.calls + ' calls · dpr ' + g.dpr + ' · buracos ' + g.holes + ' · sat faltando ' + g.miss + ' ' + mem; PERF.n = 0; PERF.ms = 0; return; }
-  PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem;
+  const nb = native.status(); const ntxt = nb ? ' · baro ' + (nb.alt == null ? '–' : Math.round(nb.alt) + ' m/' + (nb.grade == null ? '–' : nb.grade.toFixed(1) + ' %')) + ' lux ' + (nb.lux == null ? '–' : Math.round(nb.lux)) + ' th ' + nb.thermal : '';
+  PERF.el.textContent = Math.round(PERF.n * 2) + ' qps · draw ' + (PERF.ms / PERF.n).toFixed(1) + ' ms · base ' + st.baseCount + ' (' + st.base + 'px) · dpr ' + st.dpr + ' · ' + R.view.mode + (R.view.sat ? '+sat' : '') + ' z' + R.view.z.toFixed(1) + ' ' + mem + ntxt;
   PERF.n = 0; PERF.ms = 0;
 }
 function loop(ts) {
@@ -560,7 +609,7 @@ function loop(ts) {
   glide(ts);
   if (S.cam3d && t3d) {
     if (!t3d.isReady()) { voice.banner('3D indisponível neste aparelho', 2, 'toque em 3ª para tentar de novo'); setCam('2d'); }
-    else { if (ts - (loop._t3d || 0) >= 15.5) { loop._t3d = ts; const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); } requestAnimationFrame(loop); return; }   // 3D: no máximo 60 qps (a tela do S23 é 120 Hz)
+    else { const hot = S.native && native.thermal() >= 2; if (hot !== !!loop._hot) { loop._hot = hot; if (t3d) t3d.setSat(!hot && !!S.prefs.sat); } if (ts - (loop._t3d || 0) >= (hot ? 33 : 15.5)) { loop._t3d = ts; const t0 = performance.now(); t3d.update(S, ts); perfHud(ts, performance.now() - t0); } requestAnimationFrame(loop); return; }   // 3D: no máximo 60 qps (a tela do S23 é 120 Hz)
   }
   if (ts - (loop._t2d || 0) < 15.5) { requestAnimationFrame(loop); return; } loop._t2d = ts;   // 2D também no máximo 60 qps (tela de 120 Hz)
   const t0 = performance.now(); R.draw(S); perfHud(ts, performance.now() - t0);
@@ -573,9 +622,10 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); return; } startSim(22, S.proj.dist); }
+function toggleSim() { if (gps.simulating()) { stopNavigation(); $('btnSim').classList.remove('on'); const k = store.get('sim:on', null); if (k) { store.clearStage(k); store.del('sim:on'); selectStage(k); } return; } startSim(22, S.proj.dist); }
 function startSim(kmh, from) {
-  stopNavigation(); if (S.session.state === 'idle') session.start(S.session, Date.now()); else if (S.session.state === 'paused') session.resume(S.session, Date.now());
+  stopNavigation(); if (S.session.state === 'idle') { session.start(S.session, Date.now()); if (S.native) music.onStart(); } else if (S.session.state === 'paused') session.resume(S.session, Date.now());
+  store.set('sim:on', S.stage.key);
   S.follow = true; $('btnFollow').classList.add('on'); R.setView(null, null, 19); S.gpsMsg = ''; devTag('sim'); $('btnSim').classList.add('on');
   gps.simulate(S.stage, kmh, onFix, from, d => track.gradeAt(S.stage, d, 150));
 }
@@ -636,11 +686,11 @@ function showArrival(r) {
   requestAnimationFrame(() => { try { drawFita($('arrProf'), stage, stage.total, S.theme, { paradas: S.paradas, arrived: true }); } catch (e) { } });
 }
 function showReport(r) {
-  if (!r) { alert('Sem relatório desta etapa ainda.'); return; }
+  if (!r) { voice.banner('Sem relatório desta etapa ainda', 3); return; }
   $('repBody').innerHTML = report.render(r, report.list());
   const sh = report.share(r, S.log);
-  $('repShare').onclick = async () => { try { if (navigator.share) await navigator.share({ title: r.name, text: sh.text }); else { await navigator.clipboard.writeText(sh.text); alert('Resumo copiado.'); } } catch (e) { } };
-  $('repGpx').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sh.gpx], { type: 'application/gpx+xml' })); a.download = 'etape-' + r.stageKey + '.gpx'; a.click(); };
+  $('repShare').onclick = async () => { try { if (navigator.share) await navigator.share({ title: r.name, text: sh.text }); else { await navigator.clipboard.writeText(sh.text); voice.banner('Resumo copiado', 3); } } catch (e) { } };
+  $('repGpx').onclick = () => { if (S.native) { voice.banner(native.saveGpx('etape-' + r.stageKey + '.gpx', sh.gpx) ? 'GPX guardado' : 'GPX: erro ao guardar', 3, 'Download/Etape'); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([sh.gpx], { type: 'application/gpx+xml' })); a.download = 'etape-' + r.stageKey + '.gpx'; a.click(); };
   $('dlgReport').showModal();
 }
 window.addEventListener('DOMContentLoaded', init);

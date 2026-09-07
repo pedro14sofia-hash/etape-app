@@ -85,6 +85,7 @@ export function panel(S) {
   const moving = session.movingTime(sess, now);
   // faixa fixa
   $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : (S.destEta && sess.state === 'idle' ? S.destEta : '–:–');
+  { const tE = $('tEta'), tv = $('tVs'); if (tE) tE.textContent = $('eta').textContent; if (tv) { const vs = ($('vsplan') || {}).textContent || ''; tv.textContent = vs ? 'chegada · ' + vs : 'chegada'; } }
   const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem);
   const idleLbl = sess.state === 'idle' && (st.diario || S.free) ? 'Partir' : session.label(sess.state);
@@ -97,7 +98,7 @@ export function panel(S) {
   const sfTxt = bwChip + chip(sf);   // regra 01: só a superfície de agora; a próxima mudança está na faixa da fita
   $('nbSub').innerHTML = cp ? '<b>' + fmtKm1(cp.dist - d) + ' km</b> · ' + (cp.reroute ? '<i class="chip rr">nova rota</i>' : (sfTxt || (cp.ele ? cp.ele + ' m' : ''))) : '';
   $('mName').textContent = $('nbName').textContent; $('mSub').innerHTML = $('nbSub').innerHTML;
-  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = tn.road || tn.label || tn.txt; }
+  if (tn) { $('tcArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('tcDist').textContent = tn.dist - d < 950 ? Math.round((tn.dist - d) / 10) * 10 + ' m' : fmtKm1(tn.dist - d) + ' km'; $('tcSub').textContent = 'curva · ' + (tn.road || tn.label || tn.txt); }   // clarify 06/09: o bloco da direita é a curva, o da esquerda o lugar
   else { $('tcArrow').innerHTML = svgArrow('reto'); $('tcDist').textContent = fmtKm1(rem) + ' km'; $('tcSub').textContent = 'reto'; }
   // telemetria
   const L = S.live;
@@ -108,7 +109,7 @@ export function panel(S) {
     if (sn.hr) { $('mV').textContent = n0(sn.hr); $('mVu').textContent = 'bpm'; $('mVl').textContent = 'FC'; } else { $('mV').textContent = n0(L.vam); $('mVu').textContent = 'm/h'; $('mVl').textContent = 'VAM'; }
     if (sn.cad) { $('mG').textContent = n0(sn.cad); $('mGu').textContent = 'rpm'; $('mGl').textContent = 'cadência'; } else { $('mG').textContent = n0(L.upRem); $('mGu').textContent = 'm'; $('mGl').textContent = 'a subir'; }
     const cl = L.climb, ctxEl = $('ctx');
-    if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat ${catCls(cl.cat)}">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
+    if (cl) { ctxEl.hidden = false; ctxEl.className = 'climb'; ctxEl.innerHTML = `<div class="cat ${catCls(cl.cat)}">${cl.cat}</div><div class="t"><b>${cl.name}</b><span>${cl.n} de ${st.climbs.length} · próx. 500 m a ${n1(L.gradeAhead)} %</span><div class="bar"><i style="width:${Math.round(L.climbPct * 100)}%"></i></div></div><div class="r"><b>${fmtKm1(L.climbLeft)} km</b><span>para o topo</span></div>`; }
     else if (S.light && S.light.remaining < 5400) { ctxEl.hidden = false; ctxEl.className = 'light'; const mins = Math.max(0, S.light.remaining / 60); ctxEl.innerHTML = `<div class="t"><b>Luz do dia</b><span>pôr do sol ${fmtH(S.light.sunset)} · civil até ${fmtH(S.light.civil)}</span></div><div class="r"><b>${fmtMin(mins)}</b><span>de sol</span></div>`; }
     else ctxEl.hidden = true;
   }
@@ -178,7 +179,7 @@ function initSpeedo() {
 export function arrivalHtml(r, S, st, ec, prev, maillot) {
   const code = r.diario ? 'SP' : (/^\d/.test(r.stageKey) ? 'E' + r.stageKey : r.stageKey);
   const dest = r.dest || String(r.name).replace(/^E\S+ /, '').split('→').pop().split('·')[0].trim();
-  const vp = r.vsPlan, when = r.finishedAt ? fmtH(new Date(r.finishedAt)) : '–:–';
+  const vp = (r.moving || 0) >= 60 ? r.vsPlan : null, when = r.finishedAt ? fmtH(new Date(r.finishedAt)) : '–:–';   // sem minuto rodado, sem diferença para o plano
   const plano = vp == null ? '' : `<i${vp > 0 ? ' class="late"' : ''}>${vp === 0 ? 'na hora' : fmtMin(vp) + (vp > 0 ? ' atrasado' : ' adiantado')}</i>${S.planArrival ? ' · plano ' + S.planArrival : ''}`;
   const sub = r.diario ? 'Diário · ' + n1(r.km) + ' km · ' + n0(r.up) + ' m' : String(S.allParadas && S.allParadas.dias ? S.allParadas.dias[r.stageKey] || '' : '').trim() + ' · ' + n1(r.planKm) + ' km · ' + n0(r.planUp) + ' m';
   const type = r.diario ? 'blanc' : (r.type || 'blanc');

@@ -49,8 +49,8 @@ const plateCache = new Map();
 export function plate(txt, color = '#0A0A0A', h = 2.4) {
   const key = txt + '|' + color; let tex = plateCache.get(key), w;
   if (!tex) {
-    const c = document.createElement('canvas'), cx = c.getContext('2d'), font = '800 44px "Barlow Condensed", "Arial Narrow", sans-serif';
-    cx.font = font; let tw = cx.measureText(txt).width; let f2 = font; if (tw > 480) { f2 = '800 ' + Math.max(26, Math.floor(44 * 480 / tw)) + 'px "Barlow Condensed", "Arial Narrow", sans-serif'; cx.font = f2; tw = cx.measureText(txt).width; }   // largura máxima: encolhe a fonte
+    const c = document.createElement('canvas'), cx = c.getContext('2d'), font = '700 44px "Antonio", "Arial Narrow", sans-serif';
+    cx.font = font; let tw = cx.measureText(txt).width; let f2 = font; if (tw > 480) { f2 = '800 ' + Math.max(26, Math.floor(44 * 480 / tw)) + 'px "Antonio", "Arial Narrow", sans-serif'; cx.font = f2; tw = cx.measureText(txt).width; }   // largura máxima: encolhe a fonte
     w = Math.ceil(tw) + 44; c.width = w; c.height = 68;
     cx.fillStyle = '#0A0A0A'; cx.fillRect(0, 0, w, 68); cx.fillStyle = color; cx.fillRect(3, 3, w - 6, 62); cx.fillStyle = color.toUpperCase() === '#FFFF00' ? '#000' : '#fff'; cx.font = f2; cx.textBaseline = 'middle'; cx.fillText(txt, 22, 36);
     tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.userData.w = w; plateCache.set(key, tex);

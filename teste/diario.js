@@ -24,6 +24,8 @@ export function state() { return D; }
 export function open() {
   const S = C.S; if (S.session.state !== 'idle') { voice.banner('Encerre a saída para mudar o destino', 3); return; }
   C.setTab('dest'); C.setMode('full'); render();
+  // partida: uma posição do GPS antes de partir (o GPS contínuo só liga com a sessão); sem ela, fica a última guardada
+  if (!C.pos() && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { S.pos = { lat: p.coords.latitude, lon: p.coords.longitude, head: 0, dist: 0 }; store.set('lastpos:sp', { lat: S.pos.lat, lon: S.pos.lon, place: '' }); if (D.dest && D.alts) { D.from = fromPos(); compute(); } else render(); }, () => { }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 export function close() { const S = C.S; if (S.session.state === 'idle' && S.diario) { D.dest = null; D.alts = null; S.alts = null; S.destEta = null; C.restoreFree(); } C.setMode('resumo'); }
 
@@ -31,7 +33,7 @@ export function close() { const S = C.S; if (S.session.state === 'idle' && S.dia
 function fromPos() {
   const S = C.S, p = C.pos();
   if (p) { const near = plan.places().find(x => haversine(x.lat, x.lon, p.lat, p.lon) < 80); return { name: near ? near.name : (S.place || 'Onde estou'), lat: p.lat, lon: p.lon, gps: true }; }
-  const last = store.get('lastpos', null); if (last) return { name: last.place || 'Última posição', lat: last.lat, lon: last.lon };
+  const last = store.get('lastpos:sp', null); if (last) return { name: last.place || 'Última posição', lat: last.lat, lon: last.lon };
   const pl = plan.places()[0]; return pl ? { name: pl.name, lat: pl.lat, lon: pl.lon } : null;
 }
 
