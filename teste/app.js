@@ -26,6 +26,7 @@ import * as native from './native.js';   // casca nativa (N3a): barômetro, bril
 import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
 import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
 import * as cinema from './cinema.js';
+import * as auto from './auto.js';   // Cinema v2: gatilhos automáticos
 import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
@@ -39,7 +40,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   cinema.init(S); cinemaUi.init(S);
-  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
+  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
     // botões de volume: para cima marca o lugar; para baixo confirma o abastecimento que venceu (ou o próximo a vencer)
     native.onKey(k => { if (cinema.onKey(k)) return; if (k === 'up') markPlace(); else if (k === 'down') { const F = S.fuelStatus; if (!F || S.session.state !== 'running') { voice.banner('Sem saída em andamento', 3); return; } confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); } });
     $('btnPhoto').hidden = false; $('btnScreen').hidden = false;
@@ -52,6 +53,16 @@ export function init() {
         else { if (native.kioskPin(pin, pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'Mais → Liberar o aparelho, ou toque longo no relógio'); } else voice.banner('PIN errado', 2); } kioskLabel(); };
       const kioskLabel = () => { $('btnKiosk').hidden = false; $('btnKiosk').querySelector('b').textContent = native.kioskLocked() ? 'Liberar o aparelho' : 'Travar o aparelho'; }; kioskLabel();
       $('btnKiosk').onclick = () => { $('dlgMenu').close(); ask(); };
+      const LOOKS = ['Clássico', 'Cinema', 'Cinema forte'];
+      const autoLabel = () => { $('btnAuto').hidden = false; $('btnAuto').querySelector('b').textContent = 'REC automático: ' + (S.prefs.autoRec ? 'ligado' : 'desligado'); }; autoLabel();
+      $('btnAuto').onclick = () => { $('dlgMenu').close(); auto.toggle(); autoLabel(); };
+      const lookLabel = () => { $('btnLook').hidden = false; $('btnLook').querySelector('b').textContent = 'Look: ' + LOOKS[S.prefs.cineLook == null ? 1 : S.prefs.cineLook]; }; lookLabel(); native.nightLook(S.prefs.cineLook == null ? 1 : S.prefs.cineLook);
+      $('btnLook').onclick = () => { const cur = S.prefs.cineLook == null ? 1 : S.prefs.cineLook; cinema.setLook((cur + 1) % 3); lookLabel(); voice.banner('Look ' + LOOKS[S.prefs.cineLook], 3, 'prévia e noite'); };
+      $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 4, 'conferindo o Drive; abrindo a galeria'); native.openFolder('', 'pronto'); };
+      document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 5, 'Movies/Etape · pronto'); });
+      $('btnNormal').hidden = false;
+      $('btnNormal').onclick = () => { $('dlgMenu').close(); const pin = prompt('PIN para devolver o aparelho ao normal (sem trava e sem dono; só um reset de fábrica refaz o dono)'); if (pin == null) return;
+        if (native.kioskReset(pin)) { $('btnKiosk').hidden = true; $('btnNormal').hidden = true; voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); } else voice.banner('PIN errado', 2); };
       let hold = 0; const clk = $('clock').parentElement; clk.addEventListener('contextmenu', e => e.preventDefault());
       clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(ask, 5000); });
       ['pointerup', 'pointercancel'].forEach(ev => clk.addEventListener(ev, () => clearTimeout(hold))); } }
@@ -282,7 +293,7 @@ export function startNavigation(silent) {
   gps.keepAwake(true);
   if (!silent) voice.announce({ level: 3, text: 'Navegação iniciada', sub: S.stage.name, speak: 'Navegação iniciada. ' + S.stage.name.replace(/^E\S+ /, '') });
 }
-export function stopNavigation() { gps.stop(); gps.keepAwake(false); S.gpsMsg = 'GPS desligado'; refresh(); }
+export function stopNavigation() { if (cinema.active()) cinema.exit(); gps.stop(); gps.keepAwake(false); S.gpsMsg = 'GPS desligado'; refresh(); }
 
 export function toggleSession() {
   const now = Date.now(), s = S.session;
@@ -378,7 +389,7 @@ function onFix(raw) {
   S.next = guide.nextCue(S);
   // tela 05: fora da rota com a volta calculada, a placa mostra a próxima curva da nova rota e a distância até o traçado
   if (S.off && S.reroute && !muted()) { const r2 = S.reroute, t = r2.turns.find(x => x.dist > r2.proj.dist), remR = r2.total - r2.proj.dist; S.next = { cp: { name: 'Volta ao traçado', dist: (S.proj.dist || 0) + remR, reroute: true }, turn: t ? { ...t, dist: (S.proj.dist || 0) + (t.dist - r2.proj.dist) } : null }; }
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun();
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) auto.tick();
   if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
@@ -441,7 +452,7 @@ function onFixFree(fix, now, running) {
   }
   for (const ev of events) handleEvent(ev);
   updatePlace(now);
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun();
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) auto.tick();
   if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
   const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);
@@ -528,6 +539,7 @@ function handleEvent(ev) {
   if (ev.kind === 'metric') ev.right = '<button class="mini-btn" data-fuel="' + ev.metric + '">Tomei</button>';
   if (ev.kind === 'turn300' || ev.kind === 'turn50') ev.right = '<span class="arr">' + ui.svgArrow(ev.turn.kind || ev.turn.dir, ev.turn.dir) + '</span>';
   if (ev.kind === 'climbStart' || ev.kind === 'summit') session.mark(S.session, ev.kind, { dist: S.proj.dist });
+  document.dispatchEvent(new CustomEvent('etape:guide', { detail: ev }));
   if (ev.level === 1 && S.mapMode) setMapMode(false);
   if (S.native && S.prefs.screen === 'economia' && ev.level <= 2) native.wake(ev.level === 1 ? 20000 : 12000);   // N3b: o aviso acende a tela
   voice.announce(ev);
@@ -606,6 +618,7 @@ function perfHud(ts, ms) {
   PERF.n = 0; PERF.ms = 0;
 }
 function loop(ts) {
+  if (S.cinema) { requestAnimationFrame(loop); return; }   // no Cinema a página está invisível: não desenhar mapa nem 3D (bateria, térmico, codificador)
   try {
   glide(ts);
   if (S.cam3d && t3d) {

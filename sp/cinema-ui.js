@@ -1,7 +1,7 @@
 // Étape Navegar · cinema-ui.js (Anna · a tela do Cinema, a faixa da música, aprovadas em 07/09/2026)
 // A câmera ocupa a tela (a página fica transparente: a prévia nativa está por baixo). Por cima, o placar da transmissão:
 // barra de cima (etapa, km, relógio, REC), tulipa e distância, bússola de luz, seletor Nitidez/Aberto, contador de clipes,
-// dois botões de REC do lado da mão direita, e embaixo velocidade, rampa, bpm e o lugar. Um toque na imagem esconde tudo
+// dois botões de REC do lado da mão direita (um toque começa, outro termina), e embaixo velocidade, rampa, bpm e o lugar. Um toque na imagem esconde tudo
 // menos os botões. Em pé ou deitada pelo acelerômetro da casca (a atividade é travada em pé: a sobreposição gira por CSS).
 // Fora do Cinema: a faixa da música na Fita, abaixo do cabeçalho, só quando há uma sessão de mídia.
 import * as native from './native.js';
@@ -21,7 +21,7 @@ export function init(state) {
   const root = $('cinema'); if (!root) return;
   document.addEventListener('etape:cinema', e => { const k = e.detail.kind; if (k === 'enter') show(); if (k === 'exit') hide(); render(); });
   document.addEventListener('etape:rec', render);
-  document.addEventListener('etape:music', musicBar);
+  document.addEventListener('etape:music', e => musicBar(e.detail));
   document.addEventListener('etape:rotate', e => { rot = +e.detail || 0; applyRot(); });
   $('cnEstrada').onclick = () => cinema.rec('estrada');
   $('cnRosto').onclick = () => cinema.rec('rosto');
@@ -33,8 +33,8 @@ export function init(state) {
   $('mbNext').onclick = e => { e.stopPropagation(); music.next(); };
   musicBar();
 }
-function show() { $('cinema').hidden = false; document.documentElement.classList.add('cinema'); bare = false; $('cinema').classList.remove('bare'); rot = native.rotation(); applyRot(); render(); if (!timer) timer = setInterval(render, 250); }
-function hide() { $('cinema').hidden = true; document.documentElement.classList.remove('cinema'); if (timer) { clearInterval(timer); timer = 0; } }
+function show() { $('cinema').hidden = false; bare = false; $('cinema').classList.remove('bare'); rot = native.rotation(); applyRot(); render(); if (!timer) timer = setInterval(render, 250); }
+function hide() { $('cinema').hidden = true; if (timer) { clearInterval(timer); timer = 0; } }
 function applyRot() { const r = $('cinema'); r.classList.toggle('land', rot === 90 || rot === 270); r.classList.toggle('r270', rot === 270); r.classList.toggle('r180', rot === 180); }
 
 // ---- o placar
@@ -46,21 +46,21 @@ function render() {
   const now = new Date(); $('cnSub').textContent = 'KM ' + fmt1(d / 1000) + ' · ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
   // REC: relógio do clipe mais antigo em curso
   const recs = ['estrada', 'rosto'].filter(k => S.rec[k]); const at = recs.length ? Math.min(...recs.map(k => S.rec[k].at)) : 0;
-  $('cnRec').hidden = !recs.length; if (recs.length) { const s = Math.min(30, Math.floor((Date.now() - at) / 1000)); $('cnRecT').textContent = pad(Math.floor(s / 60)) + ':' + pad(s % 60) + ' / 30'; }
+  $('cnRec').hidden = !recs.length; if (recs.length) { const s = Math.floor((Date.now() - at) / 1000); $('cnRecT').textContent = pad(Math.floor(s / 60)) + ':' + pad(s % 60); }
   // botões
-  for (const [id, slot, label, sub] of [['cnEstrada', 'estrada', 'Estrada', S.prefs.cineMode === 'aberto' ? 'ultrawide · 30 s' : 'principal · 30 s'], ['cnRosto', 'rosto', 'Rosto', 'frontal · 30 s']]) {
+  for (const [id, slot, label, sub] of [['cnEstrada', 'estrada', 'Estrada', S.prefs.cineMode === 'aberto' ? 'ultrawide · toque para gravar' : 'principal · toque para gravar'], ['cnRosto', 'rosto', 'Rosto', 'frontal · toque para gravar']]) {
     const b = $(id), r = S.rec[slot]; b.classList.toggle('on', !!r);
     b.querySelector('span').textContent = r ? 'gravando · toque para parar' : sub;
   }
   const th = native.thermal ? native.thermal() : 0; $('cinema').classList.toggle('warm', th === 2); $('cinema').classList.toggle('hot', th >= 3);
-  $('cnHot').hidden = th < 3;
+  $('cnHot').hidden = th < 3; $('cnEstrada').disabled = th >= 3; $('cnRosto').disabled = th >= 3;
   // seletor
-  $('cnNitidez').classList.toggle('on', S.prefs.cineMode !== 'aberto'); $('cnAberto').classList.toggle('on', S.prefs.cineMode === 'aberto');
+  const ab = S.prefs.cineMode === 'aberto'; $('cnNitidez').classList.toggle('on', !ab); $('cnAberto').classList.toggle('on', ab); $('cnNitidez').setAttribute('aria-pressed', String(!ab)); $('cnAberto').setAttribute('aria-pressed', String(ab));
   $('cnMode').classList.toggle('locked', !!S.rec.estrada);
   // contador e espaço
   const clips = (S.session && S.session.marks || []).filter(m => m.kind === 'clipe').length + recs.length;
-  let free = ''; try { const stg = native.storage ? native.storage() : null; if (stg && stg.freeMB) free = ' · ' + (stg.freeMB / 1024).toFixed(0) + ' GB livres'; } catch (e) { }
-  $('cnCount').textContent = 'clipes ' + pad(clips) + free;
+  if (Date.now() - (render._stAt || 0) > 10000) { render._stAt = Date.now(); try { const stg = native.storage ? native.storage() : null; render._free = stg && stg.freeMB ? ' · ' + (stg.freeMB / 1024).toFixed(0) + ' GB livres' : ''; } catch (e) { render._free = ''; } }   // StatFs a cada 10 s, não a 4 Hz
+  $('cnCount').textContent = 'clipes ' + pad(clips) + (render._free || '');
   // tulipa
   const tn = S.next && S.next.turn, ahead = tn ? tn.dist - d : null;
   $('cnTulipa').hidden = !tn || ahead > 2000; if (tn && ahead <= 2000) { $('cnArrow').innerHTML = svgArrow(tn.kind || tn.dir, tn.dir); $('cnTDist').textContent = ahead < 950 ? Math.round(ahead / 10) * 10 + ' m' : fmt1(ahead / 1000) + ' km'; $('cnTDir').textContent = (tn.dir || tn.short || '').toString().toUpperCase().slice(0, 14); }
@@ -77,11 +77,11 @@ function render() {
 }
 
 // ---- a faixa da música (Fita de papel)
-function musicBar() {
+function musicBar(ev) {
   const bar = $('musicBar'); if (!bar || !S) return;
-  const m = S.music || native.musicState(); const on = !!(m && m.granted && m.title);
+  const m = ev || S.music || native.musicState(); const on = !!(m && m.granted && m.title);
   bar.hidden = !on; document.body.classList.toggle('hasmusic', on);
   if (!on) return;
-  $('mbTitle').textContent = m.title; $('mbArtist').textContent = m.artist || m.app.replace('com.google.android.apps.', '');
+  $('mbTitle').textContent = m.title; $('mbArtist').textContent = m.artist || String(m.app || '').replace('com.google.android.apps.', '');
   $('mbToggle').textContent = m.playing ? '❚❚' : '▶'; $('mbToggle').classList.toggle('y', !!m.playing);
 }

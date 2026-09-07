@@ -134,7 +134,7 @@ body:has(#cue.show) #plate{visibility:hidden}   /* uma frase por vez: com aviso 
 body.mapmode .rodape .eta{display:none}body.mapmode #panel{background:var(--glass2)}
 #fixed,#next,#tabs,.mini,#grab{display:none!important}
 .pane{order:1;display:flex;flex-direction:column;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;-webkit-user-select:text;user-select:text;touch-action:pan-y}
-.pane[hidden],#ctx[hidden],#speedo[hidden],#grade[hidden]{display:none!important}
+.pane[hidden],#ctx[hidden],#speedo[hidden],#grade[hidden],#musicBar[hidden]{display:none!important}
 #panel.resumo .pane{display:none!important}
 #panel:not(.resumo){max-height:56dvh;background:var(--glass2)}
 .foot{order:50;display:none;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
@@ -395,16 +395,17 @@ dialog.ask-dlg{height:auto;max-height:80dvh;margin:auto auto 0;border-top:1.5px 
 .music{display:flex;align-items:center;gap:8px;padding:3px 8px 4px;border-top:1px solid var(--line);background:var(--glass2);flex:none}
 .music .note{font:700 13px/1 var(--fd);background:var(--ink);color:var(--paper);padding:4px 5px}
 .music .t{flex:1;min-width:0;line-height:1.05}.music .t b{display:block;font:700 14px/1.1 var(--fd);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.music .t span{display:block;font:600 11px/1.2 var(--fb);letter-spacing:.03em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.music .b{width:44px;height:32px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font:700 14px/1 var(--fd);padding:0}.music .b.y{background:var(--yellow);color:var(--onyellow)}
-body.hasmusic{--fitaH:calc(146px + env(safe-area-inset-top))}
+.music .b{width:48px;height:40px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font:700 14px/1 var(--fd);padding:0}.music .b.y{background:var(--yellow);color:var(--onyellow)}
+body.hasmusic{--fitaH:calc(154px + env(safe-area-inset-top))}
 body.mapmode #musicBar{display:none}
 
 /* ---- Cinema (Anna, 07/09): placar da transmissão sobre a prévia nativa. Vidro preto, amarelo da TV, Saira → Antonio local */
 html.cinema,html.cinema body{background:transparent!important}
 html.cinema body>*:not(#cinema):not(#cue){visibility:hidden}
+html.cinema #cue{z-index:51}
 #cinema{position:absolute;inset:0;z-index:50;color:#fff;font-family:var(--fd);--y:#FFF200;--r:#FF2A44;--gl:rgba(12,12,13,.78);text-shadow:0 1px 2px rgba(0,0,0,.7);touch-action:manipulation}
 #cinema[hidden],#cinema [hidden]{display:none!important}
-.cn-tap{position:absolute;inset:0}
+.cn-tap{position:absolute;inset:0;background:transparent;border:0;padding:0;margin:0}
 .cn-bar{position:absolute;left:0;right:0;top:0;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;background:linear-gradient(rgba(12,12,13,.85),rgba(12,12,13,0));pointer-events:none}
 .cn-name{font-size:19px;letter-spacing:.05em;text-transform:uppercase;color:var(--y);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
 .cn-sub{font-size:13px;letter-spacing:.06em;color:#ddd}
@@ -424,7 +425,7 @@ html.cinema body>*:not(#cinema):not(#cue){visibility:hidden}
 .cn-btn{width:158px;height:66px;background:var(--gl);border:2px solid #fff;color:#fff;display:flex;align-items:center;gap:10px;padding:0 12px;font:700 22px var(--fd);letter-spacing:.04em;text-transform:uppercase;text-align:left}
 .cn-btn i{width:16px;height:16px;border-radius:50%;background:#fff;flex:none}.cn-btn div{min-width:0}.cn-btn span{display:block;font:500 10px var(--fd);letter-spacing:.1em;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cn-btn.on{background:var(--r);border-color:var(--r)}.cn-btn.on i{border-radius:2px}
-#cinema.warm .cn-btn{border-color:#E8A33D}#cinema.hot .cn-btn{opacity:.3;pointer-events:none}
+#cinema.warm .cn-btn{border-color:#E8A33D}#cinema.hot .cn-btn,.cn-btn:disabled{opacity:.3}
 .cn-placar{position:absolute;left:0;right:0;bottom:0;padding:50px 12px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(12,12,13,0),rgba(12,12,13,.9) 35%);pointer-events:none}
 .cn-placar .row{display:flex;gap:14px;align-items:flex-end}
 .cn-placar .v b{font-size:62px;line-height:.9;font-weight:700}.cn-placar small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ddd;font-weight:500;display:block}
@@ -437,4 +438,5 @@ html.cinema body>*:not(#cinema):not(#cue){visibility:hidden}
 /* deitada: a sobreposição gira (a atividade é travada em pé); largura e altura trocam */
 #cinema.land{width:100vh;height:100vw;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
 #cinema.land.r270{transform:translate(-50%,-50%) rotate(-90deg)}#cinema.r180:not(.land){transform:rotate(180deg)}
-#cinema.land .cn-btns{bottom:calc(12px + env(safe-area-inset-bottom));grid-template-columns:1fr 1fr}#cinema.land .cn-placar{right:360px;padding-top:36px}#cinema.land .cn-mode{bottom:12px}#cinema.land .cn-count{left:200px;bottom:20px}
+#cinema.land .cn-bar{padding-top:8px}#cinema.land .cn-tulipa,#cinema.land .cn-sun{top:64px}#cinema.land .cn-tulipa,#cinema.land .cn-mode,#cinema.land .cn-count{left:calc(12px + env(safe-area-inset-top))}#cinema.land.r270 .cn-tulipa,#cinema.land.r270 .cn-mode,#cinema.land.r270 .cn-count{left:12px}#cinema.land.r270 .cn-btns,#cinema.land.r270 .cn-sun,#cinema.land.r270 .cn-exit{right:calc(12px + env(safe-area-inset-top))}
+#cinema.land .cn-btns{bottom:12px;grid-template-columns:1fr 1fr}#cinema.land .cn-placar{right:360px;padding-top:36px}#cinema.land .cn-mode{bottom:12px}#cinema.land .cn-count{left:200px;bottom:20px}

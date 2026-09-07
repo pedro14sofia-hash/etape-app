@@ -7,17 +7,17 @@ import * as native from './native.js';
 import * as voice from './voice.js';
 import * as store from './store.js';
 
-let S = null, pausedByRec = 0, pausedByDescent = false, wasPlaying = false;
+let S = null, pausedByDescent = false, wasPlaying = false; const recSlots = new Set();
 
 export function init(state) {
   S = state; S.music = null;
-  S.prefs.music = { pauseDescent: !(S.free || S.diario), keepStill: true, ...(S.prefs.music || {}) };
+  S.prefs.music = { keepStill: true, ...(S.prefs.music || {}) };   // pauseDescent: padrão decidido na hora (viagem sim, Diário/livre não)
   S.prefs.playlists = S.prefs.playlists || {};
   document.addEventListener('etape:music', e => { S.music = e.detail || null; });
   document.addEventListener('etape:rec', e => {
-    const k = (e.detail || {}).kind;
-    if (k === 'rec') { if (!pausedByRec) wasPlaying = playing(); pausedByRec++; if (wasPlaying) native.musicPause(); }
-    if (k === 'stop' || k === 'error' || k === 'off') { if (pausedByRec > 0) { pausedByRec--; if (!pausedByRec && wasPlaying) { native.musicPlay(); wasPlaying = false; } } }
+    const ev = e.detail || {}, k = ev.kind, slot = ev.slot || 'estrada';
+    if (k === 'rec') { if (!recSlots.size) wasPlaying = playing(); recSlots.add(slot); if (wasPlaying) native.musicPause(); }
+    if (k === 'stop' || k === 'error' || k === 'off') { if (!recSlots.has(slot)) return; recSlots.delete(slot); if (!recSlots.size && wasPlaying) { wasPlaying = false; if (!(ev.clip && ev.clip.reason === 'closed')) native.musicPlay(); } }   // fechado pelo segundo plano: não retoma
   });
   S.music = native.musicState();
 }
@@ -39,8 +39,10 @@ export function onStart() {
 export function onFinish() { if (available() && playing()) native.musicPause(); }
 // situação: descida categorizada pausa (preferência); ao acabar a descida, volta
 export function onSituation(sit) {
-  if (!available() || !S.prefs.music.pauseDescent) return;
-  const cat = S.live && S.live.climb && S.live.climb.cat;
-  if (sit === 'descida' && !pausedByDescent && playing()) { pausedByDescent = true; native.musicPause(); return; }
-  if (sit !== 'descida' && pausedByDescent) { pausedByDescent = false; if (!pausedByRec) native.musicPlay(); }
+  const pref = S.prefs.music.pauseDescent != null ? S.prefs.music.pauseDescent : !(S.free || S.diario);
+  if (!available() || !pref) return;
+  // descida de verdade: rampa abaixo de −4 % por trecho (não a curva a 300 m que updateSituation também chama de descida)
+  const g = S.live && S.live.grade != null ? +S.live.grade : 0;
+  if (sit === 'descida' && g <= -4 && !pausedByDescent && playing()) { pausedByDescent = true; native.musicPause(); return; }
+  if (sit !== 'descida' && pausedByDescent) { pausedByDescent = false; if (!recSlots.size) native.musicPlay(); }
 }

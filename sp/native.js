@@ -84,6 +84,7 @@ export async function checklist(S) {
   try { const acct = String(B.driveAccount() || ''); const pend = +B.drivePending() || 0; const ds = JSON.parse(B.driveState());
     out.push({ ok: !!acct && (pend === 0 || ds.phase === 'uploading'), txt: !acct ? 'Drive sem conta · Mais → Drive' : ds.phase === 'uploading' ? 'Drive enviando ' + (ds.file || '') : pend ? 'Drive: ' + pend + ' arquivos por enviar · Wi-Fi + tomada' : 'Drive em dia' }); } catch (e) { }
   try { const v = JSON.parse(B.version()); const us = JSON.parse(B.updateState()); out.push({ ok: us.phase !== 'error', txt: 'App v' + v.code + (us.phase === 'done' ? ' · atualizado, reabra para usar' : us.phase === 'current' ? ' · atual' : us.phase === 'downloading' ? ' · baixando atualização' : us.phase === 'error' ? ' · atualização falhou' : '') }); } catch (e) { }
+  try { const n = +B.driveDelivered() || 0; const ds = JSON.parse(B.driveState()); out.push({ ok: true, txt: ds.phase === 'fetching' ? 'Filmes prontos: baixando ' + (ds.file || '') : n ? 'Filmes prontos: ' + n + ' na galeria (Movies/Etape/…/pronto)' : 'Filmes prontos: nenhum ainda (a fábrica devolve pelo Drive)' }); } catch (e) { }
   try { const m = JSON.parse(B.musicState()); out.push({ ok: !!m.granted, txt: !m.granted ? 'Música sem acesso a notificações' : m.title ? 'Música: ' + m.title : 'Música pronta · YouTube Music' }); } catch (e) { }
   try { const c = JSON.parse(B.camCaps()); const back = (c.cameras || []).find(x => x.facing === 'back' && x.ois); const front = (c.cameras || []).find(x => x.facing === 'front'); out.push({ ok: !!back && !!front, txt: 'Câmeras: ' + (back ? 'Nitidez ' + (back.hlg10 ? '10 bits' : '8 bits') : 'sem traseira') + (front ? ' · Rosto pronto' : ' · sem frontal') }); } catch (e) { }
   return out;
@@ -131,3 +132,11 @@ export function driveState() { try { return N.on ? JSON.parse(window.EtapeNative
 export function drivePending() { try { return N.on ? +window.EtapeNative.drivePending() : 0; } catch (e) { return 0; } }
 export function rotation() { try { return N.on ? (+window.EtapeNative.rotation() || 0) : 0; } catch (e) { return 0; } }
 export function storage() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }
+export function kioskReset(pin) { try { return N.on && !!window.EtapeNative.kioskReset(String(pin)); } catch (e) { return false; } }
+// ---- Cinema v1/v2 · prévia com look, enquadramento do dia, look da noite, entrega dos filmes prontos
+export function previewLook(on, look) { try { if (N.on) window.EtapeNative.previewLook(!!on, +look || 1); } catch (e) { } }
+export function cinemaFrame(on) { try { if (N.on) window.EtapeNative.cinemaFrame(!!on); } catch (e) { } }
+export function nightLook(look) { try { if (N.on) window.EtapeNative.nightLook(+look || 1); } catch (e) { } }
+export function driveFetch() { try { return N.on && !!window.EtapeNative.driveFetch(); } catch (e) { return false; } }
+export function driveDelivered() { try { return N.on ? +window.EtapeNative.driveDelivered() : 0; } catch (e) { return 0; } }
+export function openFolder(day, sub) { try { if (N.on) window.EtapeNative.openFolder(String(day || ''), String(sub || '')); } catch (e) { } }

@@ -27,7 +27,8 @@ export function light(lat, lon, t, heading) {
 }
 // minutos até a elevação do sol cair abaixo de `deg` (hora dourada/baixa) ou até o pôr; null se já passou ou de manhã ainda sobe
 export function minutesUntil(lat, lon, t, deg = 10) {
-  const now = sun(lat, lon, t); if (now.el <= deg) return 0;
+  const now = sun(lat, lon, t); if (sun(lat, lon, t + 300000).el > now.el) return null;   // ainda subindo (manhã)
+  if (now.el <= deg) return 0;
   for (let m = 5; m <= 600; m += 5) { if (sun(lat, lon, t + m * 60000).el <= deg) return m; }
   return null;
 }

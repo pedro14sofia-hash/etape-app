@@ -6,17 +6,19 @@
 import * as native from './native.js';
 import * as sensors from './sensors.js';
 
-let S = null, timer = 0, active = 0;
+let S = null, timer = 0; const active = new Set();
 
 export function init(state) {
   S = state;
   document.addEventListener('etape:rec', e => {
     const ev = e.detail || {};
-    if (ev.kind === 'rec') { native.recContext(JSON.stringify(context())); active++; if (!timer) timer = setInterval(tick, 100); tick(); }
-    if (ev.kind === 'stop' || ev.kind === 'error' || ev.kind === 'off') { active = Math.max(0, active - 1); if (!active && timer) { clearInterval(timer); timer = 0; } }
+    const slot = ev.slot || 'estrada';
+    if (ev.kind === 'rec') { native.recContext(JSON.stringify(context())); active.add(slot); if (!timer) timer = setInterval(tick, 100); tick(); }
+    if (ev.kind === 'stop' || ev.kind === 'error' || ev.kind === 'off') { active.delete(slot); if (!active.size && timer) { clearInterval(timer); timer = 0; } }
   });
+  document.addEventListener('etape:cinema', e => { if (e.detail && e.detail.kind === 'exit') { active.clear(); if (timer) { clearInterval(timer); timer = 0; } } });
 }
-export function recording() { return active > 0; }
+export function recording() { return active.size > 0; }
 
 function context() {
   const st = S.stage || {};
