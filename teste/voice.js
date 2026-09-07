@@ -1,7 +1,7 @@
 // Étape Navegar · voice.js
 // Voz em pt-BR, faixa de aviso (três níveis), borda vermelha e vibração.
 import * as native from './native.js';
-let muted = false, bannerTimer = null, edgeTimer = null, holdUntil = 0;
+let muted = false, bannerTimer = null, edgeTimer = null, holdUntil = 0, curLevel = 9, curUntil = 0;
 const $ = id => document.getElementById(id);
 
 export function mute() { muted = true; try { speechSynthesis.cancel(); } catch (e) { } }
@@ -21,16 +21,16 @@ export function say(text, level = 3) {
 export function banner(text, level = 3, sub = '', right = '', hold = 0, kind = '') {
   const el = $('cue'); if (!el) return;
   const now = Date.now();
-  if (level > 1 && holdUntil > now) return;          // não cobre um nível 1 ativo
-  el.className = 'cue l' + level + (kind ? ' k-' + kind : '') + ' show';
+  if (level > curLevel && curUntil > now) return;    // crítica 06/09: aviso mais fraco não cobre um mais forte ainda ativo (nível 2 dura 8 s)
+  el.className = 'cue l' + level + (kind ? ' k-' + kind : '') + ' show'; el.setAttribute('aria-live', level === 1 ? 'assertive' : 'polite');
   el.innerHTML = '<div class="bar"></div><div class="ct"><b>' + esc(text) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' + (right ? '<div class="r">' + right + '</div>' : '');
   clearTimeout(bannerTimer);
   const ms = level === 1 ? (hold || 12000) : level === 2 ? 8000 : 5000;
-  holdUntil = level === 1 ? now + ms : 0;
-  bannerTimer = setTimeout(() => { el.classList.remove('show'); holdUntil = 0; }, ms);
+  holdUntil = level === 1 ? now + ms : 0; curLevel = level; curUntil = now + ms;
+  bannerTimer = setTimeout(() => { el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; }, ms);
   if (level === 1) flashEdge(3000);
 }
-export function clearBanner() { const el = $('cue'); if (el) el.classList.remove('show'); holdUntil = 0; }
+export function clearBanner() { const el = $('cue'); if (el) el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; }
 export function flashEdge(ms) { const e = $('edge'); if (!e) return; e.classList.add('show'); clearTimeout(edgeTimer); edgeTimer = setTimeout(() => e.classList.remove('show'), ms); }
 export function vibrate(level) {
   if (!navigator.vibrate) return;

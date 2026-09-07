@@ -86,7 +86,7 @@ export function panel(S) {
   // faixa fixa
   $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : (S.destEta && sess.state === 'idle' ? S.destEta : '–:–');
   { const tE = $('tEta'), tv = $('tVs'); if (tE) tE.textContent = $('eta').textContent; if (tv) { const vs = ($('vsplan') || {}).textContent || ''; tv.textContent = vs ? 'chegada · ' + vs : 'chegada'; } }
-  const vp = S.vsPlan; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
+  const vp = (S.vsPlan != null && Math.abs(S.vsPlan) <= 120) ? S.vsPlan : null; $('vsplan').textContent = vp == null ? (S.planArrival ? 'plano ' + S.planArrival : '') : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem);
   const idleLbl = sess.state === 'idle' && (st.diario || S.free) ? 'Partir' : session.label(sess.state);
   $('btnSession').innerHTML = idleLbl + '<small>' + (sess.state === 'idle' ? (st.diario ? (S.destEta ? 'chegada ' + S.destEta : 'Diário') : S.free ? 'livre' : 'etapa') : 'mov. ' + fmtT(moving)) + '</small>';
@@ -199,7 +199,7 @@ export function paradoPanel(S) {
   const el = $('paradoBody'); if (!el) return;
   const L = S.live || {}, F = S.fuelStatus, d = S.proj.dist || 0, sess = S.session, now = Date.now(), moving = session.movingTime(sess, now);
   const since = S.stillAt ? Math.max(0, Math.round((now - S.stillAt) / 1000)) : 0, mm = Math.floor(since / 60), ss = since % 60;
-  const eta = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–', vp = S.vsPlan;
+  const eta = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : '–:–', vp = (S.vsPlan != null && Math.abs(S.vsPlan) <= 120) ? S.vsPlan : null;
   const etaSub = vp == null ? 'chegada prevista' : 'chegada · ' + (vp > 0 ? '+' : '−') + fmtMin(vp) + (vp > 0 ? ' atrasado' : ' adiantado');
   const place = S.place || (S.next && S.next.cp ? 'perto de ' + S.next.cp.name : '');
   el.innerHTML = `<div class="parado-t"><h4>Parado</h4><div class="tm">${mm}:${String(ss).padStart(2, '0')}<small>min</small></div></div>
@@ -235,7 +235,7 @@ export function previewHtml(stage, day, b, paradas, sun) {
   const h = d.hotel;
   return `<div class="pv m-${stage.type}">
   <div class="hd"><div class="eyebrow">${d.dia || b.day || ''}${d.sol ? ' · sol ' + d.sol : ''}</div><h3>${code} ${d.titulo || stage.name.replace(/^E\S+ /, '')}</h3><div class="sub">${d.sub || ''}${d.tipo ? ' · ' + d.tipo : ''}</div>${stage.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
-  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${d.saida || '–'}</b><span>saída</span></div><div><b>${d.chegada || '–'}</b><span>chegada</span></div></div>
+  <div class="row3"><div><b>${String(stage.km).replace('.', ',')}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${d.saida || '–'}</b><span>saída</span></div><div><b>${d.chegada || '–'}</b><span>chegada</span></div></div>
   <div id="pvWx"></div>
   <div class="dio"><canvas class="dio3d" id="pvDio"></canvas><canvas class="map" id="pvMap" hidden></canvas><div class="dio-ctl"><button data-v="dio" class="on">Maquete</button><button data-v="sat">Satélite</button><button data-v="map">Mapa</button></div><div class="dio-hint">montando a maquete…</div></div>
   <canvas class="prof" id="pvProf"></canvas>
@@ -265,7 +265,7 @@ export function briefingHtml(b, stage) {
   const crit = b.critical.map(p => `<li><b>${p.aviso}</b></li>`).join('');
   const items = b.items.filter(p => p.kind !== 'compras').map(p => `<li><span class="k">km ${Math.round(p.km)}</span> ${p.nome} <small>${p.min ? fmtMin(p.min) : ''}${p.kind === 'opcional' ? ' · opcional' : ''}</small></li>`).join('');
   return `<div class="brief"><div class="eyebrow">${b.day}${b.sunday ? ' · DOMINGO: comércio fechado' : b.monday ? ' · segunda: lojas fechadas de manhã' : ''}</div><h3>${stage.name}</h3>
-  <div class="row3"><div><b>${stage.km}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${fmtMin(b.mins)}</b><span>de paradas</span></div></div>
+  <div class="row3"><div><b>${String(stage.km).replace('.', ',')}</b><span>km</span></div><div><b>${stage.up}</b><span>m subida</span></div><div><b>${fmtMin(b.mins)}</b><span>de paradas</span></div></div>
   ${crit ? `<h4>Não esquecer</h4><ul class="crit">${crit}</ul>` : ''}
   <h4>Paradas do dia</h4><ul class="list">${items}</ul>
   <h4>Horários da região</h4><ul class="rules">${b.regras.map(r => `<li>${r}</li>`).join('')}</ul></div>`;

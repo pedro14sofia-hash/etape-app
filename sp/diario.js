@@ -99,5 +99,5 @@ function render() {
   el.querySelectorAll('[data-k]').forEach(r => r.onclick = () => select(r.dataset.k));
   el.querySelectorAll('[data-third]').forEach(b => b.onclick = () => setThird(b.dataset.third));
   const fr = $('destFree'); if (fr) fr.onclick = () => { D.q = ''; close(); };
-  const sv = $('destSave'); if (sv) sv.onclick = () => { const p = C.pos(); if (!p) { voice.banner('Sem posição ainda', 2); return; } const name = prompt('Nome deste lugar (ex.: Casa, Trabalho)'); if (!name) return; plan.savePlace(name.trim(), p.lat, p.lon); voice.banner('Lugar guardado', 3, name.trim()); render(); };
+  const sv = $('destSave'); if (sv) sv.onclick = async () => { const p = C.pos(); if (!p) { voice.banner('Sem posição ainda', 2); return; } const name = await C.ask('Nome deste lugar', 'Ex.: Casa, Trabalho, Academia', 'Guardar', { input: true }); if (!name) return; plan.savePlace(name.trim(), p.lat, p.lon); voice.banner('Lugar guardado', 3, name.trim()); render(); };
 }

@@ -229,7 +229,7 @@ function activateStage(st, isFree) {
   refresh(); measurePanel(); R.invalidate(); if (t3d) t3d.setStage(S.stage);
 }
 function diarioCtx() {
-  return { S, $, refresh, setMode, setTab: t => ui.setTab(S, t), pos: () => S.fix || S.pos || null, activate: st => activateStage(st),
+  return { S, $, refresh, setMode, ask, setTab: t => ui.setTab(S, t), pos: () => S.fix || S.pos || null, activate: st => activateStage(st),
     restoreFree: () => { if (!S.freeStage) return; S.free = true; S.diario = false; S.alts = null; S.destEta = null; activateStage(S.freeStage, true); free.reset(S.freeStage.pts[0]); $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; },
     fitTo };
 }
@@ -313,7 +313,7 @@ function preOuting(go) {
   if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0;
 }
 // pergunta em papel (substitui confirm/alert nativos): título, subtítulo, rótulo do sim
-export function ask(title, sub, yes) { return new Promise(res => { const d = $('dlgAsk'); $('askTitle').textContent = title; $('askSub').textContent = sub || ''; $('askYes').textContent = yes || 'Sim'; const done = v => { d.close(); res(v); }; $('askYes').onclick = () => done(true); $('askNo').onclick = () => done(false); d.onclose = null; d.showModal(); }); }
+export function ask(title, sub, yes, opts = {}) { return new Promise(res => { const d = $('dlgAsk'), inp = $('askIn'); $('askTitle').textContent = title; $('askSub').textContent = sub || ''; $('askYes').textContent = yes || 'Sim'; inp.hidden = !opts.input; inp.value = opts.value || ''; const done = v => { d.close(); res(v); }; $('askYes').onclick = () => done(opts.input ? inp.value.trim() : true); $('askNo').onclick = () => done(opts.input ? null : false); inp.onkeydown = e => { if (e.key === 'Enter') $('askYes').click(); }; d.onclose = null; d.showModal(); if (opts.input) setTimeout(() => inp.focus(), 50); }); }
 async function askFinish() { if (S.session.state === 'idle') return; if (await ask('Encerrar a etapa?', 'Fecha a sessão e gera o relatório do dia.', 'Encerrar')) finishStage(true); }
 export function finishStage(force) {
   if (S.session.state === 'idle') return;

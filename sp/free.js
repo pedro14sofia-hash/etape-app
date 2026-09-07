@@ -110,7 +110,7 @@ export function heading() { return cur ? cur.head : null; }
 // painel: sobrescreve o que é da etapa fixa (borne, curva, km restam, chegada) pelo que faz sentido no modo livre
 export function panel($) {
   const st = S.stage, d = S.proj.dist || 0;
-  $('rem').textContent = fmtKm1(d); const remLab = $('rem').nextElementSibling; if (remLab) remLab.textContent = 'km feitos';
+  $('rem').textContent = fmtKm1(d); const remLab = $('rem').nextElementSibling; if (remLab) remLab.textContent = 'feitos';
   const t = new Date(); $('eta').textContent = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0'); $('vsplan').textContent = ''; const etaLab = $('eta').nextElementSibling; if (etaLab) etaLab.firstChild.textContent = 'agora · ';
   const w = S.streetWay;
   $('nbName').textContent = S.street || (S.fix ? 'Fora das vias' : 'Aguardando GPS');

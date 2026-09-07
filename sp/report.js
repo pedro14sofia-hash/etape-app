@@ -35,10 +35,12 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
 }
 
 // maillots por tipo de etapa (mesmo desenho do guia)
-const MAILLOT = { pois: ['#FFFFFF', 'url(#pd)'], jaune: ['#FFFF00', '#FFFF00'], vert: ['#1DAE50', '#1DAE50'], blanc: ['#FFFFFF', '#FFFFFF'] };
+const MAILLOT = { pois: ['#FFFFFF', 'url(#pd)'], jaune: ['#FFD200', '#FFD200'], vert: ['#0E9A4C', '#0E9A4C'], blanc: ['#FFFFFF', '#FFFFFF'] };   // cores do sistema A (tokens.json)
+let pdotsN = 0;
 export function maillotSvg(kind, size = 40) {
-  const body = kind === 'pois' ? 'url(#pdots)' : (MAILLOT[kind] || MAILLOT.blanc)[0];
-  return `<svg viewBox="0 0 40 32" width="${size}" height="${size * .8}"><defs><pattern id="pdots" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><circle cx="3" cy="3" r="1.6" fill="#E10D0D"/></pattern></defs><path d="M8 3 L14 1 L20 3 L26 1 L32 3 L37 9 L31 13 L30 30 L10 30 L9 13 L3 9 Z" fill="${body}" stroke="#000000" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 1 Q20 7 26 1" fill="none" stroke="#000000" stroke-width="1.6"/></svg>`;
+  const pid = 'pdots' + (++pdotsN);   // id único por SVG: o pódio tem vários maillots na mesma página
+  const body = kind === 'pois' ? 'url(#' + pid + ')' : (MAILLOT[kind] || MAILLOT.blanc)[0];
+  return `<svg viewBox="0 0 40 32" width="${size}" height="${size * .8}"><defs><pattern id="${pid}" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#fff"/><circle cx="3" cy="3" r="1.6" fill="#E4002B"/></pattern></defs><path d="M8 3 L14 1 L20 3 L26 1 L32 3 L37 9 L31 13 L30 30 L10 30 L9 13 L3 9 Z" fill="${body}" stroke="#000000" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 1 Q20 7 26 1" fill="none" stroke="#000000" stroke-width="1.6"/></svg>`;
 }
 // classificações da viagem a partir de todos os relatórios salvos: geral (tempo), montanha (subida), pontos (média), jovem (etapas feitas)
 export function standings(all) {
@@ -63,7 +65,7 @@ export function render(r, all) {
    <tr><td>${maillotSvg('vert', 26)}</td><td><b>Maillot vert</b><small>melhor média: ${esc(st.vert.name.replace(/^E\S+ /, ''))}</small></td><td class="r"><b>${n1(st.vert.avg)} km/h</b><small>${n1(st.avg)} na viagem</small></td></tr>
    <tr><td>${maillotSvg('blanc', 26)}</td><td><b>Ponta de velocidade</b><small>máxima: ${esc(st.vmax.name.replace(/^E\S+ /, ''))}</small></td><td class="r"><b>${n1(st.vmax.vmax)} km/h</b><small>mais longa ${n1(st.longest.km)} km</small></td></tr></table>` : '';
   return `<div class="rep m-${r.type}">
-  <div class="hd"><div class="eyebrow">Relatório do dia · ${dia}</div><h3>${esc(r.name)}</h3>${r.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
+  <div class="hd m-${r.type || 'jaune'}"><div class="eyebrow">Relatório do dia · ${dia}</div><h3>${esc(r.name)}</h3>${r.type === 'pois' ? '<div class="pois-line"></div>' : ''}</div>
   ${podium}
   <div class="big"><div><b>${n1(r.km)}</b><span>km</span></div><div><b>${fmtT(r.moving)}</b><span>em movimento</span></div><div><b>${Math.round(r.up)}</b><span>m subida</span></div></div>
   <div class="grid"><div><b>${fmtT(r.elapsed)}</b><span>total</span></div><div><b>${fmtT(r.stopped)}</b><span>parado</span></div><div><b>${n1(r.avg)}</b><span>média km/h</span></div><div><b>${n1(r.vmax)}</b><span>máx km/h</span></div></div>
