@@ -25,7 +25,8 @@ import * as plan from './plan.js';   // Diário: rotas A→B e etapa refeita for
 import * as native from './native.js';   // casca nativa (N3a): barômetro, brilho, térmico
 import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
 import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
-import * as cinema from './cinema.js';   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
+import * as cinema from './cinema.js';
+import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
@@ -37,7 +38,7 @@ let R, panelTimer = null;
 export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
-  cinema.init(S);
+  cinema.init(S); cinemaUi.init(S);
   if (native.init()) { S.native = true; sidecar.init(S); music.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
     // botões de volume: para cima marca o lugar; para baixo confirma o abastecimento que venceu (ou o próximo a vencer)
     native.onKey(k => { if (cinema.onKey(k)) return; if (k === 'up') markPlace(); else if (k === 'down') { const F = S.fuelStatus; if (!F || S.session.state !== 'running') { voice.banner('Sem saída em andamento', 3); return; } confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); } });

@@ -22,7 +22,8 @@ export function init() {
     update(st) { N.update = st; document.dispatchEvent(new CustomEvent('etape:update', { detail: st })); },
     music(st) { document.dispatchEvent(new CustomEvent('etape:music', { detail: st })); },
     night(st) { N.night = st; document.dispatchEvent(new CustomEvent('etape:night', { detail: st })); },
-    drive(st) { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); }
+    drive(st) { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); },
+    rotate(deg) { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); }
   };
   try { if (B.hasBaro()) B.baroStart(); } catch (e) { }
   try { B.brightness(-1); B.keepOn(true); } catch (e) { }
@@ -77,6 +78,14 @@ export async function checklist(S) {
   out.push({ ok: N.alt != null, txt: N.alt != null ? 'Barômetro ' + Math.round(N.alt) + ' m brutos' + (N.offset != null ? ' · calibrado' : ' · calibra ao partir') : 'Barômetro sem leitura' });
   out.push({ ok: hasTts(), txt: hasTts() ? 'Voz do sistema pronta' : 'Voz do sistema indisponível' });
   try { const t = +B.thermal(); out.push({ ok: t < 2, txt: 'Temperatura ' + ['normal', 'leve', 'moderada', 'severa', 'crítica'][Math.min(4, t)] }); } catch (e) { }
+  // Anna 07/09: as linhas da casca — noite, Drive, app, música, câmeras
+  try { const nt = JSON.parse(B.nightState()); const y = new Date(Date.now() - 86400000); const day = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0'); const built = !!B.nightBuilt(day); const clips = JSON.parse(B.nightClips(day)).length;
+    out.push({ ok: built || !clips, txt: 'Noite: ' + (nt.phase === 'clip' || nt.phase === 'start' ? 'montando o clipe do dia (' + (nt.done || 0) + '/' + nt.clips + ')' : built ? 'clipe de ontem montado' : clips ? clips + ' clipes de ontem por montar · deixe na tomada' : 'sem clipes de ontem') }); } catch (e) { }
+  try { const acct = String(B.driveAccount() || ''); const pend = +B.drivePending() || 0; const ds = JSON.parse(B.driveState());
+    out.push({ ok: !!acct && (pend === 0 || ds.phase === 'uploading'), txt: !acct ? 'Drive sem conta · Mais → Drive' : ds.phase === 'uploading' ? 'Drive enviando ' + (ds.file || '') : pend ? 'Drive: ' + pend + ' arquivos por enviar · Wi-Fi + tomada' : 'Drive em dia' }); } catch (e) { }
+  try { const v = JSON.parse(B.version()); const us = JSON.parse(B.updateState()); out.push({ ok: us.phase !== 'error', txt: 'App v' + v.code + (us.phase === 'done' ? ' · atualizado, reabra para usar' : us.phase === 'current' ? ' · atual' : us.phase === 'downloading' ? ' · baixando atualização' : us.phase === 'error' ? ' · atualização falhou' : '') }); } catch (e) { }
+  try { const m = JSON.parse(B.musicState()); out.push({ ok: !!m.granted, txt: !m.granted ? 'Música sem acesso a notificações' : m.title ? 'Música: ' + m.title : 'Música pronta · YouTube Music' }); } catch (e) { }
+  try { const c = JSON.parse(B.camCaps()); const back = (c.cameras || []).find(x => x.facing === 'back' && x.ois); const front = (c.cameras || []).find(x => x.facing === 'front'); out.push({ ok: !!back && !!front, txt: 'Câmeras: ' + (back ? 'Nitidez ' + (back.hlg10 ? '10 bits' : '8 bits') : 'sem traseira') + (front ? ' · Rosto pronto' : ' · sem frontal') }); } catch (e) { }
   return out;
 }
 // ---- N2b · modo dedicado (só com Device Owner)
@@ -120,3 +129,5 @@ export function driveAccount() { try { return N.on ? String(window.EtapeNative.d
 export function driveSync(force) { try { return N.on && !!window.EtapeNative.driveSync(!!force); } catch (e) { return false; } }
 export function driveState() { try { return N.on ? JSON.parse(window.EtapeNative.driveState()) : null; } catch (e) { return null; } }
 export function drivePending() { try { return N.on ? +window.EtapeNative.drivePending() : 0; } catch (e) { return 0; } }
+export function rotation() { try { return N.on ? (+window.EtapeNative.rotation() || 0) : 0; } catch (e) { return 0; } }
+export function storage() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }

@@ -390,3 +390,51 @@ dialog.ask-dlg{height:auto;max-height:80dvh;margin:auto auto 0;border-top:1.5px 
 .pv-tabs{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
 
 .ask input{display:block;margin-top:12px;width:100%;height:48px;border:1.5px solid var(--ink);border-radius:4px;padding:0 10px;font:600 16px var(--fb);background:var(--paper);color:var(--ink)}.ask input[hidden]{display:none}
+
+/* ---- faixa da música (Anna, 07/09): uma linha na Fita, abaixo do cabeçalho; some no modo mapa e no Cinema */
+.music{display:flex;align-items:center;gap:8px;padding:3px 8px 4px;border-top:1px solid var(--line);background:var(--glass2);flex:none}
+.music .note{font:700 13px/1 var(--fd);background:var(--ink);color:var(--paper);padding:4px 5px}
+.music .t{flex:1;min-width:0;line-height:1.05}.music .t b{display:block;font:700 14px/1.1 var(--fd);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.music .t span{display:block;font:600 11px/1.2 var(--fb);letter-spacing:.03em;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.music .b{width:44px;height:32px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font:700 14px/1 var(--fd);padding:0}.music .b.y{background:var(--yellow);color:var(--onyellow)}
+body.hasmusic{--fitaH:calc(146px + env(safe-area-inset-top))}
+body.mapmode #musicBar{display:none}
+
+/* ---- Cinema (Anna, 07/09): placar da transmissão sobre a prévia nativa. Vidro preto, amarelo da TV, Saira → Antonio local */
+html.cinema,html.cinema body{background:transparent!important}
+html.cinema body>*:not(#cinema):not(#cue){visibility:hidden}
+#cinema{position:absolute;inset:0;z-index:50;color:#fff;font-family:var(--fd);--y:#FFF200;--r:#FF2A44;--gl:rgba(12,12,13,.78);text-shadow:0 1px 2px rgba(0,0,0,.7);touch-action:manipulation}
+#cinema[hidden],#cinema [hidden]{display:none!important}
+.cn-tap{position:absolute;inset:0}
+.cn-bar{position:absolute;left:0;right:0;top:0;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;background:linear-gradient(rgba(12,12,13,.85),rgba(12,12,13,0));pointer-events:none}
+.cn-name{font-size:19px;letter-spacing:.05em;text-transform:uppercase;color:var(--y);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.cn-sub{font-size:13px;letter-spacing:.06em;color:#ddd}
+.cn-rec{font-size:15px;letter-spacing:.08em;white-space:nowrap}.cn-rec i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--r);margin-right:6px;animation:cnblink 1s steps(2) infinite}
+@keyframes cnblink{50%{opacity:.2}}
+.cn-exit{pointer-events:auto;border:1.5px solid #fff;background:var(--gl);color:#fff;width:40px;height:40px;font:700 18px var(--fd);flex:none}
+.cn-tulipa{position:absolute;left:12px;top:calc(64px + env(safe-area-inset-top));background:var(--gl);padding:6px 10px;display:flex;gap:8px;align-items:center;pointer-events:none}
+.cn-tulipa svg{width:34px;height:34px}.cn-tulipa b{font-size:26px;line-height:1;display:block}.cn-tulipa span{display:block;font-size:11px;letter-spacing:.1em;color:#ddd}
+.cn-sun{position:absolute;right:12px;top:calc(64px + env(safe-area-inset-top));background:var(--gl);padding:5px 8px;text-align:center;pointer-events:none;border:1.5px solid transparent}
+.cn-sun svg{width:40px;height:40px;display:block;margin:0 auto}.cn-sun span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;display:block}.cn-sun.golden{border-color:var(--y)}.cn-sun.golden span{color:var(--y)}
+.cn-mode{position:absolute;left:12px;bottom:calc(150px + env(safe-area-inset-bottom));display:flex;border:1.5px solid #fff;background:var(--gl)}
+.cn-mode button{padding:7px 12px;font:500 15px var(--fd);letter-spacing:.08em;text-transform:uppercase;color:#fff;background:transparent;border:0}.cn-mode button.on{background:var(--y);color:#0C0C0D;font-weight:700}
+.cn-mode.locked{opacity:.45;pointer-events:none}
+.cn-count{position:absolute;left:12px;bottom:calc(126px + env(safe-area-inset-bottom));font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#ddd;pointer-events:none}
+.cn-hot{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);background:var(--r);color:#fff;padding:10px 16px;font:700 22px var(--fd);letter-spacing:.06em;text-transform:uppercase}
+.cn-btns{position:absolute;right:12px;bottom:calc(150px + env(safe-area-inset-bottom));display:grid;gap:10px}
+.cn-btn{width:158px;height:66px;background:var(--gl);border:2px solid #fff;color:#fff;display:flex;align-items:center;gap:10px;padding:0 12px;font:700 22px var(--fd);letter-spacing:.04em;text-transform:uppercase;text-align:left}
+.cn-btn i{width:16px;height:16px;border-radius:50%;background:#fff;flex:none}.cn-btn div{min-width:0}.cn-btn span{display:block;font:500 10px var(--fd);letter-spacing:.1em;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cn-btn.on{background:var(--r);border-color:var(--r)}.cn-btn.on i{border-radius:2px}
+#cinema.warm .cn-btn{border-color:#E8A33D}#cinema.hot .cn-btn{opacity:.3;pointer-events:none}
+.cn-placar{position:absolute;left:0;right:0;bottom:0;padding:50px 12px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(rgba(12,12,13,0),rgba(12,12,13,.9) 35%);pointer-events:none}
+.cn-placar .row{display:flex;gap:14px;align-items:flex-end}
+.cn-placar .v b{font-size:62px;line-height:.9;font-weight:700}.cn-placar small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#ddd;font-weight:500;display:block}
+.cn-placar .v small{display:inline;margin-left:4px;font-size:14px}
+.cn-placar .g b{font-size:38px;line-height:1;font-weight:700;color:#fff}.cn-placar .g b.ochre{color:#E8A33D}.cn-placar .g b.red{color:var(--r)}
+.cn-placar .hr b{font-size:28px;line-height:1;font-weight:700}
+.cn-placar .place{font-size:14px;letter-spacing:.06em;color:#ddd;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* toque na imagem: só os botões ficam */
+#cinema.bare .cn-bar,#cinema.bare .cn-tulipa,#cinema.bare .cn-sun,#cinema.bare .cn-mode,#cinema.bare .cn-count,#cinema.bare .cn-placar{display:none}
+/* deitada: a sobreposição gira (a atividade é travada em pé); largura e altura trocam */
+#cinema.land{width:100vh;height:100vw;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);transform-origin:center}
+#cinema.land.r270{transform:translate(-50%,-50%) rotate(-90deg)}#cinema.r180:not(.land){transform:rotate(180deg)}
+#cinema.land .cn-btns{bottom:calc(12px + env(safe-area-inset-bottom));grid-template-columns:1fr 1fr}#cinema.land .cn-placar{right:360px;padding-top:36px}#cinema.land .cn-mode{bottom:12px}#cinema.land .cn-count{left:200px;bottom:20px}
