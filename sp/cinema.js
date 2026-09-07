@@ -75,6 +75,7 @@ function onRec(ev) {
   }
   if (ev.kind === 'error') { if (!S.rec[slot]) return; S.rec[slot] = null; voice.banner('Câmera: erro', 2, String(ev.detail || '').slice(0, 60)); emit('error'); }
   if (ev.kind === 'warm') voice.banner('Aparelho morno', 3, 'gravando mesmo assim');
+  if (ev.kind === 'hd') voice.banner('Espaço curto: Nitidez em 1080p', 2, String(ev.detail || '').slice(0, 60));
   if (ev.kind === 'off') { S.rec[slot] = null; emit('off'); }
 }
 

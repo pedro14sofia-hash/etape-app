@@ -27,6 +27,7 @@ import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 H
 import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
 import * as cinema from './cinema.js';
 import * as auto from './auto.js';   // Cinema v2: gatilhos automáticos
+import * as passeio from './passeio.js';   // diário do passeio (bateria, gatilhos, alertas) guardado com os sidecars
 import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
@@ -40,7 +41,7 @@ export function init() {
   S.map = loadMap(); S.routes = loadRoutes(); S.allParadas = loadParadas();
   R = createRenderer($('map'), $('rider'));
   cinema.init(S); cinemaUi.init(S);
-  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
+  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); passeio.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
     // botões de volume: para cima marca o lugar; para baixo confirma o abastecimento que venceu (ou o próximo a vencer)
     native.onKey(k => { if (cinema.onKey(k)) return; if (k === 'up') markPlace(); else if (k === 'down') { const F = S.fuelStatus; if (!F || S.session.state !== 'running') { voice.banner('Sem saída em andamento', 3); return; } confirmFuel(F.nextDrinkMin <= F.nextEatMin ? 'drink' : 'eat'); } });
     $('btnPhoto').hidden = false; $('btnScreen').hidden = false;
@@ -56,6 +57,10 @@ export function init() {
       $('btnLook').onclick = () => { const cur = S.prefs.cineLook == null ? 1 : S.prefs.cineLook; cinema.setLook((cur + 1) % 3); lookLabel(); voice.banner('Look ' + LOOKS[S.prefs.cineLook], 3, 'prévia e noite'); };
       $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 3, 'conferindo o Drive; abrindo a galeria'); else voice.banner('Drive sem conta ou já conferindo', 3, 'abrindo a galeria'); native.openFolder('', 'pronto'); };
       document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 3, 'Movies/Etape · pronto'); });
+      // subir pelo celular: desligado → 2 → 5 → 10 GB por dia (viagem, chip francês); nunca durante a saída
+      const CELL = [0, 2, 5, 10];
+      const cellLabel = () => { const g = native.driveCellGB(); $('btnCell').hidden = false; $('btnCell').querySelector('b').textContent = 'Subir pelo celular: ' + (g ? g + ' GB por dia' : 'desligado'); }; cellLabel();
+      $('btnCell').onclick = () => { const g = native.driveCellGB(); const nx = CELL[(CELL.indexOf(g) + 1) % CELL.length]; native.driveCell(nx); cellLabel(); voice.banner(nx ? 'Sobe pelo celular até ' + nx + ' GB por dia' : 'Só pelo Wi-Fi', 3, nx ? 'fora da saída; Wi-Fi continua sem limite' : ''); };
     }
     // N2b · modo dedicado (só com Device Owner): menu Mais → Travar/Liberar com PIN; toque longo de 5 s no relógio faz o mesmo
     if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
@@ -337,7 +342,7 @@ export function finishStage(force) {
   telemetry.record(S.log, S.log[S.log.length - 1] || telemetry.sample({ t: Date.now(), lat: S.stage.pts[0][0], lon: S.stage.pts[0][1] }, S.stage, S.proj), S.stage.key, true);
   const r = report.build(S.stage, S.session, S.log, S.fuel, S.fuelPlan, S.paradas, S.planArrival);
   if (S.free || S.diario) { const d = new Date(S.session.startedAt || Date.now()); const hm = String(d.getHours()).padStart(2, '0') + 'h' + String(d.getMinutes()).padStart(2, '0'); r.stageKey = 'SP-' + d.toISOString().slice(0, 10) + '-' + hm; r.name = (S.diario ? S.stage.name : 'SP') + ' · ' + d.toLocaleDateString('pt-BR') + ' ' + hm; r.diario = !!S.diario; r.dest = S.diario ? S.stage.dest : null; if (!S.diario) { r.planKm = r.km; r.planUp = r.up; } }
-  report.save(r); showArrival(r);
+  report.save(r); showArrival(r); if (S.native) try { passeio.finish(r); } catch (e) { }
   if (S.free || S.diario) { const c = S.fix ? [S.fix.lat, S.fix.lon] : S.stage.pts[S.stage.pts.length - 1]; store.clearStage('SP'); S.diario = false; S.alts = null; S.destEta = null; S.free = true; selectStage('SP'); free.reset(c); S.freeStage = S.stage; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; }
 }
 async function resetStage() { if (!(await ask('Zerar a etapa?', 'Apaga progresso, sessão e registro desta etapa.', 'Zerar'))) return; stopNavigation(); store.clearStage(S.stage.key); selectStage(S.stage.key); }
@@ -392,7 +397,7 @@ function onFix(raw) {
   S.next = guide.nextCue(S);
   // tela 05: fora da rota com a volta calculada, a placa mostra a próxima curva da nova rota e a distância até o traçado
   if (S.off && S.reroute && !muted()) { const r2 = S.reroute, t = r2.turns.find(x => x.dist > r2.proj.dist), remR = r2.total - r2.proj.dist; S.next = { cp: { name: 'Volta ao traçado', dist: (S.proj.dist || 0) + remR, reroute: true }, turn: t ? { ...t, dist: (S.proj.dist || 0) + (t.dist - r2.proj.dist) } : null }; }
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) auto.tick();
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) { auto.tick(); passeio.tick(); }
   if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   // longe da etapa (> 50 km, ex.: testando em casa): o mapa fica na largada e não segue o GPS
   if ((S.proj.off || 0) > 50000) { S.viewTarget = null; S.pos = null; if (!S.farNoted) { S.farNoted = true; S.gpsMsg = 'longe da etapa · mapa na largada'; } R.invalidate(); refresh(); return; }
@@ -455,7 +460,7 @@ function onFixFree(fix, now, running) {
   }
   for (const ev of events) handleEvent(ev);
   updatePlace(now);
-  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) auto.tick();
+  updateSituation(now, fix.v || 0); stillUI(now, fix.v || 0); cinema.updateSun(); if (S.native) { auto.tick(); passeio.tick(); }
   if (!gps.simulating() && now - (S.lastPosAt || 0) > 30000) { S.lastPosAt = now; store.set('lastpos:' + ((S.diario || S.free) ? 'sp' : 'tdf'), { lat: fix.lat, lon: fix.lon, place: S.place || '' }); }
   const v0 = fix.v || 0, pos = S.stage.pts.length ? S.stage.pts[S.stage.pts.length - 1] : [fix.lat, fix.lon];
   const headDeg = free.heading() != null ? free.heading() : (fix.head || 0);

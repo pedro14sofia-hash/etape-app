@@ -140,3 +140,8 @@ export function nightLook(look) { try { if (N.on) window.EtapeNative.nightLook(+
 export function driveFetch() { try { return N.on && !!window.EtapeNative.driveFetch(); } catch (e) { return false; } }
 export function driveDelivered() { try { return N.on ? +window.EtapeNative.driveDelivered() : 0; } catch (e) { return 0; } }
 export function openFolder(day, sub) { try { if (N.on) window.EtapeNative.openFolder(String(day || ''), String(sub || '')); } catch (e) { } }
+// ---- diário do passeio e subida pelo celular (07/09)
+export function battery() { try { return N.on ? window.EtapeNative.battery() : ''; } catch (e) { return ''; } }
+export function saveReport(day, name, json) { try { return N.on && !!window.EtapeNative.saveReport(String(day), String(name), json); } catch (e) { return false; } }
+export function driveCell(gb) { try { if (N.on) window.EtapeNative.driveCell(+gb || 0); } catch (e) { } }
+export function driveCellGB() { try { return N.on ? +window.EtapeNative.driveCellGB() || 0 : 0; } catch (e) { return 0; } }

@@ -29,7 +29,7 @@ function shoot(slot, sec, why) {
   const wasIn = S.cinema;
   if (cinema.rec(slot, { auto: true }) !== 'ok') return;   // recusado (quente, sem espaço…): não marca nada, não arma timer
   if (!wasIn) enteredByAuto = true;
-  auto[slot] = true;
+  auto[slot] = true; document.dispatchEvent(new CustomEvent('etape:auto', { detail: { slot, why, sec } }));
   const other = slot === 'rosto' ? 'estrada' : 'rosto';
   voice.banner('REC automático · ' + why, 3, (slot === 'rosto' ? 'frontal' : 'estrada') + (S.rec[other] ? ' · ' + other + ' segue' : ''));
   clearTimeout(timers[slot]); timers[slot] = setTimeout(() => { if (auto[slot] && S.rec[slot]) native.recStop(slot); }, sec * 1000);
