@@ -25,7 +25,9 @@ export function active() { return !!(S && S.cinema); }
 export function available() { return !!(S && S.native); }
 
 // ---- entrar e sair
-export function enter() {
+let frameTimer = 0;
+export function enter(opts) {
+  opts = opts || {};
   if (!available()) { voice.banner('Cinema só na casca', 2); return false; }
   if (!S.session || S.session.state !== 'running') { voice.banner('Cinema só com a saída em andamento', 3, 'toque em Partir primeiro'); return false; }
   if (S.cinema) return true;
@@ -35,7 +37,7 @@ export function enter() {
   voice.say('Cinema', 3);
   // enquadramento do dia: na primeira entrada do dia, a frontal aparece numa janela por 8 s para ajustar o suporte
   const today = new Date().toISOString().slice(0, 10);
-  if (S.prefs.frameDay !== today) { S.prefs.frameDay = today; store.setPrefs(S.prefs); native.cinemaFrame(true); voice.banner('Enquadramento do dia', 8, 'ajuste o suporte: estrada e rosto'); setTimeout(() => native.cinemaFrame(false), 8000); }
+  if (!opts.auto && S.prefs.frameDay !== today) { S.prefs.frameDay = today; store.setPrefs(S.prefs); native.cinemaFrame(true); voice.banner('Enquadramento do dia', 3, 'ajuste o suporte: estrada e rosto'); clearTimeout(frameTimer); frameTimer = setTimeout(() => native.cinemaFrame(false), 8000); }
   return true;
 }
 export function frame(on) { native.cinemaFrame(on); }
@@ -43,21 +45,25 @@ export function setLook(look) { S.prefs.cineLook = look; store.setPrefs(S.prefs)
 export function togglePreviewLook() { S.prefs.previewLook = S.prefs.previewLook === false; store.setPrefs(S.prefs); native.previewLook(S.prefs.previewLook, S.prefs.cineLook || 1); return S.prefs.previewLook; }
 export function exit() {
   if (!S.cinema) return;
-  ['estrada', 'rosto'].forEach(slot => { if (S.rec[slot]) native.recStop(slot); });
+  const wasRec = ['estrada', 'rosto'].filter(slot => S.rec[slot]);
+  wasRec.forEach(slot => native.recStop(slot));
+  clearTimeout(frameTimer); native.cinemaFrame(false);
   native.cinemaPreview(false, false);
+  if (wasRec.length && document.hidden) voice.banner('REC encerrado: a tela apagou', 3, 'o clipe até aqui foi guardado');
   S.cinema = false; document.documentElement.classList.remove('cinema'); emit('exit');
 }
 export function toggle() { if (S.cinema) exit(); else enter(); }
 export function setMode(m) { if (m !== 'nitidez' && m !== 'aberto') return; S.prefs.cineMode = m; store.setPrefs(S.prefs); if (S.cinema && !S.rec.estrada) native.camOpen('estrada', m); emit('mode'); }
 
 // ---- REC por câmera: liga ou desliga
-export function rec(slot) {
-  if (!S.cinema) { if (!enter()) return; }
-  if (S.rec[slot]) { if (!S.rec[slot].pending) native.recStop(slot); return; }
+export function rec(slot, opts) {
+  if (!S.cinema) { if (!enter(opts)) return 'sem cinema'; }
+  if (S.rec[slot]) { if (!S.rec[slot].pending) { native.recStop(slot); return 'stop'; } return 'pending'; }
   // frontal sempre em 1440p dentro do Cinema: junto com a Estrada em 4K, a frontal em 4K cai para 23 fps, e a ordem dos toques não importa
   const r = native.rec(slot, slot === 'rosto' ? 'rosto_qhd' : S.prefs.cineMode);
   if (r === 'ok') S.rec[slot] = { pending: true, at: Date.now() };   // até o evento rec chegar, um segundo toque não pede de novo
   if (r !== 'ok') { voice.banner(({ quente: 'Aparelho quente: sem REC', 'sem espaço': 'Sem espaço para gravar', 'sem permissão': 'Câmera sem permissão' })[r] || 'REC recusado', 2, r); }
+  return r;
 }
 function onRec(ev) {
   const slot = ev.slot || 'estrada';
@@ -97,7 +103,7 @@ export function updateSun() {
   if (S.session && S.session.state === 'running') {
     const day = new Date().toISOString().slice(0, 10);
     if (S.sun.lowIn != null && S.sun.lowIn > 0 && S.sun.lowIn <= 30 && S.prefs.goldenSoon !== day) { S.prefs.goldenSoon = day; store.setPrefs(S.prefs); voice.say('Luz boa em ' + S.sun.lowIn + ' minutos.', 3); }
-    if (S.sun.golden && S.sun.where !== 'noite' && S.prefs.goldenNow !== day && new Date().getHours() >= 12) { S.prefs.goldenNow = day; store.setPrefs(S.prefs); voice.say('Luz boa agora. Sol ' + (S.sun.where === 'costas' ? 'nas costas' : S.sun.where === 'frente' ? 'de frente' : 'de lado') + '.', 3); }
+    if (S.sun.golden && S.sun.rel != null && S.sun.where !== 'noite' && S.prefs.goldenNow !== day && new Date().getHours() >= 12) { voice.say('Luz boa agora. Sol ' + (S.sun.where === 'costas' ? 'nas costas' : S.sun.where === 'frente' ? 'de frente' : 'de lado') + '.', 2); S.prefs.goldenNow = day; store.setPrefs(S.prefs); }
   }
 }
 function emit(kind) { document.dispatchEvent(new CustomEvent('etape:cinema', { detail: { kind, cinema: S.cinema, rec: S.rec, mode: S.prefs.cineMode } })); }

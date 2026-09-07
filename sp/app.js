@@ -47,19 +47,22 @@ export function init() {
     $('btnPhoto').onclick = () => { $('dlgMenu').close(); takePhoto(); };
     $('btnScreen').onclick = () => { S.prefs.screen = S.prefs.screen === 'economia' ? 'sempre' : 'economia'; store.setPrefs(S.prefs); applyScreen(); $('dlgMenu').close(); voice.banner(S.prefs.screen === 'economia' ? 'Tela apaga sozinha' : 'Tela sempre ligada', 3, S.prefs.screen === 'economia' ? 'acende nos avisos' : ''); };
     applyScreen();
+    // Cinema no menu Mais (com a casca, dona ou não): REC automático, Look, Filmes prontos
+    if (S.native) {
+      const LOOKS = ['Clássico', 'Cinema', 'Cinema forte'];
+      const autoLabel = () => { $('btnAuto').hidden = false; $('btnAuto').querySelector('b').textContent = 'REC automático: ' + (auto.pref() ? 'ligado' : 'desligado'); }; autoLabel();
+      $('btnAuto').onclick = () => { $('dlgMenu').close(); auto.toggle(); autoLabel(); };
+      const lookLabel = () => { $('btnLook').hidden = false; $('btnLook').querySelector('b').textContent = 'Look: ' + LOOKS[S.prefs.cineLook == null ? 1 : S.prefs.cineLook]; }; lookLabel(); native.nightLook(S.prefs.cineLook == null ? 1 : S.prefs.cineLook);
+      $('btnLook').onclick = () => { const cur = S.prefs.cineLook == null ? 1 : S.prefs.cineLook; cinema.setLook((cur + 1) % 3); lookLabel(); voice.banner('Look ' + LOOKS[S.prefs.cineLook], 3, 'prévia e noite'); };
+      $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 3, 'conferindo o Drive; abrindo a galeria'); else voice.banner('Drive sem conta ou já conferindo', 3, 'abrindo a galeria'); native.openFolder('', 'pronto'); };
+      document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 3, 'Movies/Etape · pronto'); });
+    }
     // N2b · modo dedicado (só com Device Owner): menu Mais → Travar/Liberar com PIN; toque longo de 5 s no relógio faz o mesmo
     if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
         if (locked) { if (native.kioskUnlock(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado', 2); }
         else { if (native.kioskPin(pin, pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'Mais → Liberar o aparelho, ou toque longo no relógio'); } else voice.banner('PIN errado', 2); } kioskLabel(); };
       const kioskLabel = () => { $('btnKiosk').hidden = false; $('btnKiosk').querySelector('b').textContent = native.kioskLocked() ? 'Liberar o aparelho' : 'Travar o aparelho'; }; kioskLabel();
       $('btnKiosk').onclick = () => { $('dlgMenu').close(); ask(); };
-      const LOOKS = ['Clássico', 'Cinema', 'Cinema forte'];
-      const autoLabel = () => { $('btnAuto').hidden = false; $('btnAuto').querySelector('b').textContent = 'REC automático: ' + (S.prefs.autoRec ? 'ligado' : 'desligado'); }; autoLabel();
-      $('btnAuto').onclick = () => { $('dlgMenu').close(); auto.toggle(); autoLabel(); };
-      const lookLabel = () => { $('btnLook').hidden = false; $('btnLook').querySelector('b').textContent = 'Look: ' + LOOKS[S.prefs.cineLook == null ? 1 : S.prefs.cineLook]; }; lookLabel(); native.nightLook(S.prefs.cineLook == null ? 1 : S.prefs.cineLook);
-      $('btnLook').onclick = () => { const cur = S.prefs.cineLook == null ? 1 : S.prefs.cineLook; cinema.setLook((cur + 1) % 3); lookLabel(); voice.banner('Look ' + LOOKS[S.prefs.cineLook], 3, 'prévia e noite'); };
-      $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 4, 'conferindo o Drive; abrindo a galeria'); native.openFolder('', 'pronto'); };
-      document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 5, 'Movies/Etape · pronto'); });
       $('btnNormal').hidden = false;
       $('btnNormal').onclick = () => { $('dlgMenu').close(); const pin = prompt('PIN para devolver o aparelho ao normal (sem trava e sem dono; só um reset de fábrica refaz o dono)'); if (pin == null) return;
         if (native.kioskReset(pin)) { $('btnKiosk').hidden = true; $('btnNormal').hidden = true; voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); } else voice.banner('PIN errado', 2); };
@@ -319,7 +322,7 @@ function preOuting(go) {
   if (saved) paintCompact(); else paint();
   $('preNote').textContent = 'Peso ' + S.prefs.weight + ' kg · 2 garrafas de 750 ml' + (mode === 'viagem' ? ' · metas do guia para o tipo desta etapa' : ' · a escolha fica guardada para a próxima saída');
   // N4 · checklist de partida (só com a casca): bateria, espaço, GPS, barômetro, voz, temperatura
-  const ck = $('preCheck'); if (ck) { ck.hidden = !S.native; if (S.native) { ck.innerHTML = '<div class="lbl">Aparelho</div><div class="note">conferindo…</div>'; native.checklist(S).then(list => { if (!list) return; ck.innerHTML = '<div class="lbl">Aparelho</div>' + list.map(i => `<div class="ck${i.ok ? '' : ' warn'}"><i>${i.ok ? '✓' : '!'}</i>${i.txt}</div>`).join(''); }); } }
+  const ck = $('preCheck'); if (ck) { ck.hidden = !S.native; if (S.native) { ck.innerHTML = '<div class="lbl">Aparelho</div><div class="note">conferindo…</div>'; native.checklist(S).then(list => { if (!list) return; ck.innerHTML = '<div class="lbl">Aparelho</div>' + list.map(i => `<div class="ck${i.ok ? '' : ' warn'}"><i>${i.ok ? '✓' : '!'}</i>${String(i.txt).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>`).join(''); }); } }
   $('preNone').onclick = () => { for (const m of list) m.on = false; dlg.close(); finish(); };
   $('preGo').onclick = () => { dlg.close(); finish(); };
   if (!dlg.open) dlg.showModal(); dlg.scrollTop = 0;
