@@ -8,6 +8,10 @@
 const N = { on: false, p0: 1013.25, offset: null, alt: null, altT: 0, samples: [], grade: null, ok: false, thermal: 0, lux: null, ref: null, refT: 0 };
 const H = p => 44330 * (1 - Math.pow(p / N.p0, 1 / 5.255));   // altura barométrica (m) para a pressão p (hPa)
 export function available() { return N.on; }
+// item 1 da revisão final (u2-largada): o portão certo para uma linha que depende da casca é a existência do
+// método que ela vai chamar, não a existência de window.EtapeNative — a casca pode existir e ainda não ter
+// exposto o método que uma tela pede (é o caso hoje de qualquer pedido de permissão). Teste honesto por nome.
+export function disponivel(nome) { try { return !!(window.EtapeNative && typeof window.EtapeNative[nome] === 'function'); } catch (e) { return false; } }
 export function init() {
   const B = window.EtapeNative; if (!B) return false;
   N.on = true;
@@ -160,3 +164,7 @@ export function tabText(t) { try { if (N.on && window.EtapeNative.tabText && N.t
 export function tabAllowed() { try { return N.on && !!window.EtapeNative.tabAllowed(); } catch (e) { return false; } }
 export function toFront() { try { if (N.on && window.EtapeNative.toFront) window.EtapeNative.toFront(); } catch (e) { } }
 export function reboot(pin) { try { return N.on && !!window.EtapeNative.reboot(String(pin)); } catch (e) { return false; } }
+// ---- item 3 da revisão (08/09): zebra e a medida do quadro na prévia
+export function previewZebra(level) { try { if (N.on) window.EtapeNative.previewZebra(+level || 0); } catch (e) { } }
+export function previewStats() { try { return N.on ? JSON.parse(window.EtapeNative.previewStats() || 'null') : null; } catch (e) { return null; } }
+export function mark() { try { if (N.on) window.EtapeNative.mark(); } catch (e) { } }

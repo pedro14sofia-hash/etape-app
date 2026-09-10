@@ -2,6 +2,7 @@
 // Telemetria: amostras a 5 s, números da tela, VAM, gradiente, registro do dia, GPX.
 import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js';
 import * as store from './store.js';
+import * as logdb from './logdb.js';   // U6 Fase 3: o registro do dia vive no IndexedDB
 
 export function sample(fix, stage, proj, prev) {
   const ele = Math.round(elevationAt(stage, proj.dist));
@@ -14,7 +15,11 @@ export function record(log, s, stageKey, force) {
   const last = log[log.length - 1];
   if (!last || s.t - last.t >= 5000 || force) {
     log.push(s);
-    if (force || !record._w || s.t - record._w > 30000) { store.setLog(stageKey, log); record._w = s.t; }
+    // U6 Fase 3: uma amostra por put no IndexedDB, custo constante. O caminho antigo — reserializar o log INTEIRO
+    // a cada 30 s, 435 KB de JSON.stringify por meio minuto no fim de uma etapa — vira reserva, para quando o
+    // IndexedDB nao existe (aba privada, armazenamento bloqueado).
+    if (logdb.available()) logdb.append(stageKey, s);
+    else if (force || !record._w || s.t - record._w > 30000) { store.setLog(stageKey, log); record._w = s.t; }
     return true;
   }
   return false;
@@ -27,10 +32,25 @@ export function vam(log, seconds) {
   let up = 0; for (let j = i + 1; j < log.length; j++) { const d = log[j].ele - log[j - 1].ele; if (d > 0) up += d; }
   return Math.round(up / dt * 3600);
 }
+// máxima, altitude máxima e subida acumulada: guardadas no próprio registro e adiantadas só com as amostras novas.
+// Antes o live() varria o log inteiro a cada fix — no fim de uma etapa de 6 h são 4.300 amostras por segundo, gastas
+// para recalcular três acumuladores. Orçamento térmico jogado fora num aparelho que já baixa o 3D quando esquenta
+// (auditoria de 07/09, item B8). Se o log encolher (etapa nova, registro despejado), o acumulador se refaz sozinho.
+function acumulado(log) {
+  let a = log.__acc;
+  if (!a || a.n > log.length) a = log.__acc = { n: 0, vmax: 0, maxEle: 0, up: 0 };
+  for (let i = a.n; i < log.length; i++) {
+    const q = log[i];
+    if (q.v > a.vmax) a.vmax = q.v;
+    if (q.ele > a.maxEle) a.maxEle = q.ele;
+    if (i && q.ele > log[i - 1].ele) a.up += q.ele - log[i - 1].ele;
+  }
+  a.n = log.length;
+  return a;
+}
 export function live(log, stage, session, now, movingSec) {
   const s = log[log.length - 1] || { dist: 0, v: 0, ele: elevationAt(stage, 0), grade: 0 };
-  let vmax = 0, maxEle = 0, up = 0;
-  for (let i = 0; i < log.length; i++) { if (log[i].v > vmax) vmax = log[i].v; if (log[i].ele > maxEle) maxEle = log[i].ele; if (i && log[i].ele > log[i - 1].ele) up += log[i].ele - log[i - 1].ele; }
+  const { vmax, maxEle, up } = acumulado(log);
   // média em movimento: distância desde a primeira amostra da sessão sobre o tempo em movimento, só depois de 2 min
   const first = log[0] || s, avg = movingSec > 120 ? Math.max(0, s.dist - first.dist) / movingSec : 0;
   const cl = climbAt(stage, s.dist);

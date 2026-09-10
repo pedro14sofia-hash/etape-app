@@ -62,7 +62,8 @@ export function nextCross(map, m, lookM = 400) {
   const step = m.dir > 0 ? 1 : -1;
   for (let guard = 0; guard < 200 && acc < lookM; guard++) {
     // segmento atual do ponto de partida até o vértice seguinte no sentido do movimento
-    const a = m.dir > 0 ? [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t] : [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t];
+    // o ponto de partida do segmento é o mesmo nos dois sentidos: o que muda é o destino `b`, logo abaixo
+    const a = [P[i - 1][0] + (P[i][0] - P[i - 1][0]) * t, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * t];
     const b = m.dir > 0 ? P[i] : P[i - 1];
     const segLen = Math.hypot((b[1] - a[1]) * kx, (b[0] - a[0]) * ky);
     if (segLen > 0.5) {

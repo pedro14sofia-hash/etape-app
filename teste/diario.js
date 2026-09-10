@@ -10,8 +10,8 @@ import * as store from './store.js';
 import * as voice from './voice.js';
 import { haversine } from './geo.js';
 
-let C = null;   // contexto do app: { S, $, refresh, setMode, setTab, activate(stage), restoreFree(), fitTo(pts), pos() }
-const D = { dest: null, from: null, alts: null, sel: 'shortest', third: null, q: '', busy: false, online: [], onlineQ: '' };
+let C = null;   // contexto do app: { S, $, refresh, setMode, setTab, activate(stage), restoreFree(), fitTo(pts), pos(), precisaPrimeira() }
+const D = { dest: null, from: null, alts: null, sel: 'shortest', third: null, q: '', busy: false, online: [], onlineQ: '', posPendente: false };
 const fmtKm1 = m => (m / 1000).toFixed(1).replace('.', ',');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -24,9 +24,21 @@ export function state() { return D; }
 export function open() {
   const S = C.S; if (S.session.state !== 'idle') { voice.banner('Encerre a saída para mudar o destino', 3); return; }
   C.setTab('dest'); C.setMode('full'); render();
-  // partida: uma posição do GPS antes de partir (o GPS contínuo só liga com a sessão); sem ela, fica a última guardada
-  if (!C.pos() && navigator.geolocation) navigator.geolocation.getCurrentPosition(p => { S.pos = { lat: p.coords.latitude, lon: p.coords.longitude, head: 0, dist: 0 }; store.set('lastpos:sp', { lat: S.pos.lat, lon: S.pos.lon, place: '' }); if (D.dest && D.alts) { D.from = fromPos(); compute(); } else render(); }, () => { }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  pedirPosicaoInicial();
 }
+// item 4 da revisão final: o pedido automático de localização (para ter uma posição de partida antes do GPS
+// contínuo ligar) esperava a hora errada. app.js chama open() assim que o import() dinâmico resolve, e a tela
+// Primeira vez só sobe 400 ms depois (largadaInit) — o diálogo do sistema aparecia antes da explicação, e se o
+// ciclista respondesse, o botão Localização da Primeira vez não conseguia mais perguntar nada (o navegador não
+// repergunta depois de um 'negado'). Enquanto a Primeira vez não terminou, o pedido fica pendente; app.js chama
+// retomarLocalizacao() pelo aoTerminar de entrada.init quando ela fecha.
+function pedirPosicaoInicial() {
+  const S = C.S;
+  if (C.pos() || !navigator.geolocation) return;
+  if (C.precisaPrimeira && C.precisaPrimeira()) { D.posPendente = true; return; }
+  navigator.geolocation.getCurrentPosition(p => { S.pos = { lat: p.coords.latitude, lon: p.coords.longitude, head: 0, dist: 0 }; store.set('lastpos:sp', { lat: S.pos.lat, lon: S.pos.lon, place: '' }); if (D.dest && D.alts) { D.from = fromPos(); compute(); } else render(); }, () => { }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
+export function retomarLocalizacao() { if (D.posPendente) { D.posPendente = false; pedirPosicaoInicial(); } }
 export function close() { const S = C.S; if (S.session.state === 'idle' && S.diario) { D.dest = null; D.alts = null; S.alts = null; S.destEta = null; C.restoreFree(); } C.setMode('resumo'); }
 
 // posição de partida: GPS, senão a última posição guardada, senão o primeiro lugar (Casa)
@@ -40,7 +52,7 @@ function fromPos() {
 export function chooseByName(name) { const p = plan.search(C.S.map, name)[0]; if (p) setDest(p); return !!p; }
 function setDest(p) {
   D.dest = { name: p.name, lat: p.lat, lon: p.lon }; D.q = ''; D.from = fromPos();
-  if (!D.from) { voice.banner('Sem posição de partida', 2); return; }
+  if (!D.from) { voice.banner('Sem posição de partida', 2, 'esperando o GPS fixar'); return; }
   if (!ready()) { D.alts = null; render(); voice.banner('Carregando o mapa de rotas', 3); waitReady(); return; }
   compute();
 }
@@ -53,7 +65,7 @@ function compute() {
   warm.then(() => new Promise(r => setTimeout(r, 30))).then(() => {
     const t0 = performance.now(); let alts = null; try { alts = plan.routes(D.from, D.dest, D.third); } catch (e) { alts = null; } D.ms = Math.round(performance.now() - t0);
     D.busy = false; D.alts = alts;
-    if (!alts || !alts.some(a => !a.fail)) { voice.banner('Sem caminho até ' + D.dest.name, 2, 'longe do mapa de rotas?'); render(); return; }
+    if (!alts || !alts.some(a => !a.fail)) { voice.banner('Sem caminho até ' + D.dest.name, 2, 'o destino pode estar fora da área baixada'); render(); return; }
     if (!alts.find(a => a.key === D.sel && !a.fail)) D.sel = alts.find(a => !a.fail).key;
     select(D.sel);
   });
@@ -99,5 +111,5 @@ function render() {
   el.querySelectorAll('[data-k]').forEach(r => r.onclick = () => select(r.dataset.k));
   el.querySelectorAll('[data-third]').forEach(b => b.onclick = () => setThird(b.dataset.third));
   const fr = $('destFree'); if (fr) fr.onclick = () => { D.q = ''; close(); };
-  const sv = $('destSave'); if (sv) sv.onclick = async () => { const p = C.pos(); if (!p) { voice.banner('Sem posição ainda', 2); return; } const name = await C.ask('Nome deste lugar', 'Ex.: Casa, Trabalho, Academia', 'Guardar', { input: true }); if (!name) return; plan.savePlace(name.trim(), p.lat, p.lon); voice.banner('Lugar guardado', 3, name.trim()); render(); };
+  const sv = $('destSave'); if (sv) sv.onclick = async () => { const p = C.pos(); if (!p) { voice.banner('Sem posição ainda', 2, 'o GPS ainda está fixando; tente daqui a alguns segundos'); return; } const name = await C.ask('Nome deste lugar', 'Ex.: Casa, Trabalho, Academia', 'Guardar', { input: true }); if (!name) return; plan.savePlace(name.trim(), p.lat, p.lon); voice.banner('Lugar guardado', 3, name.trim()); render(); };
 }

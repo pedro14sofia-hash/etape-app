@@ -100,7 +100,7 @@ export async function build(cv, stage, paradas, key, opts = {}) {
     const [x, z] = toXZ(c.lat, c.lon), y0 = heightAt(c.lat, c.lon) + lift;
     const level = placed.filter(p => Math.hypot(p[0] - x, p[1] - z) < 0.16).length; placed.push([x, z]);
     const y = y0 + flagH * (1.25 + 0.7 * level);
-    labels.add(textSprite(c.name.toUpperCase(), x, y, z, c.col, big));
+    labels.add(textSprite(c.name.toUpperCase(), x, y, z, c.col, big, c.col ? 3 : (c.idx === 0 || c.dist >= stage.total - 500) ? 2 : 1));
     if (level > 0) labels.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x, y0, z), new THREE.Vector3(x, y, z)]), poleMat));
   }
   // ciclista
@@ -187,13 +187,41 @@ function flagSprite(kind, text, x, y, z, hgt) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.center.set(0.09, 0.02);
   sp.scale.set(hgt * 64 / 96, hgt, 1); sp.position.set(x, y, z); sp.renderOrder = 5; return sp;
 }
-function textSprite(txt, x, y, z, col, big) {
-  const c = document.createElement('canvas'); const g = c.getContext('2d'); const font = '700 34px "Antonio", "Arial Narrow", sans-serif';
+function textSprite(txt, x, y, z, col, big, prio = 1) {
+  const c = document.createElement('canvas'); const g = c.getContext('2d'); const font = '700 34px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif';
   g.font = font; const w = Math.ceil(g.measureText(txt).width) + 26; c.width = w; c.height = 48; g.font = font; g.textBaseline = 'middle';
-  g.fillStyle = col ? '#E10D0D' : INK; roundRect(g, 0, 4, w, 40, 4); g.fill(); g.fillStyle = col ? '#FFFFFF' : '#FFFF00'; g.fillText(txt, 13, 26);
+  g.fillStyle = col ? '#E3202E' : INK; roundRect(g, 0, 4, w, 40, 4); g.fill(); g.fillStyle = col ? '#FFFFFF' : '#FFE500'; g.fillText(txt, 13, 26);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); const h = Math.max(0.022, 1.55 / big);
-  sp.scale.set(h * w / 48, h, 1); sp.position.set(x, y, z); sp.center.set(0.5, 0); sp.renderOrder = 6; return sp;
+  sp.scale.set(h * w / 48, h, 1); sp.position.set(x, y, z); sp.center.set(0.5, 0); sp.renderOrder = 6;
+  sp.userData.lbl = true; sp.userData.prio = prio; return sp;
+}
+// clarify 08/09: em pe no mundo os rotulos ja se empilham, mas a camera deitada junta na tela o que estava longe.
+// Antes de desenhar, o quadro projeta cada nome, mede a caixa em pixels e esconde quem cair em cima de outro
+// mais importante -- col primeiro, largada e chegada depois, hotel por ultimo.
+const _lblBox = [], _lblV = new THREE.Vector3();
+function cullLabels() {
+  const sprites = [];
+  scene.traverse(o => { if (o.isSprite && o.userData.lbl) sprites.push(o); });
+  if (!sprites.length) return;
+  camera.updateMatrixWorld(); _lblBox.length = 0;
+  const k = H / (2 * Math.tan(camera.fov * Math.PI / 360));
+  const shot = sprites.map(sp => {
+    _lblV.setFromMatrixPosition(sp.matrixWorld);
+    const d = camera.position.distanceTo(_lblV);
+    _lblV.project(camera);
+    const px = (_lblV.x * .5 + .5) * W, py = (1 - (_lblV.y * .5 + .5)) * H;
+    const pw = sp.scale.x * k / d, ph = sp.scale.y * k / d;
+    const x0 = px - pw * sp.center.x, y0 = py - ph * (1 - sp.center.y);
+    return { sp, z: _lblV.z, b: [x0 - 2, y0 - 2, x0 + pw + 2, y0 + ph + 2] };
+  });
+  shot.sort((a, b) => (b.sp.userData.prio - a.sp.userData.prio) || (a.z - b.z));   // desempate: o mais perto da camera
+  for (const o of shot) {
+    if (o.z > 1) { o.sp.visible = false; continue; }   // atras da camera
+    let hit = false;
+    for (const q of _lblBox) if (!(o.b[2] < q[0] || o.b[0] > q[2] || o.b[3] < q[1] || o.b[1] > q[3])) { hit = true; break; }
+    o.sp.visible = !hit; if (!hit) _lblBox.push(o.b);
+  }
 }
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 
@@ -214,7 +242,7 @@ function frame() {
   if (cam.auto) cam.az += 0.0025;
   const el = Math.max(0.12, Math.min(1.45, cam.el)), r = Math.max(0.3, Math.min(4, cam.dist)) * Math.max(1, 1.25 * H / W);
   camera.position.set(cam.target.x + Math.sin(cam.az) * Math.cos(el) * r, cam.target.y + Math.sin(el) * r, cam.target.z + Math.cos(cam.az) * Math.cos(el) * r);
-  camera.lookAt(cam.target); renderer.render(scene, camera);
+  camera.lookAt(cam.target); cullLabels(); renderer.render(scene, camera);
 }
 function loop() { cancelAnimationFrame(raf); const tick = () => { frame(); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); }
 export function stop() { cancelAnimationFrame(raf); raf = 0; }

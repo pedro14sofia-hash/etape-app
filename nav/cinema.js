@@ -19,6 +19,7 @@ export function init(state) {
   S.prefs.keys = { ...DEFAULT_KEYS, ...(S.prefs.keys || {}) };
   document.addEventListener('etape:rec', e => { const d = e.detail || {}; if (/^(foto|fotoWarn|fotoErro|probe)$/.test(d.kind)) onFoto(d); else onRec(d); });
   // segundo plano: a casca fecha as câmeras (onPause); a tela sai do Cinema para não ficar transparente e sem prévia
+  // tela apagada: sai da tela do Cinema (a casca solta a prévia sozinha), mas o clipe continua
   document.addEventListener('visibilitychange', () => { if (document.hidden && S.cinema) exit(); });
 }
 export function active() { return !!(S && S.cinema); }
@@ -28,11 +29,12 @@ export function available() { return !!(S && S.native); }
 let frameTimer = 0;
 export function enter(opts) {
   opts = opts || {};
-  if (!available()) { voice.banner('Cinema só na casca', 2); return false; }
+  if (!available()) { voice.banner('Cinema só no app do celular', 2, 'aberto no navegador, sem câmera'); return false; }
   if (S.cinema) return true;
   if (!S.session || S.session.state !== 'running') voice.banner('Cinema sem saída em andamento', 3, 'filma, mas não entra no relatório do dia');   // decisão 4 (07/09): filmar parado, na vila, antes de Partir
   if (!native.cinemaPreview(true, false)) { voice.banner('Câmera sem permissão', 2); return false; }
   native.previewLook(S.prefs.previewLook !== false, S.prefs.cineLook || 1);
+  native.previewZebra(S.prefs.cineMedir ? 0.92 : 0);
   if (S.prefs.cineFoto) native.photoMode('estrada', true);
   S.cinema = true; document.documentElement.classList.add('cinema'); emit('enter');
   voice.say('Cinema', 3);
@@ -42,6 +44,17 @@ export function enter(opts) {
   return true;
 }
 export function frame(on) { native.cinemaFrame(on); }
+// medir (item 3 da revisão): zebra nas altas luzes + grade de terços + histograma. Só na tela, não toca no arquivo.
+export function medir() { return !!S.prefs.cineMedir; }
+// item 7: "isto foi bom" — marca o instante na telemetria do clipe; a noite escolhe o trecho em volta da marca
+export function mark() {
+  if (!S.rec.estrada && !S.rec.rosto) { voice.banner('Marca só durante o REC', 3); return false; }
+  native.mark(); native.beep('mark'); if (S.session) session.mark(S.session, 'bom', { dist: S.proj ? S.proj.dist : 0 });
+  voice.banner('Marcado', 3, 'a noite vai montar em volta deste instante'); return true;
+}
+export function setMedir(on) {
+  S.prefs.cineMedir = !!on; store.setPrefs(S.prefs); native.previewZebra(on ? 0.92 : 0); emit('medir');
+}
 // ---- Modo Foto v0 (estudo aprovado em 07/09): chave dentro do Cinema; nada dispara sozinho
 export const FOTO_MODES = ['movimento', 'velocidade', 'paisagem'];
 export const FOTO_LABEL = { movimento: 'Em movimento', velocidade: 'Velocidade', paisagem: 'Paisagem' };
@@ -84,11 +97,11 @@ export function setLook(look) { S.prefs.cineLook = look; store.setPrefs(S.prefs)
 export function togglePreviewLook() { S.prefs.previewLook = S.prefs.previewLook === false; store.setPrefs(S.prefs); native.previewLook(S.prefs.previewLook, S.prefs.cineLook || 1); return S.prefs.previewLook; }
 export function exit() {
   if (!S.cinema) return;
+  // item 4 da revisão: sair da tela do Cinema NÃO encerra o clipe. A casca solta só a prévia e o MP4 segue.
   const wasRec = ['estrada', 'rosto'].filter(slot => S.rec[slot]);
-  wasRec.forEach(slot => native.recStop(slot));
   clearTimeout(frameTimer); native.cinemaFrame(false);
   native.cinemaPreview(false, false);
-  if (wasRec.length && document.hidden) voice.banner('REC encerrado: a tela apagou', 3, 'o clipe até aqui foi guardado');
+  if (wasRec.length) voice.banner('Gravando sem a tela', 3, 'toque em REC no Cinema para encerrar');
   S.cinema = false; document.documentElement.classList.remove('cinema'); emit('exit');
 }
 export function toggle() { if (S.cinema) exit(); else enter(); }

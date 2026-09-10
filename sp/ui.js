@@ -85,7 +85,12 @@ export function panel(S) {
   const moving = session.movingTime(sess, now);
   // faixa fixa
   $('eta').textContent = S.eta && S.eta.arrival ? fmtH(S.eta.arrival) : (S.destEta && sess.state === 'idle' ? S.destEta : '–:–');
-  { const tE = $('tEta'), tv = $('tVs'); if (tE) tE.textContent = $('eta').textContent; if (tv) { const vs = ($('vsplan') || {}).textContent || ''; tv.textContent = vs && vs.length <= 8 ? 'chegada ' + vs : 'chegada'; } }
+  // terceiro bloco da Tele: media, que nao aparece em outro lugar durante o pedal.
+  // Em 320 px o rodape esconde a chegada, e entao o bloco vira a chegada para ela nao sumir da tela.
+  { const t = $('tThird'); if (t) { const narrow = matchMedia('(max-width:340px)').matches, want = narrow ? 'eta' : 'avg';
+      if (t.dataset.m !== want) { t.dataset.m = want; t.innerHTML = narrow ? '<b><span id="tEta">–:–</span></b><span id="tVs">chegada</span>' : '<b><span id="tAvg">–</span><small>km/h</small></b><span>média</span>'; }
+      if (narrow) { $('tEta').textContent = $('eta').textContent; const vs = ($('vsplan') || {}).textContent || ''; $('tVs').textContent = vs && vs.length <= 8 ? 'chegada ' + vs : 'chegada'; }
+      else $('tAvg').textContent = n1((S.live || {}).avg); } }
   const vp = (S.vsPlan != null && Math.abs(S.vsPlan) <= 120) ? S.vsPlan : null; $('vsplan').textContent = vp == null ? '' : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem); { const dl = $('dayLine'); if (dl) dl.style.setProperty('--dayw', Math.round(Math.max(0, Math.min(1, d / st.total)) * 100) + '%'); }
   const idleLbl = sess.state === 'idle' && (st.diario || S.free) ? 'Partir' : session.label(sess.state);

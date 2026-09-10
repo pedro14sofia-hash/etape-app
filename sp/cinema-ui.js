@@ -33,6 +33,8 @@ export function init(state) {
   for (const m of cinema.FOTO_MODES) $('cnF_' + m).onclick = () => cinema.setFotoMode(m);
   $('cnArrasto').onclick = () => cinema.setFotoCfg('arrasto'); $('cnRastro').onclick = () => cinema.setFotoCfg('rastro');
   $('cnProbe').onclick = () => cinema.probe();
+  $('cnMedir').onclick = () => { cinema.setMedir(!cinema.medir()); render(); };
+  $('cnMark').onclick = () => cinema.mark();
   let bareTimer = 0; const setBare = b => { bare = b; root.classList.toggle('bare', bare); };
   toggleBareFn = () => { setBare(!bare); clearTimeout(bareTimer); if (!bare) bareTimer = setTimeout(() => setBare(true), 8000); };
   $('cnTap').onclick = toggleBareFn;
@@ -62,6 +64,11 @@ function render() {
   }
   const th = native.thermal ? native.thermal() : 0; $('cinema').classList.toggle('warm', th === 2); $('cinema').classList.toggle('hot', th >= 3);
   $('cnHot').hidden = th < 3; $('cnEstrada').disabled = th >= 3; $('cnRosto').disabled = th >= 3;
+  // medir (item 3): zebra vem do shader; aqui ficam a grade de terços e o histograma medido no quadro
+  $('cnMark').hidden = !(S.rec.estrada || S.rec.rosto);
+  const med = cinema.medir();
+  $('cnMedir').setAttribute('aria-pressed', String(med)); $('cnGrid').hidden = !med; $('cnMeter').hidden = !med;
+  if (med) drawHist();
   // Modo Foto: chave, seletor de modos, botões como disparadores, linha de nível nos modos parados
   const foto = cinema.foto(); const fm = S.prefs.fotoMode || 'movimento'; const fc = S.prefs.fotoCfg || 'arrasto';
   $('cinema').classList.toggle('foto', foto);
@@ -103,5 +110,22 @@ function musicBar(ev) {
   bar.hidden = !on; document.body.classList.toggle('hasmusic', on);
   if (!on) return;
   $('mbTitle').textContent = m.title; $('mbArtist').textContent = m.artist || String(m.app || '').replace('com.google.android.apps.', '');
-  $('mbToggle').textContent = m.playing ? '❚❚' : '▶'; $('mbToggle').classList.toggle('y', !!m.playing);
+  $('mbToggle').textContent = m.playing ? '❚❚' : '▶'; $('mbToggle').setAttribute('aria-label', m.playing ? 'Pausar' : 'Tocar'); $('mbToggle').classList.toggle('y', !!m.playing);
+}
+
+
+// ---- histograma da prévia: 32 barras medidas no próprio quadro (não é estimativa), mais o quanto está estourado
+function drawHist() {
+  const st = native.previewStats(); const cv = $('cnHist'); if (!st || !cv) return;
+  const g = cv.getContext('2d'); const w = cv.width, h = cv.height;
+  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, w, h);
+  const max = Math.max(1, ...st.hist); const bw = w / st.hist.length;
+  for (let i = 0; i < st.hist.length; i++) {
+    const bh = Math.round(h * st.hist[i] / max);
+    g.fillStyle = i >= 30 ? '#FF3B3B' : i <= 1 ? '#4A90D9' : 'rgba(255,255,255,.85)';
+    g.fillRect(i * bw, h - bh, Math.max(1, bw - 0.5), bh);
+  }
+  const clip = (st.clip / 10).toFixed(1), dark = (st.dark / 10).toFixed(1);
+  const el = $('cnClip'); el.textContent = 'estourado ' + clip + '% · afogado ' + dark + '%';
+  el.classList.toggle('hot', st.clip > 20);
 }

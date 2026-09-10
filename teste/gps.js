@@ -8,7 +8,7 @@ let watchId = null, wake = null, simTimer = null, nativeRide = false;
 export function start(onFix, onError) {
   if (watchId != null || nativeRide) return true;
   if (native.available() && native.rideStart(onFix)) { nativeRide = true; return true; }   // casca: serviço em primeiro plano, segue com a tela apagada
-  if (!navigator.geolocation) { onError && onError({ message: 'sem GPS neste navegador' }); return false; }
+  if (!navigator.geolocation) { onError && onError({ message: 'indisponível neste navegador' }); return false; }
   watchId = navigator.geolocation.watchPosition(
     p => onFix({ t: p.timestamp || Date.now(), lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy || 0, ele: p.coords.altitude, speed: p.coords.speed, head: p.coords.heading, src: 'gps' }),
     e => onError && onError(e), { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
@@ -23,6 +23,9 @@ export function running() { return watchId != null || nativeRide || simTimer != 
 
 // filtra saltos e suaviza rumo; prev = fix anterior aceito
 export function smooth(fix, prev) {
+  // harden 07/09: uma coordenada invalida passava pelo filtro de salto (NaN > 40 e falso) e envenenava
+  // distancia, mapa e registro de uma vez. Barra na porta.
+  if (!fix || !isFinite(fix.lat) || !isFinite(fix.lon) || Math.abs(fix.lat) > 90 || Math.abs(fix.lon) > 180) return null;
   if (fix.acc > 80 && fix.src === 'gps') return null;   // sem qualidade: descarta (gargantas podem chegar a 30 m)
   const f = { ...fix };
   if (prev) {

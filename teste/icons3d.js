@@ -23,7 +23,7 @@ const TEX = {
   planks: () => canvasTex('planks', 128, 128, (g, w, h) => { for (let y = 0; y < h; y += 16) { g.fillStyle = ['#9C6B3C', '#8E5F33', '#A97645', '#956537'][(y / 16) % 4]; g.fillRect(0, y, w, 15); g.strokeStyle = 'rgba(60,35,10,.35)'; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(0, y + 2 + i * 2.4); g.lineTo(w, y + 3 + i * 2.2); g.stroke(); } g.fillStyle = 'rgba(30,20,10,.5)'; g.fillRect(0, y + 15, w, 1); } }, 2),
   water: () => canvasTex('water', 128, 128, (g, w, h) => { g.fillStyle = '#3969B7'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = 2; for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(20 + (i * 37) % 100, 20 + (i * 53) % 100, 6 + i * 2, 0, 6.3); g.stroke(); } }, 1),
   checker: () => canvasTex('checker', 64, 64, (g, w, h) => { for (let y = 0; y < 4; y++) for (let x = 0; x < 8; x++) { g.fillStyle = (x + y) % 2 ? '#0A0A0A' : '#F4F4F4'; g.fillRect(x * 8, y * 16, 8, 16); } }, 1),
-  awning: () => canvasTex('awning', 64, 16, (g, w, h) => { for (let x = 0; x < w; x += 8) { g.fillStyle = (x / 8) % 2 ? '#E10D0D' : '#F4F4F4'; g.fillRect(x, 0, 8, h); } }, 3),
+  awning: () => canvasTex('awning', 64, 16, (g, w, h) => { for (let x = 0; x < w; x += 8) { g.fillStyle = (x / 8) % 2 ? '#E3202E' : '#F4F4F4'; g.fillRect(x, 0, 8, h); } }, 3),
   bread: () => canvasTex('bread', 64, 32, (g, w, h) => { g.fillStyle = '#C98A45'; g.fillRect(0, 0, w, h); g.strokeStyle = '#8A5A25'; g.lineWidth = 3; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(8 + i * 14, 4); g.lineTo(18 + i * 14, 28); g.stroke(); } }, 1),
   windows: () => canvasTex('windows', 64, 64, (g, w, h) => { g.fillStyle = '#F4F4F4'; g.fillRect(0, 0, w, h); for (let y = 6; y < h; y += 20) for (let x = 6; x < w; x += 20) { g.fillStyle = '#FFE566'; g.fillRect(x, y, 12, 13); g.fillStyle = '#0A0A0A'; g.fillRect(x + 5, y, 2, 13); g.fillRect(x, y + 6, 12, 2); } }, 1)
 };
@@ -49,10 +49,10 @@ const plateCache = new Map();
 export function plate(txt, color = '#0A0A0A', h = 2.4) {
   const key = txt + '|' + color; let tex = plateCache.get(key), w;
   if (!tex) {
-    const c = document.createElement('canvas'), cx = c.getContext('2d'), font = '700 44px "Antonio", "Arial Narrow", sans-serif';
-    cx.font = font; let tw = cx.measureText(txt).width; let f2 = font; if (tw > 480) { f2 = '800 ' + Math.max(26, Math.floor(44 * 480 / tw)) + 'px "Antonio", "Arial Narrow", sans-serif'; cx.font = f2; tw = cx.measureText(txt).width; }   // largura máxima: encolhe a fonte
+    const c = document.createElement('canvas'), cx = c.getContext('2d'), font = '700 44px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif';
+    cx.font = font; let tw = cx.measureText(txt).width; let f2 = font; if (tw > 480) { f2 = '800 ' + Math.max(26, Math.floor(44 * 480 / tw)) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'; cx.font = f2; tw = cx.measureText(txt).width; }   // largura máxima: encolhe a fonte
     w = Math.ceil(tw) + 44; c.width = w; c.height = 68;
-    cx.fillStyle = '#0A0A0A'; cx.fillRect(0, 0, w, 68); cx.fillStyle = color; cx.fillRect(3, 3, w - 6, 62); cx.fillStyle = color.toUpperCase() === '#FFFF00' ? '#000' : '#fff'; cx.font = f2; cx.textBaseline = 'middle'; cx.fillText(txt, 22, 36);
+    cx.fillStyle = '#0A0A0A'; cx.fillRect(0, 0, w, 68); cx.fillStyle = color; cx.fillRect(3, 3, w - 6, 62); cx.fillStyle = color.toUpperCase() === '#FFE500' ? '#000' : '#fff'; cx.font = f2; cx.textBaseline = 'middle'; cx.fillText(txt, 22, 36);
     tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.userData.w = w; plateCache.set(key, tex);
   }
   w = tex.userData.w; const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false })); s.scale.set(h * w / 68, h, 1); s.center.set(0.5, 0); s.renderOrder = 9; return s;
@@ -132,7 +132,7 @@ const BUILD = {
     return g; }
 };
 export const KINDS = Object.keys(BUILD);
-export const LABEL = { water: ['ÁGUA', '#3969B7'], toilets: ['WC', '#3969B7'], bakery: ['PADARIA', '#B8720A'], bike: ['BIKE', '#1DAE50'], pharmacy: ['FARMÁCIA', '#1DAE50'], hospital: ['HOSPITAL', '#E10D0D'], pass: ['COL', '#E10D0D'], peak: ['CUME', '#0A0A0A'], viewpoint: ['MIRANTE', '#1DAE50'], castle: ['CASTELO', '#0A0A0A'], church: ['IGREJA', '#0A0A0A'], picnic: ['PIQUENIQUE', '#1DAE50'], hotel: ['HOTEL', '#3969B7'], feed: ['MUSETTE', '#8A8F96'], finish: ['CHEGADA', '#0A0A0A'] };
+export const LABEL = { water: ['ÁGUA', '#3969B7'], toilets: ['WC', '#3969B7'], bakery: ['PADARIA', '#B8720A'], bike: ['BIKE', '#1DAE50'], pharmacy: ['FARMÁCIA', '#1DAE50'], hospital: ['HOSPITAL', '#E3202E'], pass: ['COL', '#E3202E'], peak: ['CUME', '#0A0A0A'], viewpoint: ['MIRANTE', '#1DAE50'], castle: ['CASTELO', '#0A0A0A'], church: ['IGREJA', '#0A0A0A'], picnic: ['PIQUENIQUE', '#1DAE50'], hotel: ['HOTEL', '#3969B7'], feed: ['MUSETTE', '#8A8F96'], finish: ['CHEGADA', '#0A0A0A'] };
 const TOP = { water: 6.0, toilets: 4.3, bakery: 5.6, bike: 4.0, pharmacy: 6.5, hospital: 7.6, pass: 7.4, peak: 7.0, viewpoint: 6.0, castle: 6.3, church: 8.5, picnic: 5.0, hotel: 7.5, feed: 4.5, finish: 8.3 };
 // funde as peças do protótipo por material (um draw call por material) e todos os contornos numa malha só
 function compact(src) {

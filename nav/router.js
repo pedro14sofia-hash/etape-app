@@ -63,7 +63,6 @@ export function route(fromLat, fromLon, toLat, toLon, maxM = 20000, opts = {}) {
   const extra = new Map();                                                   // arestas virtuais: nó → [[para, custo, edgeIdx, dir]]
   const fa = FACTOR[ea[3]] || 1.2, fb = FACTOR[eb[3]] || 1.2;
   extra.set(start, [[ea[1], aAfter * fa, A.i, 1]].concat(ea[4] ? [] : [[ea[0], aBefore * fa, A.i, -1]]));
-  const intoGoal = n => (extra.get(n) || []).concat([]);
   const goalLinks = { [eb[0]]: bBefore * fb, [eb[1]]: eb[4] ? Infinity : bAfter * fb };
   if (A.i === B.i) {                                                         // mesma aresta: caminho direto se o sentido permite
     const direct = (B.k > A.k || (B.k === A.k && B.t >= A.t)) || !ea[4];
@@ -90,7 +89,7 @@ export function route(fromLat, fromLon, toLat, toLon, maxM = 20000, opts = {}) {
   let pts = []; const segs = []; let bikeM = 0, laneM = 0, at = 0;
   for (const [p, c, ei, dir] of chain) {
     let seg;
-    if (p === start) { const e = G.edges[ei]; seg = c === e[1] ? sliceEdge(ei, A.k, A.t, null, null) : sliceEdge(ei, A.k, A.t, 0, 0).reverse(); if (c !== e[1]) seg = sliceEdgeRev(ei, A.k, A.t); }
+    if (p === start) { const e = G.edges[ei]; seg = c === e[1] ? sliceEdge(ei, A.k, A.t, null, null) : sliceEdgeRev(ei, A.k, A.t); }
     else if (c === goal) { const e = G.edges[ei]; seg = p === e[0] ? sliceEdge(ei, 0, 0, B.k, B.t) : sliceEdgeRev2(ei, B.k, B.t); }
     else { seg = edgePts(ei); if (dir === -1) seg = seg.slice().reverse(); }
     const segL = pathLen(pts.length && seg.length ? [pts[pts.length - 1]].concat(seg) : seg), k = G.edges[ei][7] || 0;

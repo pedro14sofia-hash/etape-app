@@ -2,7 +2,7 @@
 <html lang="pt-BR" data-theme="day">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="viewport" id="vp" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0C0E12">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,65 +16,51 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<canvas id="map"></canvas>
+<main id="ride">
+<div id="chao" aria-hidden="true"></div>
+<canvas id="map" role="img" aria-label="Mapa da etapa"></canvas>
 <canvas id="rider" aria-hidden="true"></canvas>
 <canvas id="rider3d" aria-hidden="true"></canvas>
-<canvas id="gl" hidden></canvas>
+<canvas id="gl" hidden role="img" aria-label="Relevo em três dimensões"></canvas>
 
 <!-- a barra do alto (mundo "Transmissão", 07/09/2026): etapa em amarelo, o nome, a placa branca dos km e o écart; a linha do dia corre embaixo -->
-<div id="fita" class="fita">
+<div id="fita" class="fita" role="region" aria-label="Etapa do dia">
 <header id="top">
-  <div id="stageCode" class="code"><span id="stageKey">E1</span><select id="stageSel" aria-label="Etapa"></select></div>
+  <div id="stageCode" class="code"><span id="stageKey">E1</span><button id="stageBtn" type="button" aria-label="Escolher a etapa" aria-haspopup="dialog">E1</button></div>
   <div class="name"><b id="stageName">–</b><span id="stageSub"></span></div>
-  <div class="rem"><b id="rem">–</b><span>km</span></div>
+  <div class="rem"><b id="rem">–</b><span>km restam</span></div>
   <div class="clock"><b id="clock">–:–</b></div>
   <span id="devTag" class="devtag" hidden></span>
   <div class="day" id="dayLine"></div>
 </header>
 <div id="ecart" class="ecart" hidden></div>
-<div id="musicBar" class="music" hidden><span class="note">♪</span><div class="t"><b id="mbTitle"></b><span id="mbArtist"></span></div><button id="mbToggle" class="b" aria-label="Tocar ou pausar">▶</button><button id="mbNext" class="b" aria-label="Pular">▶▶</button></div>
+<div id="musicBar" class="music" hidden><span class="note">♪</span><div class="t"><b id="mbTitle"></b><span id="mbArtist"></span></div><button id="mbToggle" class="b" aria-label="Tocar">▶</button><button id="mbNext" class="b" aria-label="Próxima faixa">▶▶</button></div>
 </div>
 <canvas id="fitaCv" aria-label="Perfil do dia"></canvas>
 
-<!-- Cinema (Anna, 07/09): a imagem é a tela; começa limpo, um toque mostra o placar por 8 s -->
-<div id="cinema" hidden>
-  <button id="cnTap" class="cn-tap" aria-label="Mostrar ou esconder o placar"></button>
-  <div class="cn-bar"><div class="cn-pl"><b id="cnName" class="cn-name">–</b><span id="cnSub" class="cn-sub"></span></div><span id="cnRec" class="cn-rec" hidden><i></i><span id="cnRecT">00:00</span></span><button id="cnExit" class="cn-exit cn-pl" aria-label="Sair do Cinema">✕</button></div>
-  <div id="cnTulipa" class="cn-tulipa cn-pl" hidden><span id="cnArrow"></span><div><b id="cnTDist">–</b><span id="cnTDir"></span></div></div>
-  <div id="cnSun" class="cn-sun cn-pl" hidden><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="13" fill="none" stroke="#fff" stroke-width="1.4" opacity=".5"/><path d="M20 4l3.5 7h-7z" fill="#fff"/><g id="cnSunDot"><circle cx="20" cy="7" r="4" fill="#FFE500"/></g></svg><span id="cnSunTxt"></span></div>
-  <div id="cnMode" class="cn-mode cn-pl"><button id="cnNitidez" class="on">Nitidez</button><button id="cnAberto">Aberto</button></div>
-  <div id="cnSwitch" class="cn-switch cn-pl"><button id="cnVideo" class="on" aria-pressed="true">Vídeo</button><button id="cnFoto" aria-pressed="false">Foto</button></div>
-  <div id="cnFotoMode" class="cn-fmode cn-pl" hidden><span>modo</span><button id="cnF_movimento">Em movimento</button><button id="cnF_velocidade">Velocidade</button><button id="cnF_paisagem">Paisagem</button><button id="cnProbe" class="probe" title="Teste da camada Samsung">teste</button></div>
-  <div id="cnFotoCfg" class="cn-fcfg cn-pl" hidden><button id="cnArrasto">Arrasto</button><button id="cnRastro">Rastro</button></div>
-  <div id="cnLevel" class="cn-level" hidden><i></i><span>nível</span></div>
-  <div id="cnCount" class="cn-count cn-pl"></div>
-  <div id="cnHot" class="cn-hot" hidden>Quente · sem REC por alguns minutos</div>
-  <div class="cn-btns"><button id="cnEstrada" class="cn-btn"><i></i><div>Estrada<span>principal · 4K</span></div></button><button id="cnRosto" class="cn-btn"><i></i><div>Rosto<span>frontal</span></div></button></div>
-  <div class="cn-placar cn-pl"><div class="row"><div class="v"><b id="cnV">0</b><small>km/h</small></div><div class="g"><b id="cnG">0,0 %</b><small>rampa</small></div><div id="cnHr" class="hr" hidden><b id="cnHrV">–</b><small>bpm</small></div></div><div id="cnPlace" class="place"></div></div>
-</div>
 
-<button id="topHandle" class="handle" aria-label="Mostrar a fita"></button>
+<button id="topHandle" class="handle" aria-label="Mostrar a barra da etapa"></button>
 <!-- placa do próximo evento: o lugar à esquerda, a curva à direita -->
 <div id="plate" class="placa"><div class="pt"><em id="nbName">–</em><span id="nbSub" class="ps"></span></div><div class="pd"><span class="pdn"><span id="tcArrow"></span><span id="tcDist">–</span></span><small id="tcSub"></small></div></div>
-<button id="btnKnow" class="knowpill" hidden>Sei o caminho · calar 10 min</button>
+<button id="btnKnow" class="knowpill" hidden>Sei o caminho · silenciar 10 min</button>
 <div id="edge"></div>
-<div id="cue" class="cue" aria-live="polite"></div>
 <!-- controles do mapa: aparecem ao toque por 8 s; Recentrar só quando o mapa não está mais em você -->
 <div id="ctl">
   <button id="btnCfg" aria-label="Ajustes e Largada"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   <button id="zin" aria-label="Aproximar">+</button>
   <button id="zout" aria-label="Afastar">−</button>
-  <button id="btnCam" aria-label="Câmera: sobrevoo ou terceira pessoa">3ª</button>
-  <button id="btnSat" aria-label="Satélite" hidden><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></button>
-  <button id="btnVoice" class="on" aria-label="Voz"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+  <button id="btnCam" aria-label="Câmera: 3ª pessoa ou sobrevoo">3ª</button>
+  <button id="btnSat" aria-pressed="false" aria-label="Satélite" hidden><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></button>
+  <button id="btnVoice" class="on" aria-pressed="true" aria-label="Voz ligada"><svg class="i" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
   <button id="btnBrief" aria-label="Resumo da etapa"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/></svg></button>
   <button id="btnMark" aria-label="Marcar lugar"><svg class="i" viewBox="0 0 24 24"><path d="M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg></button>
+  <button id="btnPhoto" aria-label="Foto com posição" hidden><svg class="i" viewBox="0 0 24 24"><path d="M4 8h4l2-2h4l2 2h4v12H4z"/><circle cx="12" cy="14" r="3.5"/></svg></button>
   <button id="btnMode" aria-label="Recolher ou expandir o painel" hidden>▾</button>
 </div>
 <button id="btnFollow" class="on" aria-label="Recentrar em mim"><svg class="i" viewBox="0 0 24 24" style="width:20px;height:20px;stroke-width:2.2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg></button>
 <div id="attr" title="© OpenStreetMap contributors">© OpenStreetMap · IGN</div>
 <div id="place" hidden></div>
-<span id="gpsSt"></span>
+<span id="gpsSt" role="status" aria-live="polite"></span>
 <!-- mostradores de vidro líquido: velocidade (arco de 240°) e rampa (meio-arco, cor pela inclinação) -->
 <div id="speedo" hidden><svg viewBox="0 0 112 112" aria-label="Velocidade">
   <defs><linearGradient id="spGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3FD97A"/><stop offset=".55" stop-color="#FFE500"/><stop offset="1" stop-color="#FF6A3D"/></linearGradient></defs>
@@ -93,19 +79,19 @@
 </svg><span id="spG" class="g">0</span><small>% rampa</small></div>
 
 <!-- rodapé e folhas: no máximo metade da tela; o mapa recentra o ciclista na faixa que sobra -->
-<footer id="panel">
-  <section class="pane" data-tab="tele">
+<footer id="panel" role="region" aria-label="Painel do pedal">
+  <section class="pane" data-tab="tele" aria-label="Telemetria">
     <div class="tele">
       <div><b><span id="tV">–</span><small>km/h</small></b><span>velocidade</span></div>
       <div id="tGc"><b><span id="tG">–</span><small>%</small></b><span>rampa agora</span></div>
-      <div><b><span id="tEta">–:–</span></b><span id="tVs">chegada</span></div>
+      <div id="tThird"><b><span id="tAvg">–</span><small>km/h</small></b><span>média</span></div>
       <div class="hr" id="tHrC" hidden><b><span id="tHr">–</span><small>bpm</small></b><span>batimento</span></div>
       <div id="tCadC" hidden><b><span id="tCad">–</span><small>rpm</small></b><span>cadência</span></div>
       <div class="pw" id="tPwC" hidden><b><span id="tPw">–</span><small>w</small></b><span>potência · 3 s</span></div>
     </div>
     <div id="ctx" hidden></div>
   </section>
-  <section class="pane" data-tab="fuel" hidden>
+  <section class="pane" data-tab="fuel" hidden aria-label="Abastecer">
     <div class="fuel2">
       <div class="fcard" id="fcD"><div class="fh"><span>Beber</span><b id="fDn">–</b></div><div class="fint"><i id="fDBar"></i></div><button id="fDrink">Bebi<small>150 ml</small></button></div>
       <div class="fcard" id="fcE"><div class="fh"><span>Comer</span><b id="fEn">–</b></div><div class="fint"><i id="fEBar"></i></div><button id="fEat">Comi<small>30 g</small></button></div>
@@ -117,12 +103,12 @@
     <div class="fextra" id="fExtra" hidden></div>
     <div class="fnote"><span id="fNext"></span><button id="fSnooze">Adiar 10 min</button></div>
   </section>
-  <section class="pane" data-tab="dest" hidden><div class="dest" id="destBody"></div></section>
-  <section class="pane" data-tab="parado" hidden><div class="parado" id="paradoBody"></div></section>
-  <section class="pane" data-tab="prof" hidden>
+  <section class="pane" data-tab="dest" hidden aria-label="Destino"><div class="dest" id="destBody"></div></section>
+  <section class="pane" data-tab="parado" hidden aria-label="Parado"><div class="parado" id="paradoBody"></div></section>
+  <section class="pane" data-tab="prof" hidden aria-label="Perfil da etapa">
     <div class="prof">
       <div class="prof-t"><b id="profName">–</b><span id="profSub"></span></div>
-      <canvas id="prof"></canvas>
+      <canvas id="prof" role="img" aria-label="Perfil da etapa"></canvas>
       <div class="terr" id="terr"></div>
       <div class="lg"><span><i class="a"></i>asfalto</span><span><i class="g"></i>gravel</span><span><i class="t"></i>trilha</span></div>
       <div class="ahead" id="pAhead"></div>
@@ -147,6 +133,28 @@
   </div>
   <div class="foot"><span class="tools"><button id="btnMenu">Ajustes</button></span></div>
 </footer>
+</main>
+<div id="cue" class="cue" aria-live="polite"></div>
+<!-- Cinema (Anna, 07/09): a imagem é a tela; começa limpo, um toque mostra o placar por 8 s -->
+<div id="cinema" hidden>
+  <button id="cnTap" class="cn-tap" aria-label="Mostrar ou esconder o placar"></button>
+  <div class="cn-bar"><div class="cn-pl"><b id="cnName" class="cn-name">–</b><span id="cnSub" class="cn-sub"></span></div><span id="cnRec" class="cn-rec" hidden><i></i><span id="cnRecT">00:00</span></span><button id="cnExit" class="cn-exit cn-pl" aria-label="Sair do Cinema">✕</button></div>
+  <div id="cnTulipa" class="cn-tulipa cn-pl" hidden><span id="cnArrow"></span><div><b id="cnTDist">–</b><span id="cnTDir"></span></div></div>
+  <div id="cnSun" class="cn-sun cn-pl" hidden><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="13" fill="none" stroke="#fff" stroke-width="1.4" opacity=".5"/><path d="M20 4l3.5 7h-7z" fill="#fff"/><g id="cnSunDot"><circle cx="20" cy="7" r="4" fill="#FFE500"/></g></svg><span id="cnSunTxt"></span></div>
+  <div id="cnMode" class="cn-mode cn-pl"><button id="cnNitidez" class="on">Nitidez</button><button id="cnAberto">Aberto</button></div>
+  <button id="cnMedir" class="cn-medir cn-pl" aria-pressed="false">Medir</button>
+  <div id="cnSwitch" class="cn-switch cn-pl"><button id="cnVideo" class="on" aria-pressed="true">Vídeo</button><button id="cnFoto" aria-pressed="false">Foto</button></div>
+  <div id="cnFotoMode" class="cn-fmode cn-pl" hidden><span>modo</span><button id="cnF_movimento">Em movimento</button><button id="cnF_velocidade">Velocidade</button><button id="cnF_paisagem">Paisagem</button><button id="cnProbe" class="probe" title="Teste da camada Samsung">teste</button></div>
+  <div id="cnFotoCfg" class="cn-fcfg cn-pl" hidden><button id="cnArrasto">Arrasto</button><button id="cnRastro">Rastro</button></div>
+  <div id="cnLevel" class="cn-level" hidden><i></i><span>nível</span></div>
+  <div id="cnGrid" class="cn-grid" hidden aria-hidden="true"><i></i><i></i><u></u><u></u></div>
+  <div id="cnMeter" class="cn-meter" hidden><canvas id="cnHist" width="128" height="40"></canvas><span id="cnClip">–</span></div>
+  <div id="cnCount" class="cn-count cn-pl"></div>
+  <div id="cnHot" class="cn-hot" hidden>Quente · sem REC por alguns minutos</div>
+  <button id="cnMark" class="cn-mark" hidden>★<span>isto foi bom</span></button>
+  <div class="cn-btns"><button id="cnEstrada" class="cn-btn"><i></i><div>Estrada<span>principal · 4K</span></div></button><button id="cnRosto" class="cn-btn"><i></i><div>Rosto<span>frontal</span></div></button></div>
+  <div class="cn-placar cn-pl"><div class="row"><div class="v"><b id="cnV">0</b><small>km/h</small></div><div class="g"><b id="cnG">0,0 %</b><small>rampa</small></div><div id="cnHr" class="hr" hidden><b id="cnHrV">–</b><small>bpm</small></div></div><div id="cnPlace" class="place"></div></div>
+</div>
 
 <!-- Largada: a tela que abre o dia -->
 <div id="largada" hidden>
@@ -162,41 +170,45 @@
   <div id="pvBody"></div>
   <div class="dlg-acts"><button data-close>Fechar</button><button id="pvGo" class="pri">Navegar esta etapa</button></div>
 </dialog>
+<!-- U2 · Escolher etapa: a folha que aposentou o <select> da fita -->
+<dialog id="dlgEtapas" aria-label="Escolher a etapa">
+  <div class="aj-hd"><b>Escolher a etapa</b></div>
+  <div id="etLista" class="et-lista"></div>
+  <div class="dlg-acts"><button data-close>Fechar</button><button id="etTrip" class="pri">Ver a viagem inteira</button></div>
+</dialog>
+<!-- U2 · Primeira vez: as quatro autorizações, uma vez só -->
+<dialog id="dlgPrimeira" aria-label="Primeira vez">
+  <div class="aj-hd"><b>Primeira vez</b></div>
+  <p class="pv-perm-int">O Étape precisa de quatro autorizações para funcionar na estrada. Dê todas agora e não pense mais nisso.</p>
+  <div id="pvPermLista"></div>
+  <div class="dlg-acts"><button id="pvPermPronto" class="pri">Pronto</button></div>
+</dialog>
+<!-- U2 · Conteúdo novo pelo Wi-Fi: fases e progresso; nunca durante uma saída -->
+<dialog id="dlgUpdate" aria-label="Conteúdo novo">
+  <div class="aj-hd"><b>Conteúdo novo</b></div>
+  <div class="up-est"><b id="upFase">—</b><span id="upDet"></span></div>
+  <div class="up-barra" id="upBarra" role="progressbar" aria-valuemin="0" aria-valuemax="100" hidden><i></i></div>
+  <div class="up-ver">Versão daqui · <b id="upVer">—</b></div>
+  <p class="up-motivo" id="upMotivo" hidden></p>
+  <div class="dlg-acts"><button data-close>Fechar</button><button id="upAgora" class="pri">Procurar agora</button></div>
+</dialog>
 <!-- Ajustes (era o menu "Mais"): tudo o que é preferência num lugar só -->
-<dialog id="dlgMenu" aria-labelledby="menuTitle"><div class="menu-hd"><b id="menuTitle">Ajustes</b><span id="menuSt"></span></div><div class="menu">
-  <button id="btnLargada"><b>Largada</b><span>a tela inicial do dia · etapas, guia, música e mapas</span></button>
-  <div class="grp-h">Pedal</div>
-  <button id="btnGuide" hidden><b>Guia</b><span>hoje, etapas, comer, planejar, check</span></button>
-  <button id="btnDest" hidden><b>Destino</b><span>para onde vamos hoje · três rotas</span></button>
-  <button id="btnReport"><b>Relatório do dia</b><span>números, pódio, GPX</span></button>
-  <button id="btnPhoto" hidden><b>Foto com posição</b><span>câmera do aparelho; entra no relatório e na galeria</span></button>
-  <div class="grp-h">Tela e voz</div>
-  <button id="btnTheme"><b>Tema</b><span>alterna dia e noite; automático pelo pôr do sol</span></button>
-  <button id="btnScreen" hidden><b>Tela: sempre ligada</b><span>toque para deixar apagar e acender só nos avisos</span></button>
-  <div class="grp-h">Cinema</div>
-  <button id="btnAuto" hidden><b>REC automático: ligado</b><span>col, cume, descida e chegada gravam sozinhos · desligado no Diário</span></button>
-  <button id="btnLook" hidden><b>Look: Cinema</b><span>toque para trocar: Cinema · Cinema forte · Clássico (prévia e noite)</span></button>
-  <button id="btnPronto" hidden><b>Filmes prontos</b><span>o que a fábrica devolveu pelo Drive, na galeria</span></button>
-  <button id="btnCell" hidden><b>Subir pelo celular: desligado</b><span>toque para trocar o teto por dia; o Wi‑Fi continua sem limite</span></button>
-  <div class="grp-h">Sensores</div>
-  <button id="btnSens"><b>Sensores</b><span>batimento, cadência e potência por Bluetooth</span></button>
-  <div class="grp-h">Aparelho</div>
-  <button id="btnAppMusic" hidden><b>Música</b><span>YouTube Music · trocar a playlist; volta sozinho em 3 min</span></button>
-  <button id="btnAppOrganic" hidden><b>Mapa reserva</b><span>Organic Maps na posição · traçado das etapas; volta pela aba ou lateral ×2</span></button>
-  <button id="btnAppMaps" hidden><b>Google Maps</b><span>até a chegada de hoje, de bike · comércio e ruas; volta pela aba ou lateral ×2</span></button>
-  <button id="btnAppMeteo" hidden><b>Radar</b><span>Météo-France · chuva na próxima hora (pede dados); volta sozinho em 2 min</span></button>
-  <button id="btnKiosk" hidden><b>Travar o aparelho</b><span>só o Étape, PIN para sair</span></button>
-  <button id="btnReboot" hidden><b>Reiniciar o aparelho</b><span>o menu de desligar não existe travado (PIN)</span></button>
-  <button id="btnNormal" hidden><b>Aparelho de volta ao normal</b><span>tira a trava e o dono do aparelho (PIN)</span></button>
-  <button id="btnSim" class="dev"><b>Simulação</b><span>percorre a etapa a 22 km/h (teste)</span></button>
-  <button id="btnReset" class="danger dev"><b>Zerar etapa</b><span>apaga progresso, sessão e registro</span></button>
-  <div class="note">Para encerrar a etapa, segure Pausar por um segundo. Mapa © OpenStreetMap ODbL · satélite IGN.</div>
-</div><div class="dlg-acts"><button data-close class="pri">Fechar</button></div></dialog>
+<dialog id="dlgMenu" aria-labelledby="ajTitulo">
+  <div class="aj-hd"><button id="ajVoltar" type="button" aria-label="Voltar para a lista" hidden>‹</button><b id="ajTitulo">Ajustes</b></div>
+  <button id="ajLargada" type="button" class="aj-ir">Largada<span>a tela inicial do dia</span></button>
+  <button id="ajRelatorio" type="button" class="aj-ir">Relatório do dia<span>números, pódio, GPX</span></button>
+  <button id="btnDest" type="button" class="aj-ir" hidden>Destino<span>para onde vamos hoje · três rotas</span></button>
+  <button id="btnGuide" type="button" class="aj-ir" hidden>Guia<span>hoje, etapas, comer, planejar, check</span></button>
+  <button id="btnSens" type="button" hidden></button>
+  <div id="ajLista" class="aj-lista"></div>
+  <div id="ajPainel" class="aj-painel" hidden></div>
+  <div class="dlg-acts"><button data-close class="pri">Fechar</button></div>
+</dialog>
 <dialog id="dlgSos" aria-labelledby="sosTitle"><div class="sos-hd"><b id="sosTitle">Emergência</b><span>Auvergne · França</span></div><div id="sosBody"></div><div class="dlg-acts"><button id="sosMark">Marcar este lugar</button><button data-close class="pri">Fechar</button></div></dialog>
 <dialog id="dlgPre" aria-labelledby="preTitle"><div class="pre"><div class="pre-hd"><b id="preTitle">Antes de sair</b><span id="preSub"></span></div><div class="lbl">Acompanhar nesta saída</div><div id="preBody"></div><div class="note" id="preNote"></div><div id="preCheck" hidden></div></div><div class="dlg-acts"><button id="preNone">Sem acompanhamento</button><button id="preGo" class="pri">Partir</button></div></dialog>
 <dialog id="dlgAsk" class="ask-dlg" aria-labelledby="askTitle"><div class="ask"><b id="askTitle"></b><span id="askSub"></span><input id="askIn" type="text" hidden autocomplete="off" enterkeyhint="done"></div><div class="dlg-acts"><button id="askNo">Voltar</button><button id="askYes" class="pri">Sim</button></div></dialog>
 <dialog id="dlgArrive" aria-label="Chegada"><div id="arrBody"></div><div class="dlg-acts"><button id="arrReport">Ver relatório</button><button data-close class="pri">Guardar e fechar</button></div></dialog>
-<dialog id="dlgReport" aria-label="Relatório do dia"><div id="repBody"></div><div class="dlg-acts"><button id="repShare">WhatsApp</button><button id="repGpx">GPX</button><button data-close class="pri">Fechar</button></div></dialog>
+<dialog id="dlgReport" aria-label="Relatório do dia"><div id="repBody"></div><div class="dlg-acts"><button id="repShare">Enviar<small>WhatsApp</small></button><button id="repGpx">Guardar<small>GPX</small></button><button id="btnPronto" hidden>Filmes prontos</button><button data-close class="pri">Fechar</button></div></dialog>
 
 <script src="data.js"></script>
 <script type="module" src="app.js"></script>

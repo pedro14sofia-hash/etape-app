@@ -5,16 +5,29 @@
 import { mercX, mercY, metersPerPixel } from './geo.js';
 import { query } from './data-mod.js';
 import { elevationAt, pointAt, bearingAt, gradeAt } from './track.js';
-import { icon, ready, KIND_ICON, SIGHT_ICON } from './icons.js';
+import { icon, ready } from './icons.js';
 import * as sat from './sat.js';
 import * as dem from './dem.js';
 import * as shade from './shade.js';
-import { T as TOKENS, FLAG as TFLAG, CAT as TCAT } from './tokens.js';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
+import * as basemap from './basemap.js';
+import { T as TOKENS, FLAG as TFLAG, CAT as TCAT, CHAO as TCHAO } from './tokens.js';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
 
 // estilo A "relevo em papel" (estudo do mapa, 06/09/2026): chão branco (preto à noite), sombra do relevo, curvas de nível
 export const THEMES = { day: TOKENS.day, night: TOKENS.night };
-const CLASSW = { 1: 5, 2: 4.6, 3: 3.8, 4: 3.2, 5: 2.4, 6: 1.6, 7: 1.6, 8: 2, 9: 1.2 };
-const MINZ = { 1: 9, 2: 10, 3: 11, 4: 12, 5: 13, 6: 14, 7: 14, 8: 13, 9: 15 };
+// C0 (08/09/2026): as regras do chão saíram daqui e foram para tokens.json, seção "chao". O estilo do MapLibre
+// (style_build.py) e os tiles vetoriais (vtiles_build.py) leem os mesmos números — a paleta é escrita uma vez só.
+if (!TCHAO || !TCHAO.largura) throw new Error('tokens.js sem a seção "chao": rode o build (src/build/build_nav.py)');
+export const CHAO = TCHAO;
+const CLASSW = CHAO.largura.base, MINZ = CHAO.minz, MINZL = CHAO.minzLugar, LG = CHAO.largura;
+// curva de largura por zoom. 'linear' é a de sempre: clamp((z − z0)/por + em). 'exp' dobra a cada 1/passo níveis.
+const curva = z => Math.max(LG.min, Math.min(LG.max, LG.tipo === 'exp' ? Math.pow(2, (z - LG.z0) * LG.passo) : (z - LG.z0) / LG.por + LG.em));
+// cor da via no zoom: de longe quase se confunde com o chão, de perto clareia. Sem rHi no tema, é uma cor só.
+const mix2 = (a, b, t) => { const A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16), f = (s) => Math.round(((A >> s) & 255) + (((B >> s) & 255) - ((A >> s) & 255)) * t); return 'rgb(' + f(16) + ',' + f(8) + ',' + f(0) + ')'; };
+function viasDo(th, z) {   // as nove cores, calculadas uma vez por assada da base
+  const c = CHAO.contraste, t = Math.max(0, Math.min(1, (z - c.de) / (c.ate - c.de))), out = {};
+  for (let k = 1; k <= 9; k++) { const hi = th['rHi' + k]; out[k] = hi ? mix2(th['r' + k], hi, t) : th['r' + k]; }
+  return out;
+}
 // o que o mapa mostra por situação (S.situation, calculada no app a cada fix): uma pergunta por olhada
 export const RULES = {
   descida: { contours: false, pois: false, names: false, tracks: false, shops: false, chevrons: false, flags: true, bornes: true },
@@ -23,7 +36,7 @@ export const RULES = {
   plano: { contours: true, pois: true, names: true, tracks: true, shops: true, chevrons: true, flags: true, bornes: true },
   parado: { contours: true, pois: true, names: true, tracks: true, shops: true, chevrons: true, flags: true, bornes: true }
 };
-const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000000', 'ch'], castle: ['#000000', 'ca'], viewpoint: ['#1DAE50', 'vp'], picnic: ['#1DAE50', 'pi'], water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E10D0D', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
+const POI = { toilets: ['#3969B7', 'WC'], cafe: ['#B8720A', 'C'], church: ['#000000', 'ch'], castle: ['#000000', 'ca'], viewpoint: ['#1DAE50', 'vp'], picnic: ['#1DAE50', 'pi'], water: ['#3E7FAF', 'drop'], bakery: ['#B8720A', 'sq'], shop: ['#B8720A', 'tri'], bike: ['#1DAE50', 'dia'], pharmacy: ['#1DAE50', 'plus'], hospital: ['#E3202E', 'H'], pass: ['#000000', 'pass'], peak: ['#000000', 'peak'], toilets: ['#3E7FAF', 'WC'], cafe: ['#B8720A', 'C'] };
 // câmeras 3D: horizonte (fração da altura), linha do ciclista, distância e altura da câmera (m), alcance (m)
 
 // bandeirinhas estilo Tour: haste e bandeira. kind: start | cat (HC,1..4) | sprint | feed | sight | flamme | finish
@@ -33,7 +46,7 @@ export const CAT = TCAT || {};
 export const catCol = c => CAT[c] || FLAG.cat;
 export const catInk = c => (c === '3' || c === '4') ? '#1B1815' : '#FFFFFF';
 export function flagAt(ctx, x, yTop, yBase, kind, text, sz = 1) {
-  const col = kind === 'cat' ? catCol(text) : (FLAG[kind] || '#E10D0D'), fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
+  const col = kind === 'cat' ? catCol(text) : (FLAG[kind] || '#E3202E'), fw = 26 * sz, fh = 16 * sz, pw = Math.max(1.5, 2.6 * sz);
   ctx.save(); ctx.lineCap = 'butt';
   ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = pw + 1.4; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
   ctx.strokeStyle = kind === 'feed' ? '#8A8F96' : col; ctx.lineWidth = pw; ctx.beginPath(); ctx.moveTo(x, yBase); ctx.lineTo(x, yTop); ctx.stroke();
@@ -66,13 +79,16 @@ export function createRenderer(canvas, overlay) {
   let ctx = canvas.getContext('2d'); const octx = overlay ? overlay.getContext('2d') : null;
   // cache do mapa estático (2D): bitmap maior que a tela, redesenhado só quando precisa; cada quadro é um drawImage
   let base = null, dirtyBase = true, lastViewChange = 0, anim = null, baseCount = 0;
+  // rótulos do chão (07/09→08/09): a fila do quadro, as caixas já ocupadas e a trava de "assando na base"
+  let labelQ = [], labelBox = [], baking = false;
   let rider = null, riderMoved = false, riderExternal = false; const S3 = { noOcclude: false };
   const view = { cx: 0, cy: 0, z: 13, rot: 0, anchorY: 0.5, mode: '2d', sat: false }; // rot em radianos (rumo para cima = -heading)
   let dpr = 1, W = 0, H = 0, dirty = true, theme = THEMES.day, flat = null, fctx = null;
   document.addEventListener('etape:icons', () => { dirty = true; dirtyBase = true; });
   for (let i = 0; i < 4; i++) icon('bikeTop' + i, 84);   // quadros da pedalada prontos antes do primeiro fix
   sat.setOnLoad(() => { dirty = true; dirtyBase = true; }); dem.setOnLoad(() => { dirty = true; dirtyBase = true; }); shade.setOnLoad(() => { dirty = true; dirtyBase = true; });   // tiles e ícones chegam depois: a base precisa ser refeita
-  function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; }
+  function resize() { W = canvas.clientWidth; H = canvas.clientHeight; dpr = Math.min(window.devicePixelRatio || 1, W < 500 ? 1.5 : 2); base = null; canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); if (overlay) { overlay.width = W * dpr; overlay.height = H * dpr; octx.setTransform(dpr, 0, 0, dpr, 0, 0); } dirty = true; riderMoved = true; basemap.redimensionar(); }
+  basemap.aoDesenhar(() => { if (basemap.ativo()) { dirty = true; } });
   const scale = () => 256 * Math.pow(2, view.z);
   // ---------- projeções ----------
   // 2D: rotação em torno da âncora. 3D: câmera atrás/acima do ciclista (âncora), perspectiva pinhole sobre o plano do chão.
@@ -83,9 +99,13 @@ export function createRenderer(canvas, overlay) {
     return [px * c - py * sn, px * sn + py * c];
   }
   // devolve [x, y, escala(px/m), ok]
-  function proj(lat, lon) { const f = flatPx(lat, lon); return [f[0] + W / 2, f[1] + H * view.anchorY, 1 / metersPerPixel(lat, view.z), true]; }
+  function proj(lat, lon) {
+    if (basemap.ativo()) { const q = basemap.paraTela(lat, lon); return [q[0], q[1], 1 / basemap.metrosPorPixel(), true]; }
+    const f = flatPx(lat, lon); return [f[0] + W / 2, f[1] + H * view.anchorY, 1 / metersPerPixel(lat, view.z), true];
+  }
   function toPx(lat, lon) { const p = proj(lat, lon); return [p[0], p[1]]; }
   function fromPx(x, y) {
+    if (basemap.ativo()) { const g = basemap.daTela(x, y); return { mx: mercX(g.lon), my: mercY(g.lat) }; }
     // 3D: inverte a câmera pinhole sobre o plano do chão (sem relevo): D = F·hc/(y − yh); acima do horizonte, fica no limite
     if (cam) {
       const dyh = Math.max(cam.F * cam.hc / (cam.far * 0.6), y - cam.yh), D = cam.F * cam.hc / dyh, right = (x - W / 2) * D / cam.F;
@@ -96,6 +116,7 @@ export function createRenderer(canvas, overlay) {
     return { mx: view.cx + (dx * c - dy * sn) / s, my: view.cy + (dx * sn + dy * c) / s };
   }
   function visibleBox() {
+    if (basemap.ativo()) return basemap.caixaVisivel();
     const s = scale(); let r = Math.hypot(W, H) / 2 / s * 1.05;
     if (cam) { const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI); r = cam.far / metersPerPixel(lat, view.z) / s * 1.1; }
     const lat = y => (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI), lon = x => x * 360 - 180;
@@ -134,8 +155,41 @@ export function createRenderer(canvas, overlay) {
     S3.noOcclude = false;
   }
   const inter = (b, box) => !(b[2] < box[0] || b[0] > box[2] || b[3] < box[1] || b[1] > box[3]);
-  function label(txt, x, y, align = 'left', font = '600 13px "Sofia Sans", sans-serif', color = theme.label) {
-    ctx.font = font; ctx.textAlign = align; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = theme.halo; ctx.lineJoin = 'round'; ctx.strokeText(txt, x, y); ctx.fillStyle = color; ctx.fillText(txt, x, y); ctx.textAlign = 'left';
+  // clarify 08/09: o rótulo do chão não escreve mais por cima da interface nem por cima de outro rótulo.
+  // Enquanto a base 2D é assada fora da tela ele sai na hora (a posição final só se sabe no blit); no sobrevoo
+  // entra na fila e o quadro resolve por prioridade — escala > col > lugar > rua.
+  function label(txt, x, y, align = 'left', font = '600 13px "Sofia Sans", sans-serif', color = theme.label, prio = 1) {
+    // harden 07/09: nenhum rotulo do mapa passa de 55 % da tela. Nomes de borne e de rua na Auvergne
+    // chegam a 28 letras e atravessavam a tela inteira por cima do desenho.
+    ctx.font = font; txt = clipText(txt, (canvas.clientWidth || 390) * .55);
+    if (baking) drawLabel({ txt, x, y, align, font, color });
+    else labelQ.push({ txt, x, y, align, font, color, prio });
+  }
+  function drawLabel(o) {
+    ctx.font = o.font; ctx.textAlign = o.align; ctx.textBaseline = 'middle'; ctx.lineWidth = 4; ctx.strokeStyle = theme.halo; ctx.lineJoin = 'round';
+    ctx.strokeText(o.txt, o.x, o.y); ctx.fillStyle = o.color; ctx.fillText(o.txt, o.x, o.y); ctx.textAlign = 'left';
+  }
+  function labelBoxOf(o) {
+    ctx.font = o.font;
+    const w = ctx.measureText(o.txt).width, m = /(\d+(?:\.\d+)?)px/.exec(o.font), h = (m ? +m[1] : 13) * 1.3;
+    const x0 = o.align === 'center' ? o.x - w / 2 : o.align === 'right' ? o.x - w : o.x;
+    return [x0 - 3, o.y - h / 2, x0 + w + 3, o.y + h / 2];
+  }
+  // a fila do quadro: o mais importante primeiro; some quem bate na interface (S.mask) ou num rótulo já posto
+  function flushLabels(S) {
+    if (!labelQ.length) return;
+    const mask = (S && S.mask) || [];
+    labelQ.sort((a, b) => b.prio - a.prio);
+    for (const o of labelQ) {
+      const b = labelBoxOf(o);
+      if (b[2] < 0 || b[0] > W || b[3] < 0 || b[1] > H) continue;
+      let hit = false;
+      for (const m of mask) if (inter(b, m)) { hit = true; break; }
+      if (!hit) for (const q of labelBox) if (inter(b, q)) { hit = true; break; }
+      if (hit) continue;
+      labelBox.push(b); drawLabel(o);
+    }
+    labelQ = [];
   }
   // escala de tamanho para ícones e rótulos em 3D (1 na linha do ciclista), com corte de distância
   function sizeAt(q) { if (!cam) return 1; return Math.max(0.3, Math.min(1.25, q[2] / cam.sr)); }
@@ -184,7 +238,7 @@ export function createRenderer(canvas, overlay) {
   // tiles de cinza (L = iluminação) compostos sobre o chão: multiply escurece as encostas à sombra; screen (dia) ou
   // lighter (noite) devolve a luz às faces ao sol. Dois drawImage por tile, só quando a base é refeita.
   function drawShade(box, S) {
-    if (!shade.available() || view.sat) return false;
+    if (CHAO.relevo === false || !shade.available() || view.sat) return false;   // o SRTM da cidade mede telhado: o C1 desliga o relevo no mundo urbano
     const zl = shade.levelFor(view.z); if (!zl) return false;
     const tiles = shade.tilesFor(box, zl); if (!tiles.length || tiles.length > 320) return false;
     const th = theme, night = th === THEMES.night, s = scale(), size = s / 2 ** zl + 0.6, k = S && S.free ? 0.5 : 1;   // na cidade a sombra é só respiração
@@ -227,7 +281,20 @@ export function createRenderer(canvas, overlay) {
     if (!dirty) return;
     if (!W || !H) { if (canvas.clientWidth && canvas.clientHeight) resize(); else return; }   // canvas sem tamanho (iframe ainda oculto): espera
     dirty = false;
-    if (cam) { drawStatic(S); drawDynamic(S); return; }
+    labelQ = []; labelBox = [];   // a fila e as caixas ocupadas valem por quadro
+    if (basemap.ativo()) {
+      // um quadro do Étape por quadro do chão: mesma matriz de câmera, sem defasagem de um quadro
+      ctx.clearRect(0, 0, W, H);
+      drawStatic(S);
+      drawDynamic(S);
+      // sem isto a fila de rótulos é descartada no quadro seguinte e somem calados o nome do col,
+      // o "X m" de fora da rota e o texto da barra de escala — os três passam por label(), que só
+      // desenha na hora quando a base está sendo assada (o que nunca acontece com o chão do MapLibre)
+      flushLabels(S);
+      dirty = false;
+      return;
+    }
+    if (cam) { drawStatic(S); drawDynamic(S); flushLabels(S); return; }
     ensureBase(S);
     ctx.fillStyle = theme.map; ctx.fillRect(0, 0, W, H);
     if (base) {
@@ -236,7 +303,7 @@ export function createRenderer(canvas, overlay) {
       const kk = Math.pow(2, view.z - base.z); ctx.scale(kk, kk);
       ctx.drawImage(base.canvas, -base.W / 2, -base.H / 2, base.W, base.H); ctx.restore();
     }
-    drawDynamic(S);
+    drawDynamic(S); flushLabels(S);
   }
   // animação de câmera (voar até um ponto/zoom/rumo), ease-out cúbico
   function stepAnim() {
@@ -247,8 +314,10 @@ export function createRenderer(canvas, overlay) {
   }
   // base: precisa redesenhar? (etapa/tema/satélite mudou, zoom ou rotação longe demais, tela saiu da área, progresso a ~1 s, ou zoom parou de mudar)
   function ensureBase(S) {
+    // com o chão do MapLibre não há chão para assar, e o bitmap giraria os rótulos do Étape junto
+    if (basemap.ativo()) { base = null; dirtyBase = false; return false; }
     const now = performance.now(), diag = Math.hypot(W, H);
-    let need = !base || base.stage !== S.stage.key || base.theme !== theme || base.sat !== view.sat || base.W < diag * 1.6;
+    let need = !base || base.stage !== S.stage.key || base.theme !== theme || base.sat !== view.sat || base.quiet !== !!S.quiet || base.W < diag * 1.6;
     if (!need) {
       const kk = Math.pow(2, view.z - base.z), sb = 256 * Math.pow(2, base.z);
       const dx = (view.cx - base.cx) * sb, dy = (view.cy - base.cy) * sb, r = diag / 2 / kk + 8;
@@ -264,12 +333,17 @@ export function createRenderer(canvas, overlay) {
     const saved = { ctx, W, H, anchorY: view.anchorY };
     ctx = base.ctx; W = BW; H = BW; view.anchorY = 0.5;
     ctx.setTransform(bdpr, 0, 0, bdpr, 0, 0); ctx.fillStyle = theme.map; ctx.fillRect(0, 0, W, H); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    try { drawStatic(S); } finally { ctx = saved.ctx; W = saved.W; H = saved.H; view.anchorY = saved.anchorY; }
-    Object.assign(base, { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot, stamp: now, stage: S.stage.key, theme, sat: view.sat }); dirtyBase = false; baseCount++;
+    baking = true;   // a base sai fora da tela: rótulo desenha na hora, sem fila nem máscara
+    try { drawStatic(S); } finally { baking = false; ctx = saved.ctx; W = saved.W; H = saved.H; view.anchorY = saved.anchorY; }
+    Object.assign(base, { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot, stamp: now, stage: S.stage.key, theme, sat: view.sat, quiet: !!S.quiet }); dirtyBase = false; baseCount++;
   }
   // camadas estáticas: fundo, satélite, polígonos, água, ferrovias, estradas, outras etapas, fita, curvas, rótulos, POIs, paradas, lugares, bandeiras, bornes
+  // clarify 08/09: com S.quiet (a Largada) o chão é atmosfera sob o véu — fica a rota com largada e chegada, sem nome de rua, de lugar nem POI
   function drawStatic(S) {
     placed = [];
+    // com o chão do MapLibre, o canvas não desenha mais chão nenhum: satélite, sombra, curvas,
+    // polígonos, água, ferrovia, estradas e os rótulos do chão são do basemap. Fica a camada Étape.
+    const soEtape = basemap.ativo();
     const M = S.map, st = S.stage, z = view.z, box = visibleBox(), th = theme;
     // revelação progressiva: as informações aparecem perto de onde o ciclista está (ou do centro da vista, na prévia)
     const me = S.pos || S.fix || null, cLat = me ? me.lat : Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI, cLon = me ? me.lon : view.cx * 360 - 180, cosL = Math.cos(cLat * Math.PI / 180);
@@ -280,40 +354,48 @@ export function createRenderer(canvas, overlay) {
     if (cam) { ctx.fillStyle = th.map; ctx.fillRect(0, 0, W, H); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     let satOn = false;
-    satOn = drawSat(box);
-    if (!satOn) drawShade(box, S);
+    satOn = soEtape ? false : drawSat(box);
+    if (!soEtape && !satOn) drawShade(box, S);
     // bosque e área urbana em transparência sobre o relevo (a sombra continua visível por baixo)
-    if (!satOn && z >= 10.5) { ctx.globalAlpha = 0.6; for (const p of M.polys) if (inter(p.b, box)) { path(p.p); ctx.closePath(); ctx.fillStyle = p.t === 'wood' ? th.forest : th.res; ctx.fill(); } ctx.globalAlpha = 1; }
+    if (!soEtape && !satOn && z >= 10.5) { ctx.globalAlpha = 0.6; for (const p of M.polys) if (inter(p.b, box)) { path(p.p); ctx.closePath(); ctx.fillStyle = p.t === 'wood' ? th.forest : th.res; ctx.fill(); } ctx.globalAlpha = 1; }
     // curvas de nível a cada 20 m (contours.json): só fora da cidade, a partir do zoom médio; as de 100 m mais fortes
-    if (M.contours && !satOn && rules.contours && z >= 13.5) {
+    if (!soEtape && M.contours && !satOn && rules.contours && z >= 13.5) {
       const minor = z >= 14.5; ctx.lineCap = 'butt';
       for (const l of query(M.contours, box)) { const major = l.e % 100 === 0; if (!major && !minor) continue; path(l.p); ctx.strokeStyle = major ? th.contourMajor : th.contour; ctx.lineWidth = major ? 1.2 : 0.7; ctx.stroke(); }
       ctx.lineCap = 'round';
     }
-    for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { if (satOn) continue; ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.globalAlpha = satOn ? .7 : 1; ctx.stroke(); ctx.globalAlpha = 1; } }
-    if (z >= 11 && !satOn) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
+    if (!soEtape) for (const w of M.waters) if (inter(w.b, box)) { path(w.p); if (w.t === 'a') { if (satOn) continue; ctx.closePath(); ctx.fillStyle = th.water; ctx.fill(); } else { ctx.strokeStyle = th.water; ctx.lineWidth = z >= 13 ? 3 : 1.5; ctx.globalAlpha = satOn ? .7 : 1; ctx.stroke(); ctx.globalAlpha = 1; } }
+    if (!soEtape && z >= 11 && !satOn) for (const r of M.rails) if (inter(r.b, box)) { path(r.p); ctx.strokeStyle = th.rail; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
     // estradas: classe mínima e largura pela escala local (em 3D, pela distância); trilhas e caminhos só quando a situação permite
     const zBase = cam ? Math.min(19, zoomAt([0, 0, cam.sr])) : z; zBaseCache = zBase;
-    const ways = query(M.index, box).filter(w => zBase >= MINZ[w.c] && (rules.tracks || (w.c !== 7 && w.c !== 9)));
+    const ways = soEtape ? [] : query(M.index, box).filter(w => zBase >= MINZ[w.c] && (rules.tracks || (w.c !== 7 && w.c !== 9)));
     ways.sort((a, b) => b.c - a.c);
     const wz = w => { if (!cam) return z; const q = midOf(w.p); return zoomAt(q); };
-    const zf = zz => Math.max(0.6, Math.min(2.6, (zz - 11) / 4 + 0.6));
-    if (!satOn) for (const w of ways) { if (w.c >= 7) continue; const zz = wz(w); if (zz < MINZ[w.c] - 1) continue; path(w.p); ctx.strokeStyle = w.c <= 4 ? th.casing : th.casingMinor; ctx.lineWidth = CLASSW[w.c] * zf(zz) + 1.8; ctx.stroke(); }
-    for (const w of ways) { const zz = wz(w); if (zz < MINZ[w.c] - 1) continue; path(w.p); ctx.strokeStyle = th['r' + w.c]; ctx.lineWidth = CLASSW[w.c] * zf(zz) * (satOn ? 0.6 : 1); if (satOn) ctx.globalAlpha = 0.55; if (cam) { const q = midOf(w.p); ctx.globalAlpha = Math.max(.25, Math.min(1, 1.3 - (cam.F / q[2]) / cam.far)); } if (w.c === 7 || w.c === 9) ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+    const zf = curva, via = viasDo(th, z);
+    if (!soEtape && !satOn) for (const w of ways) { if (w.c >= 7) continue; const zz = wz(w); if (zz < MINZ[w.c] - 1) continue; path(w.p); ctx.strokeStyle = w.c <= 4 ? th.casing : th.casingMinor; ctx.lineWidth = CLASSW[w.c] * zf(zz) + LG.casaco; ctx.stroke(); }
+    if (!soEtape) for (const w of ways) { const zz = wz(w); if (zz < MINZ[w.c] - 1) continue; path(w.p); ctx.strokeStyle = via[w.c]; ctx.lineWidth = CLASSW[w.c] * zf(zz) * (satOn ? 0.6 : 1); if (satOn) ctx.globalAlpha = 0.55; if (cam) { const q = midOf(w.p); ctx.globalAlpha = Math.max(.25, Math.min(1, 1.3 - (cam.F / q[2]) / cam.far)); } if (w.c === 7 || w.c === 9) ctx.setLineDash([5, 4]); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
     ctx.globalAlpha = 1;
     // outras etapas
     ctx.lineWidth = 2; ctx.strokeStyle = th.other;
-    if (!satOn) for (const k in S.routes.stages) if (k !== st.key) { path(S.routes.stages[k].track); ctx.stroke(); }
+    if (!soEtape && !satOn) for (const k in S.routes.stages) if (k !== st.key) { path(S.routes.stages[k].track); ctx.stroke(); }
     // caminho de volta à rota (recálculo): azul com casaco branco
     if (S.reroute && !cam) { path(S.reroute.pts); ctx.setLineDash([12, 9]); ctx.lineWidth = 10; ctx.strokeStyle = '#FFFFFF'; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = th.rouge || '#E4002B'; ctx.stroke(); ctx.setLineDash([]); }   // nova rota: vermelha tracejada (tela 05)
     // rotas alternativas do Diário (tela 01): cinza tracejado; a escolhida é a etapa e vai em amarelo
     if (S.alts && !cam) for (const a of S.alts) { if (a.sel || a.fail || a.same || !a.pts) continue; path(a.pts); ctx.setLineDash([10, 8]); ctx.lineWidth = 9; ctx.strokeStyle = th.paper || '#F7F2E6'; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = th.grey || '#8E9198'; ctx.stroke(); ctx.setLineDash([]); }
     // fita da etapa: feito (tracejado) e restante (amarela com casaco)
     const ci = S.proj.idx || 0;
-    if (cam) { const rem = [pointAt(st, S.proj.dist || 0)].concat(st.pts.slice(ci + (st.cum[ci] < (S.proj.dist || 0) ? 1 : 0))); groundStrip(rem, 5.2, th.ribbonCasing); groundStrip(rem, 3.4, th.ribbon); }
-    else { ctx.lineWidth = 10; ctx.strokeStyle = th.ribbonCasing; path(st.pts.slice(ci)); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = th.ribbon; ctx.stroke(); }
+    // A fita corta EXATAMENTE onde o ciclista está, não no vértice mais próximo. O avatar é desenhado
+    // de S.pos (modelo de movimento) e a fita vinha de S.proj.dist (projeção do fix): medido no S23 em
+    // 08/09, isso punha a ponta da fita a 10 px do avatar (24 px no pior caso, ~7 m a z19). Uma fonte só.
+    const dCorte = (S.pos && S.pos.dist != null) ? S.pos.dist : (S.proj.dist || 0);
+    const pCorte = pointAt(st, dCorte);
+    const iCorte = ci + (st.cum[ci] < dCorte ? 1 : 0);   // mesma conta que a vista 3D já usava
+    const rem = [pCorte].concat(st.pts.slice(iCorte));
+    if (cam) { groundStrip(rem, 5.2, th.ribbonCasing); groundStrip(rem, 3.4, th.ribbon); }
+    else { ctx.lineWidth = 10; ctx.strokeStyle = th.ribbonCasing; path(rem); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = th.ribbon; ctx.stroke(); }
     for (const sf of st.surfaces) if (sf.kind !== 'asfalto' && sf.kind !== 'rua' && sf.to > S.proj.dist) { path(sliceByDist(st, Math.max(sf.from, S.proj.dist), sf.to)); ctx.strokeStyle = sf.kind === 'ciclovia' ? '#0E9A4C' : sf.kind === 'faixa' ? '#6CC28E' : th.gravel; ctx.lineWidth = 2.4; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]); }
-    ctx.lineWidth = 3; ctx.strokeStyle = th.done; ctx.setLineDash([7, 6]); path(st.pts.slice(0, ci + 1)); ctx.stroke(); ctx.setLineDash([]);
+    // o feito termina no mesmo ponto em que o restante começa: sem isso sobra ou falta um pedaço sob o avatar
+    ctx.lineWidth = 3; ctx.strokeStyle = th.done; ctx.setLineDash([7, 6]); path(st.pts.slice(0, iCorte).concat([pCorte])); ctx.stroke(); ctx.setLineDash([]);
     // chevrons de rampa na fita e bornes de km (só na etapa com traçado, em 2D)
     if (!cam && !st.free && st.total > 0) { if (rules.chevrons && zBase >= 13.5) drawChevrons(st, S.proj.dist || 0); if (rules.bornes && zBase >= 13) drawKmMarks(st, S.proj.dist || 0); }
     // curvas
@@ -321,9 +403,9 @@ export function createRenderer(canvas, overlay) {
     // rótulos de estradas
     // faixas de bike na rua: tracejado verde ao lado da via (z ≥ 15)
     if (zBase >= 15 && !cam) for (const w of ways) if (w.k === 1) { path(w.p); ctx.strokeStyle = '#1DAE50'; ctx.lineWidth = 2.2; ctx.setLineDash([7, 6]); ctx.stroke(); ctx.setLineDash([]); }
-    if (zBase >= 13.5 && rules.names) { const seen = new Set(); let nlab = 0; for (const w of ways) {
-        if (!w.n || seen.has(w.n) || nlab >= 8) continue;
-        const major = w.c <= 4 && /^[A-Z] ?\d/.test(w.n); const mid = midOf(w.p); const near = zBase >= 15 && w.c <= 6 && w.p.some(pt => distMe(pt[0], pt[1]) < 220);
+    if (!soEtape && zBase >= CHAO.rotuloVia.z && rules.names && !S.quiet) { const seen = new Set(); let nlab = 0; for (const w of ways) {
+        if (!w.n || seen.has(w.n) || nlab >= CHAO.teto.via) continue;
+        const major = w.c <= 4 && /^[A-Z] ?\d/.test(w.n); const mid = midOf(w.p); const near = zBase >= 15 && w.c <= 6 && w.p.some(pt => distMe(pt[0], pt[1]) < CHAO.rotuloVia.raio);
         if (!major && !near) continue;
         const q = mid; if (!q[3] || q[0] < 0 || q[0] > W || q[1] < 60 || q[1] > H) continue; const sz = sizeAt(q); if (sz < 0.45) continue;
         if (crowded(q[0], q[1], 70)) continue; seen.add(w.n); nlab++;
@@ -331,20 +413,21 @@ export function createRenderer(canvas, overlay) {
     // POIs
     // POIs: cols e cumes sempre; água, WC, bicicletaria, farmácia à frente; padaria, loja e café só de perto e quando a situação permite. Teto de 12 visíveis.
     let npoi = 0;
-    if (zBase >= 14 && rules.pois) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (!rules.shops || zBase < 16 || dm > 300) continue; } else continue; if (npoi >= 12 && p.k !== 'pass' && p.k !== 'peak') continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); npoi++; }
+    if (zBase >= 14 && rules.pois && !S.quiet) for (const p of query(M.poiIndex, box)) { if (p.k.startsWith('place')) continue; const dm = distMe(p.lat, p.lon); if (ESSENTIAL[p.k]) { if (dm > nearR && !(p.k === 'pass' || p.k === 'peak')) continue; } else if (SHOPS[p.k]) { if (!rules.shops || zBase < 16 || dm > 300) continue; } else continue; if (npoi >= 12 && p.k !== 'pass' && p.k !== 'peak') continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -20 || q[0] > W + 20 || q[1] < -20 || q[1] > H + 20) continue; poiIcon(p, q, zBase); npoi++; }
     // paradas do plano como bandeirinhas do Tour: vermelha visita, verde foto, ocre compras
-    if (zBase >= 12 && rules.flags && !cam) for (const f of stageFlags(st, [])) { if (f.kind === 'start' && S.proj.dist > 500) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < -60 || q[1] > H + 60) continue; insert(f, q, zBase >= 14.5 ? 1 : zBase >= 13 ? .85 : .7, false, st, S.proj.dist); }
-    if (zBase >= 12 && rules.flags && !cam) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; paradaFlag(p, q, zBase); }
+    if (zBase >= 12 && rules.flags && !cam && !S.quiet) for (const f of stageFlags(st, [])) { if (f.kind === 'start' && S.proj.dist > 500) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < -60 || q[1] > H + 60) continue; insert(f, q, zBase >= 14.5 ? 1 : zBase >= 13 ? .85 : .7, false, st, S.proj.dist); }
+    if (zBase >= 12 && rules.flags && !cam && !S.quiet) for (const p of S.paradas) { const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -30 || q[0] > W + 30 || q[1] < -30 || q[1] > H + 30) continue; paradaFlag(p, q, zBase); }
     // lugares
-    for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = t === 'city' ? 9 : t === 'town' ? 10 : t === 'village' ? 12.5 : 15.5; if (zBase < minz) continue; if ((t === 'hamlet' || t === 'village') && !rules.names) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'); }
+    let nplace = 0;
+    if (!soEtape && !S.quiet) for (const p of query(M.poiIndex, box)) { if (!p.k.startsWith('place')) continue; const t = p.k.slice(6), minz = MINZL[t] != null ? MINZL[t] : MINZL.hamlet; if (zBase < minz) continue; if (CHAO.teto.bairro && nplace >= CHAO.teto.bairro) break; nplace++; if ((t === 'hamlet' || t === 'village') && !rules.names) continue; if (t === 'hamlet' && distMe(p.lat, p.lon) > 1500) continue; const q = proj(p.lat, p.lon); if (!q[3] || q[0] < -60 || q[0] > W + 60 || q[1] < 50 || q[1] > H) continue; const sz = Math.max(.75, sizeAt(q)); label(p.n.toUpperCase(), q[0], q[1], 'center', (t === 'city' || t === 'town' ? '800 ' + Math.round(18 * sz) + 'px' : t === 'village' ? '700 ' + Math.round(16 * sz) + 'px' : '600 ' + Math.round(13 * sz) + 'px') + ' "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif', theme.label, t === 'city' || t === 'town' ? 4 : t === 'village' ? 3 : 2); }
     // bandeirinhas no chão (3D): cols, largada, chegada, paradas, abastecimento
-    if (cam) for (const f of stageFlags(st, S.paradas)) {
+    if (cam && !S.quiet) for (const f of stageFlags(st, S.paradas)) {   // na Largada o chão não escreve: a rota basta
       if (f.dist < S.proj.dist - 150) continue; const p = pointAt(st, f.dist), q = proj(p[0], p[1]); if (!q[3]) continue;
       const sz = sizeAt(q); if (sz < .3) continue;
       insert(f, q, Math.max(.6, sz), true, st, S.proj.dist);
     }
     // bornes
-    for (const c of st.cps) { const q = proj(c.lat, c.lon); if (!q[3] || q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, zBase); }
+    for (const c of st.cps) { const q = proj(c.lat, c.lon); if (!q[3] || q[0] < -40 || q[0] > W + 40 || q[1] < -40 || q[1] > H + 40) continue; borne(c, q, zBase, !!S.quiet); }
   }
   // camadas dinâmicas: posição/ciclista, círculo de precisão, escala
   function drawDynamic(S) {
@@ -352,12 +435,12 @@ export function createRenderer(canvas, overlay) {
     // fora da rota: linha tracejada e seta da posição até o ponto mais próximo do traçado, com a distância
     if (S.fix && S.pos && !S.reroute && (S.off || (S.proj && S.proj.off > 60)) && S.proj.off < 5000 && !cam) {
       const pp = S.pos || S.fix, q0 = proj(pp.lat, pp.lon), tp = pointAt(S.stage, S.proj.dist || 0), q1 = proj(tp[0], tp[1]);
-      ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E10D0D'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
-      const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E10D0D'; ctx.fill(); ctx.restore();
-      const mx = (q0[0] + q1[0]) / 2, my = (q0[1] + q1[1]) / 2; label(Math.round(S.proj.off) + ' m', mx + 8, my - 8, 'left', '700 14px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif', '#E10D0D');
+      ctx.save(); ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeStyle = th.rouge || '#E3202E'; ctx.beginPath(); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke(); ctx.setLineDash([]);
+      const a = Math.atan2(q1[1] - q0[1], q1[0] - q0[0]); ctx.translate(q1[0], q1[1]); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-16, -9); ctx.lineTo(-11, 0); ctx.lineTo(-16, 9); ctx.closePath(); ctx.fillStyle = '#E3202E'; ctx.fill(); ctx.restore();
+      const mx = (q0[0] + q1[0]) / 2, my = (q0[1] + q1[1]) / 2; label(Math.round(S.proj.off) + ' m', mx + 8, my - 8, 'left', '700 14px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif', '#E3202E', 8);
     }
     // lugares marcados
-    if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFFF00'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
+    if (S.session && S.session.marks) for (const m of S.session.marks) { if (m.kind !== 'lugar' || m.lat == null) continue; const q = proj(m.lat, m.lon); if (!q[3]) continue; ctx.beginPath(); ctx.arc(q[0], q[1] - 9, 8, 0, 7); ctx.fillStyle = '#FFE500'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.stroke(); ctx.beginPath(); ctx.moveTo(q[0] - 5, q[1] - 3); ctx.lineTo(q[0], q[1] + 6); ctx.lineTo(q[0] + 5, q[1] - 3); ctx.fillStyle = '#000'; ctx.fill(); }
     // posição
     if ((!S.fix || (S.proj && S.proj.off > 50000)) && S.stage.cps.length) {
       for (const c of (S.showStart !== false && (S.proj.dist || 0) < 300 ? [S.stage.cps[S.stage.cps.length - 1]] : [S.stage.cps[0], S.stage.cps[S.stage.cps.length - 1]])) { const q = proj(c.lat, c.lon); if (!q[3]) continue; const im = icon('hotel', 44, theme.label, theme.poiBg); const sz = 44 * sizeAt(q); if (ready(im)) ctx.drawImage(im, q[0] - sz / 2, q[1] - sz * .87, sz, sz); }
@@ -370,26 +453,36 @@ export function createRenderer(canvas, overlay) {
       const mpp = metersPerPixel(S.fix ? S.fix.lat : 45.3, view.z), bar = [100, 200, 500, 1000, 2000, 5000].find(v => v / mpp > 60) || 5000;
       const sx = 12;
       ctx.fillStyle = th.scale; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp, 4); ctx.fillStyle = th.borne; ctx.fillRect(sx, H - S.scaleBottom - 4, bar / mpp / 2, 4); ctx.strokeStyle = th.scale; ctx.lineWidth = 0.8; ctx.strokeRect(sx, H - S.scaleBottom - 4, bar / mpp, 4);
-      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx + bar / mpp + 6, H - S.scaleBottom - 1, 'left', '600 11px "Sofia Sans", sans-serif');
+      label(bar >= 1000 ? (bar / 1000) + ' km' : bar + ' m', sx + bar / mpp + 6, H - S.scaleBottom - 1, 'left', '600 11px "Sofia Sans", sans-serif', theme.scale, 9);
     }
   }
   function sliceByDist(st, a, b) { const out = []; for (let i = 0; i < st.pts.length; i++) if (st.cum[i] >= a && st.cum[i] <= b) out.push(st.pts[i]); return out.length > 1 ? out : []; }
   // borne de km (mundo Transmissão, 07/09): caixa escura sobre a fita, número branco; feita a 50 %
-  function borne(c, q, z) {
+  function borne(c, q, z, quiet) {
     const sz = sizeAt(q), w = 28 * sz, h = 22 * sz, x = q[0] - w / 2, y = q[1] - h / 2;
     ctx.save(); ctx.globalAlpha = c.done ? .5 : 1;
     ctx.beginPath(); rr(x, y, w, h, 3 * sz); ctx.fillStyle = 'rgba(12,14,18,.92)'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.stroke();
     ctx.fillStyle = '#F4F5F7'; ctx.font = '700 ' + Math.round(13 * sz) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(c.kmLabel), q[0], q[1] + .5); ctx.textAlign = 'left';
     ctx.restore();
-    if (z >= 12 && sz > .5 && !c.done) label(c.name, q[0] + 18 * sz, q[1] - 12 * sz, 'left', '700 ' + Math.round(14 * Math.max(.8, sz)) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif');
+    if (z >= 12 && sz > .5 && !c.done && !quiet) label(c.name, q[0] + 18 * sz, q[1] - 12 * sz, 'left', '700 ' + Math.round(14 * Math.max(.8, sz)) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif', theme.label, 5);
   }
   // marcador em cartão de vidro (paradas, cols, lugares): haste e ponto no chão; o quadrado colorido é o lugar da miniatura 3D (opcional)
   const s2 = v => Math.max(.6, v);
+  // corta o texto na largura pedida, com reticencias; mede com a fonte que estiver corrente
+  function clipText(t, max) {
+    if (!t) return t; if (ctx.measureText(t).width <= max) return t;
+    let lo = 1, hi = t.length;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (ctx.measureText(t.slice(0, m) + '\u2026').width <= max) lo = m; else hi = m - 1; }
+    return t.slice(0, lo).replace(/\s+$/, '') + '\u2026';
+  }
   function cardMarker(q, col, ink, sym, name, sub, done, sz, stem) {
     const s = Math.max(.6, sz), st = (stem == null ? 26 : stem) * s, pad = 8 * s, sq = 18 * s;
     ctx.save(); ctx.globalAlpha = done ? .5 : 1;
-    ctx.font = '700 ' + Math.round(13 * s) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'; const tw = name ? ctx.measureText(name).width : 0;
-    ctx.font = '600 ' + Math.round(10 * s) + 'px "Sofia Sans", sans-serif'; const sw = sub ? ctx.measureText(sub.toUpperCase()).width : 0;
+    // harden 07/09: o cartao crescia com o nome. "Col de la Croix Saint-Robert" sao 28 letras: o cartao
+    // passava da largura da tela e cobria o mapa. Teto de meia tela, com reticencias.
+    const maxT = Math.max(56 * s, (canvas.clientWidth || 390) * .52 - (pad * 2 + sq + 8 * s));
+    ctx.font = '700 ' + Math.round(13 * s) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'; name = clipText(name, maxT); const tw = name ? ctx.measureText(name).width : 0;
+    ctx.font = '600 ' + Math.round(10 * s) + 'px "Sofia Sans", sans-serif'; sub = clipText(sub, maxT); const sw = sub ? ctx.measureText(sub.toUpperCase()).width : 0;
     const w = name ? pad + sq + 8 * s + Math.max(tw, sw) + pad : pad + sq + pad, h = (sub ? 40 : 30) * s, x = q[0] - w / 2, y = q[1] - st - h;
     // haste e ponto
     const g = ctx.createLinearGradient(0, y + h, 0, q[1]); g.addColorStop(0, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.strokeStyle = g; ctx.lineWidth = 1.5; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(q[0], y + h); ctx.lineTo(q[0], q[1] - 4 * s2(sz)); ctx.stroke();
@@ -424,13 +517,6 @@ export function createRenderer(canvas, overlay) {
     const ink = p.kind === 'visita' ? '#FFFFFF' : '#0C0E12', sym = p.kind === 'compras' ? '▲' : p.kind === 'visita' ? '★' : p.kind === 'opcional' ? '·' : '◎';
     const showName = z >= 13.5 && !crowded(q[0], q[1] - 40 * sz, 70);
     cardMarker(q, col, ink, sym, showName ? p.nome.split(' · ')[0] : '', showName ? (p.kind === 'compras' ? (p.horario || 'compras') : p.kind) : '', !!p.done, sz);
-  }
-  function sightIcon(p, q, z) {
-    const sz = sizeAt(q); if (sz < .35) return;
-    const base = z >= 14.5 ? 48 : 36, im = icon(SIGHT_ICON[p.kind] || 'camera', base);
-    if (ready(im)) { const s = base * sz; ctx.globalAlpha = p.done ? .45 : 1; disc(q[0], q[1], s * .56, '#FFFF00'); ctx.drawImage(im, q[0] - s * .38, q[1] - s * .42, s * .76, s * .76); ctx.globalAlpha = 1; if (z >= 13.5 && sz > .55 && !crowded(q[0], q[1] + s * .56 + 8, 40)) label(p.nome.split(' · ')[0], q[0], q[1] + s * .56 + 9 * sz, 'center', '700 ' + Math.round(15 * Math.max(.85, sz)) + 'px "Sofia Sans Semi Condensed", "Arial Narrow", sans-serif'); return; }
-    const col = p.kind === 'compras' ? '#B8720A' : p.kind === 'opcional' ? theme.label : '#E10D0D';
-    ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, 7); ctx.fillStyle = theme.borne; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = col; if (p.kind === 'opcional') ctx.setLineDash([3, 2]); ctx.stroke(); ctx.setLineDash([]);
   }
   // POI como inserção pequena da transmissão (07/09): quadrado na cor do tipo com o símbolo; nome só de perto
   const POI_SYM = { water: '≈', toilets: 'WC', cafe: 'C', bakery: 'P', shop: 'S', bike: 'B', pharmacy: '+', hospital: 'H', pass: '∧', peak: '▲', church: '†', castle: '⌂', viewpoint: '◎', picnic: '⌂', hotel: 'H' };
@@ -473,7 +559,11 @@ export function createRenderer(canvas, overlay) {
     animateTo(to, ms = 450) { anim = { from: { cx: view.cx, cy: view.cy, z: view.z, rot: view.rot }, to: { cx: to.cx ?? view.cx, cy: to.cy ?? view.cy, z: to.z ?? view.z, rot: to.rot ?? view.rot }, t0: performance.now(), ms }; dirty = true; },
     animating() { return !!anim; }, stopAnim() { anim = null; },
     stats() { return { baseCount, dpr, base: base ? base.W : 0 }; },
-    centerOn(lat, lon) { view.cx = mercX(lon); view.cy = mercY(lat); dirty = true; }
+    centerOn(lat, lon) { view.cx = mercX(lon); view.cy = mercY(lat); dirty = true; },
+    centerLatLon() {
+      const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * view.cy))) * 180 / Math.PI;
+      return { lat, lon: view.cx * 360 - 180 };
+    }
   };
 }
 
@@ -501,7 +591,7 @@ export function drawFita(canvas, stage, dist, theme, opts = {}) {
   for (let k = 10; k < km; k += 10) { const x = X(k); ctx.beginPath(); ctx.moveTo(x, h - bottom); ctx.lineTo(x, h - 1); ctx.stroke(); }
   for (const s of opts.paradas || []) { if (s.done) continue; const x = X(s.km); ctx.fillStyle = s.kind === 'compras' ? FLAG.shop : s.kind === 'visita' ? FLAG.visit : s.kind === 'opcional' ? FLAG.feed : FLAG.sight; ctx.fillRect(x - 1.5, h - bottom - 9, 3, 9); }
   ctx.font = '600 11px "Sofia Sans", sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Y(c.topEle); ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fillStyle = catCol(c.cat); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#0C0E12'; ctx.stroke(); if (w > 300) { const nm = String(c.name).replace(/^(Col|Pas|Côte|Puy) (de |du |des |d')?/i, '').split(' ')[0].toUpperCase(); ctx.fillStyle = 'rgba(185,190,199,1)'; ctx.font = '600 10px "Sofia Sans", sans-serif'; ctx.fillText(c.cat + '  ' + nm, Math.min(w - 60, x + 6), Math.max(8, y - 8)); ctx.font = '600 11px "Sofia Sans", sans-serif'; } }
+  for (const c of stage.climbs || []) { const x = Math.min(w - 12, Math.max(12, X(c.to / 1000))), y = Y(c.topEle); ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fillStyle = catCol(c.cat); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#0C0E12'; ctx.stroke(); if (w > 300) { const nm = String(c.name).replace(/^(Col|Pas|Côte|Puy) (de |du |des |d')?/i, '').split(' ')[0].toUpperCase(); const txt = c.cat + '  ' + nm; ctx.fillStyle = 'rgba(185,190,199,1)'; ctx.font = '600 10px "Sofia Sans", sans-serif'; const tw = ctx.measureText(txt).width; ctx.fillText(txt, Math.max(4, Math.min(w - 6 - tw, x + 6)), Math.max(8, y - 8)); ctx.font = '600 11px "Sofia Sans", sans-serif'; } }
   if (!stage.free) { const xf = X(km), cw = 3, ch = 3; for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#0C0E12' : '#FFFFFF'; ctx.fillRect(xf - 13 + i * cw, 3 + j * ch, cw, ch); } ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fillRect(xf - 14, 3, 1, h - bottom - 3); }
   if (opts.arrived) return;
   { const y = Y(elevationAt(stage, dist)); ctx.beginPath(); ctx.arc(xd, y, 9, 0, 7); ctx.fillStyle = 'rgba(255,229,0,.25)'; ctx.fill(); ctx.beginPath(); ctx.arc(xd, y, 4, 0, 7); ctx.fillStyle = '#FFE500'; ctx.fill(); }
@@ -533,8 +623,15 @@ export function drawProfile(canvas, stage, dist, theme, opts = {}) {
   if (big) {
     ctx.font = '600 11px "Sofia Sans", sans-serif'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(185,190,199,1)';
     const a = stage.cps[0], b = stage.cps[stage.cps.length - 1]; ctx.textAlign = 'left'; ctx.fillText((a.name + ' · km 0').toUpperCase(), 8, h - 7); ctx.textAlign = 'right'; ctx.fillText((b.name + ' · km ' + Math.round(km)).toUpperCase(), w - 6, h - 7);
-    ctx.textAlign = 'left'; ctx.fillText(String(Math.round(hi)), 8, Y(hi) - 7); ctx.fillText(String(Math.round(lo)), 8, Y(lo) - 7);
-    for (const c of stage.climbs) { const x = Math.min(w - 16, Math.max(8, X(c.to / 1000))), y = Y(c.topEle); const nm = String(c.name).replace(/^(Col|Pas|Côte|Puy) (de |du |des |d')?/i, '').split(' ')[0].toUpperCase(); ctx.fillStyle = 'rgba(244,245,247,1)'; ctx.font = '700 11px "Sofia Sans", sans-serif'; ctx.fillText(c.cat, Math.min(w - 70, x + 7), Math.max(10, y - 9)); ctx.fillStyle = 'rgba(185,190,199,1)'; ctx.font = '600 11px "Sofia Sans", sans-serif'; ctx.fillText(nm + ' · ' + Math.round(c.topEle), Math.min(w - 70, x + 7) + 12, Math.max(10, y - 9)); }
+    ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = theme && theme.map || '#14171B';
+    ctx.strokeText(Math.round(hi) + ' m', 8, Y(hi) - 7); ctx.fillText(Math.round(hi) + ' m', 8, Y(hi) - 7);
+    for (const c of stage.climbs) { const x = Math.min(w - 16, Math.max(8, X(c.to / 1000))), y = Y(c.topEle), ty = Math.max(10, y - 9);
+      const nm = String(c.name).replace(/^(Col|Pas|Côte|Puy) (de |du |des |d')?/i, '').split(' ')[0].toUpperCase(), lab = nm + ' · ' + Math.round(c.topEle);
+      ctx.font = '700 11px "Sofia Sans", sans-serif'; const cw = ctx.measureText(c.cat).width;
+      ctx.font = '600 11px "Sofia Sans", sans-serif'; const lw = ctx.measureText(lab).width;
+      const bx = Math.max(6, Math.min(w - 6 - (cw + 5 + lw), x + 7));   // mede o texto: o ultimo col deixa de sair pela borda
+      ctx.fillStyle = 'rgba(244,245,247,1)'; ctx.font = '700 11px "Sofia Sans", sans-serif'; ctx.fillText(c.cat, bx, ty);
+      ctx.fillStyle = 'rgba(185,190,199,1)'; ctx.font = '600 11px "Sofia Sans", sans-serif'; ctx.fillText(lab, bx + cw + 5, ty); }
     ctx.textAlign = 'left';
   }
 }

@@ -314,7 +314,7 @@ export function createAvatar(url) {
         const cx = (rig.A.rearX + rig.A.frontX) / 2; inner.position.set(0, -rig.A.ymin * sc, 0); rig.skinned.position.set(-cx, 0, 0);
         const group = new THREE.Group(); group.add(inner);
         let last = 0;
-        const tick = (v, t) => { const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; } animateRig(rig); };
+        const tick = (v, t, cad) => { const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; if (v > 0.8) { const rpm = rpmDe(v, cad); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; } animateRig(rig); };
         resolve({ group, tick });
       } catch (e) { console.error('rider3d: createAvatar', e); resolve(null); }
     }, undefined, () => resolve(null));
@@ -322,18 +322,26 @@ export function createAvatar(url) {
 }
 export function resize(w, h, ratio) { if (!ok) return; W = w; H = h; dpr = ratio; renderer.setPixelRatio(dpr); renderer.setSize(w, h, false); }
 
-function step(v, t) {
+// U5: a cadencia real quando o sensor entrega, a derivada da velocidade quando nao. A derivada e um chute
+// grosseiro — a 12 km/h ela devolve 96 rpm, o dobro do que se pedala numa subida — e existe so para o boneco nao
+// ficar parado. Com sensor, a perna do avatar anda no ritmo da perna de verdade.
+function rpmDe(v, cad) {
+  if (cad && cad > 20 && cad < 200) return cad;
+  return Math.min(95, 60 + v * 3);
+}
+
+function step(v, t, cad) {
   const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0; lastT = t;
-  if (v > 0.8) { const rpm = Math.min(95, 60 + v * 3); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; }
+  if (v > 0.8) { const rpm = rpmDe(v, cad); crankAngle += rpm / 60 * Math.PI * 2 * dt; wheelAngle += v / R_WHEEL * dt; }
   if (model) { animateRig(model.rig); updateDebug(); return; }
   wheelF.rotation.x = wheelR.rotation.x = -wheelAngle; crank.rotation.x = -crankAngle; updateLegs();
 }
 function yaw(rot) { if (model) model.group.rotation.y = -Math.PI / 2 - (rot || 0); else bike.rotation.y = -(rot || 0); }
 
 // r: {x, y, rot, scale, show, mode: '2d'|'tp'|'fp'}; v em m/s; t em ms
-export function render(r, v, t) {
+export function render(r, v, t, cad) {
   if (!ok) return;
-  step(v, t);
+  step(v, t, cad);
   renderer.setScissorTest(true); renderer.clear(true, true, true);
   if (!r || !r.show) { renderer.setScissorTest(false); return; }
   const size = Math.round(76 * (r.scale || 1)); const x0 = Math.round(r.x - size / 2), y0 = Math.round(H - r.y - size * 0.36);   // 84 px (ícone 2D) −10 %, pedido do Pedro em 06/09
@@ -347,9 +355,9 @@ export function render(r, v, t) {
   renderer.render(scene, camera); renderer.setScissorTest(false);
 }
 // vista livre (página rider3d.html): azimute/elevação/distância, quadrado de lado size no canto inferior esquerdo
-export function renderFree(o, v, t) {
+export function renderFree(o, v, t, cad) {
   if (!ok) return;
-  step(v, t);
+  step(v, t, cad);
   renderer.setScissorTest(false); renderer.clear(true, true, true);
   const size = o.size; renderer.setViewport((W - size) / 2, (H - size) / 2, size, size); camera.aspect = 1; camera.fov = 30;
   camera.position.set(Math.sin(o.az) * Math.cos(o.el) * o.dist, Math.sin(o.el) * o.dist + 0.6, Math.cos(o.az) * Math.cos(o.el) * o.dist);

@@ -1,8 +1,15 @@
 // Étape Navegar · service worker: cache-first dos arquivos do app e do mapa. Versão trocada pelo build.
-const C = 'etape-nav-6409c7f2';
-const A = ['./', './index.html', './icon-192.png', './icon-512.png', './styles.css', './data.js', './app.js', './geo.js', './data-mod.js', './render.js', './gps.js', './guide.js', './voice.js', './ui.js', './store.js', './session.js', './telemetry.js', './fuel.js', './report.js', './weather.js', './sensors.js', './compass.js', './router.js', './icons.js', './sat.js', './dem.js', './terrain3d.js', './icons3d.js', './diorama.js', './rider3d.js', './models/avatar.glb', './vendor/three.module.min.js', './vendor/GLTFLoader.js', './vendor/BufferGeometryUtils.js', './track.js', './free.js', './match.js', './plan.js', './diario.js', './outing.js', './native.js', './sidecar.js', './cinema.js', './solar.js', './music.js', './cinema-ui.js', './auto.js', './passeio.js', './manifest.webmanifest', './icon.svg', './fonts/fonts.css', './tokens.js', './tokens.css', './shade.js',  './fonts/SofiaSans-400-normal-latin-ext.woff2', './fonts/SofiaSans-400-normal-latin.woff2', './fonts/SofiaSans-500-normal-latin-ext.woff2', './fonts/SofiaSans-500-normal-latin.woff2', './fonts/SofiaSans-600-normal-latin-ext.woff2', './fonts/SofiaSans-600-normal-latin.woff2', './fonts/SofiaSans-700-normal-latin-ext.woff2', './fonts/SofiaSans-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin.woff2', './icons2d/bakery.png', './icons2d/bike.png', './icons2d/cafe.png', './icons2d/castle.png', './icons2d/church.png', './icons2d/hospital.png', './icons2d/hotel.png', './icons2d/pass.png', './icons2d/peak.png', './icons2d/pharmacy.png', './icons2d/picnic.png', './icons2d/shop.png', './icons2d/toilets.png', './icons2d/viewpoint.png', './icons2d/water.png'];
-self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(A)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C && k !== 'etape-sat').map(k => caches.delete(k)))).then(() => self.clients.claim()).then(() => fillSat('./'))); });
+const C = 'etape-nav-5575ea6d';
+// [...new Set(...)] NAO e enfeite: cache.addAll rejeita a lista INTEIRA se houver URL repetida
+// (InvalidStateError), o install falha, o worker vira redundant e o app fica SEM OFFLINE NENHUM,
+// calado. Foi o que aconteceu: './fonts/fonts.css' esta na lista fixa e o build a repunha pelo
+// './fonts/SofiaSans-400-normal-latin-ext.woff2', './fonts/SofiaSans-400-normal-latin.woff2', './fonts/SofiaSans-500-normal-latin-ext.woff2', './fonts/SofiaSans-500-normal-latin.woff2', './fonts/SofiaSans-600-normal-latin-ext.woff2', './fonts/SofiaSans-600-normal-latin.woff2', './fonts/SofiaSans-700-italic-latin-ext.woff2', './fonts/SofiaSans-700-italic-latin.woff2', './fonts/SofiaSans-700-normal-latin-ext.woff2', './fonts/SofiaSans-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-800-italic-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-800-italic-latin.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin.woff2', './fonts/fonts.css'. Medido no S23 em 08/09: tres caches etape-nav-* vazios, um por build que tentou.
+const A = [...new Set(['./', './index.html', './icon-192.png', './icon-512.png', './styles.css', './data.js', './app.js', './geo.js', './data-mod.js', './render.js', './basemap.js', './gps.js', './guide.js', './voice.js', './ui.js', './store.js', './session.js', './telemetry.js', './fuel.js', './report.js', './weather.js', './sensors.js', './compass.js', './router.js', './icons.js', './sat.js', './dem.js', './terrain3d.js', './icons3d.js', './diorama.js', './rider3d.js', './models/avatar.glb', './vendor/three.module.min.js', './vendor/GLTFLoader.js', './vendor/BufferGeometryUtils.js', './track.js', './free.js', './match.js', './plan.js', './diario.js', './outing.js', './native.js', './sidecar.js', './cinema.js', './solar.js', './music.js', './cinema-ui.js', './auto.js', './passeio.js', './manifest.webmanifest', './icon.svg', './fonts/fonts.css', './tokens.js', './tokens.css', './shade.js', './vendor/maplibre-gl.js', './vendor/maplibre-gl.css', './vendor/pmtiles.js', './chao/estilo-asfalto.json', './chao/estilo-noite.json', './chao/glyphs/SofiaSansSemiCondensed-Bold/0-255.pbf', './chao/glyphs/SofiaSansSemiCondensed-Bold/256-511.pbf', './chao/glyphs/SofiaSansSemiCondensed-SemiBold/0-255.pbf', './chao/glyphs/SofiaSansSemiCondensed-SemiBold/256-511.pbf',  './fonts/SofiaSans-400-normal-latin-ext.woff2', './fonts/SofiaSans-400-normal-latin.woff2', './fonts/SofiaSans-500-normal-latin-ext.woff2', './fonts/SofiaSans-500-normal-latin.woff2', './fonts/SofiaSans-600-normal-latin-ext.woff2', './fonts/SofiaSans-600-normal-latin.woff2', './fonts/SofiaSans-700-italic-latin-ext.woff2', './fonts/SofiaSans-700-italic-latin.woff2', './fonts/SofiaSans-700-normal-latin-ext.woff2', './fonts/SofiaSans-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-600-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-700-normal-latin.woff2', './fonts/SofiaSansSemiCondensed-800-italic-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-800-italic-latin.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin-ext.woff2', './fonts/SofiaSansSemiCondensed-800-normal-latin.woff2', './fonts/fonts.css'])];
+// e se falhar, que NAO falhe calado: sem isto a unica pista era um cache vazio no aparelho
+self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(A)).then(() => self.skipWaiting())
+  .catch(async err => { const ruins = []; for (const u of A) { try { const r = await fetch(u); if (!r.ok) ruins.push(u + ' -> ' + r.status); } catch (x) { ruins.push(u + ' -> ' + x.message); } }
+    console.error('service worker: o pre-cache falhou (' + err.message + ')', ruins.length ? ruins : 'todas as URLs respondem: procure URL repetida em A'); throw err; })); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C && k !== 'etape-sat' && k !== 'etape-chao').map(k => caches.delete(k)))).then(() => self.clients.claim()).then(() => fillSat('./'))); });
 // satélite inteiro (z15 do corredor + z12 da maquete) no cache 'etape-sat', em segundo plano, em lotes de 6;
 // começa ao ativar e quando a página pede ({type:'fillSat'}); avisa o progresso às páginas ({type:'satProgress'})
 let filling = null;
@@ -27,11 +34,63 @@ async function fillSat(base) {
   })();
   return filling;
 }
-self.addEventListener('message', e => { const m = e.data || {}; if (m.type === 'fillSat') e.waitUntil(fillSat(m.base || './')); });
+// o chão pronto é um arquivo só, grande: baixa em segundo plano e avisa a tela, como o satélite
+let enchendoChao = null;
+async function fillChao(base, regiao) {
+  if (enchendoChao) return enchendoChao;
+  enchendoChao = (async () => {
+    const u = base + 'chao/' + regiao + '.pmtiles';
+    const c = await caches.open('etape-chao');
+    const diz = async (done, total, final) => {
+      const cs = await self.clients.matchAll({ includeUncontrolled: true });
+      for (const cl of cs) cl.postMessage({ type: 'chaoProgress', done, total, final: !!final });
+    };
+    try {
+      if (await c.match(u)) { await diz(1, 1, true); enchendoChao = null; return; }
+      const r = await fetch(u);
+      if (!r.ok) { enchendoChao = null; return; }
+      const total = +(r.headers.get('content-length') || 0);
+      await diz(0, total, false);
+      await c.put(u, r);
+      await diz(total, total, true);
+    } catch (e) { }
+    enchendoChao = null;
+  })();
+  return enchendoChao;
+}
+self.addEventListener('message', e => { const m = e.data || {};
+  if (m.type === 'fillSat') e.waitUntil(fillSat(m.base || './'));
+  if (m.type === 'fillChao') e.waitUntil(fillChao(m.base || './', m.regiao || 'sp')); });
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const u = e.request.url, big = /\/(sat|dem|shade)\//.test(u);   // tiles: só no cache 'etape-sat' (grande); o resto: só no cache do app
+  // PMTiles: o arquivo inteiro fica num cache próprio ('etape-chao') e as leituras por faixa são servidas dele.
+  // Sem isto, offline o pmtiles.js pede Range, o cache devolve o arquivo todo com status 200 e a
+  // biblioteca lê o cabeçalho no lugar errado.
+  const faixa = e.request.headers.get('range');
+  if (u.endsWith('.pmtiles') && faixa) {
+    e.respondWith((async () => {
+      const c = await caches.open('etape-chao');
+      let r = await c.match(u);
+      if (!r) { const rede = await fetch(e.request); if (rede.ok || rede.status === 206) return rede; return new Response('', { status: 504 }); }
+      // blob().slice() e NAO arrayBuffer(): o arquivo tem 85 MB e o pmtiles.js pede dezenas de
+      // faixas por tela. arrayBuffer traria os 85 MB para a memoria a CADA pedido - a mesma classe
+      // do achado que ja custou 9 s por arquivo aqui. O slice de um Blob nao materializa o resto.
+      const b = await r.blob();
+      const m = /bytes=(\d*)-(\d*)/.exec(faixa);
+      if (!m) return new Response('', { status: 416 });
+      let ini = m[1] ? +m[1] : Math.max(0, b.size - (+m[2] || 0));
+      let fim = m[1] ? (m[2] ? +m[2] : b.size - 1) : b.size - 1;
+      fim = Math.min(fim, b.size - 1);
+      if (ini > fim || ini >= b.size) return new Response('', { status: 416, headers: { 'Content-Range': 'bytes */' + b.size } });
+      return new Response(b.slice(ini, fim + 1), { status: 206, headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Range': `bytes ${ini}-${fim}/${b.size}`,
+        'Content-Length': String(fim - ini + 1) } });
+    })());
+    return;
+  }
   // busca direta pela URL (indexada); ignoreSearch varria o cache inteiro e, com dezenas de milhares de tiles, levava segundos por arquivo
   const look = async () => {
     const c = await caches.open(big ? 'etape-sat' : C); let r = await c.match(e.request);

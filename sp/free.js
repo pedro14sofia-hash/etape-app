@@ -22,6 +22,7 @@ export function init(state, center) {
   st.prof = [[0, 745], [0.0002, 745]]; st.profS = null; st.upRem = [0, 0]; st.km = 0; st.up = 0;
   st.climbs = []; st.surfaces = []; st.cps = []; st.turns = [];
   cur = null; cross = null; lastPt = null; lastEle = null; eleSm = null; eleOut = null; climb = null; spoken = '';
+  climbTick._from = null;   // o começo de subida em observação era o único estado que sobrevivia ao init (dívida da auditoria de 07/09)
   return st;
 }
 export function reset(center) { return init(S, center); }
