@@ -46,7 +46,7 @@ function liberaRegistroAntigo(keepKey) {
 export function del(key) { try { localStorage.removeItem(P + key); } catch (e) { } }
 export function progress(stageKey) { return get('prog:' + stageKey, { done: [], sights: [], shops: [] }); }
 export function setProgress(stageKey, p) { set('prog:' + stageKey, p); }
-export function prefs() { return { voice: true, theme: 'auto', orientation: 'heading', autoPause: false, mode: 'full', tab: 'tele', weight: 75, screen: 'sempre', mundo: 'auto', chao: 'estudio', chaoMotor: 'gl', brilhoAuto: true, vozMusica: 'pausa', cineMode: 'nitidez', cineLook: 1, previewLook: true, hrTrigger: 165, music: {}, playlists: {}, ...get('prefs', {}) }; }
+export function prefs() { return { voice: true, theme: 'auto', orientation: 'heading', autoPause: false, mode: 'full', tab: 'tele', weight: 75, screen: 'sempre', mundo: 'auto', chao: 'estudio', chaoMotor: 'gl', brilhoAuto: true, vozMusica: 'pausa', cineMode: 'nitidez', cineLook: 1, cineCadencia: '30', previewLook: true, hrTrigger: 165, music: {}, playlists: {}, ...get('prefs', {}) }; }
 export function setPrefs(p) { set('prefs', p); }
 export function session(stageKey) { return get('sess:' + stageKey, null); }
 export function setSession(stageKey, s) { set('sess:' + stageKey, s); }

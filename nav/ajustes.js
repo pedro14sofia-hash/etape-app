@@ -193,6 +193,13 @@ export function init(estado, contexto) {
     linhaOpcoes(el, { titulo: 'Modo padrão da Estrada', sub: 'Nitidez: 4K 10 bits · Aberto: ultrawide', valor: S.prefs.cineMode,
       opcoes: [['nitidez', 'Nitidez'], ['aberto', 'Aberto']], indisponivel: semCasca('a câmera é da casca'),
       onMuda: v => { S.prefs.cineMode = v; } });
+    // UC3a: a cadencia da captura. E a unica escolha do Cinema que NAO se desfaz na fabrica — o que foi gravado a 24
+    // fica a 24 —, por isso ela mora aqui, com o padrao em 30, e so muda depois do ensaio de SP aprovar. O 1/50
+    // existe para a luz artificial francesa, de 50 Hz.
+    linhaOpcoes(el, { titulo: 'Cadência', sub: '24 é a cadência de cinema · nenhuma fábrica desfaz depois da captura',
+      valor: S.prefs.cineCadencia || '30', indisponivel: semCasca('a câmera é da casca'),
+      opcoes: [['30', '30 · 1/60'], ['24-48', '24 · 1/48'], ['24-50', '24 · 1/50']],
+      onMuda: v => { S.prefs.cineCadencia = v; native.cineCadencia(v); } });
     linhaOpcoes(el, { titulo: 'Look', sub: 'na prévia e nos filmes da noite', valor: String(S.prefs.cineLook),
       opcoes: [['0', 'Clássico'], ['1', 'Cinema'], ['2', 'Forte']], indisponivel: semCasca('a câmera é da casca'),
       onMuda: v => { S.prefs.cineLook = +v; } });

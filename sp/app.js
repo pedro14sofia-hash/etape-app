@@ -200,7 +200,7 @@ export function init() {
       .catch(e => { S.chaoGL = false; if (window.__errs) window.__errs.push('chao: ' + (e && e.message)); console.error(e); R.invalidate(); });
   }
   cinema.init(S); cinemaUi.init(S);
-  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); passeio.init(S); if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
+  if (native.init()) { S.native = true; sidecar.init(S); music.init(S); auto.init(S); passeio.init(S); native.cineCadencia(S.prefs.cineCadencia || '30');   // UC3a: a cadencia vale desde o arranque, nao so depois de tocar no ajuste if (/[?&]debug=1/.test(location.search)) console.log('casca nativa: ' + window.EtapeNative.info());
     // a casca por fora (estudo aprovado 07/09) · gramática das teclas: volume cima GUARDA (clique marca o lugar, segurar pula a
     // música; no Cinema, REC Estrada e Nitidez ↔ Aberto); volume baixo RESPONDE ao que a Fita pede (aviso vermelho → dispensa;
     // Bebi/Comi vencido → confirma; folha aberta → fecha; fora do traçado → "sei o caminho"; nada pendente → repete a voz;

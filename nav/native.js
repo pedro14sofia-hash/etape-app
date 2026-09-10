@@ -129,6 +129,10 @@ export function kioskUnlock(pin) { try { return !!window.EtapeNative.kioskUnlock
 export function kioskLock() { try { window.EtapeNative.kioskLock(); } catch (e) { } }
 export function kioskPin(cur, nw) { try { return !!window.EtapeNative.kioskPin(String(cur), String(nw)); } catch (e) { return false; } }
 // ---- Cinema pacote 1 · câmera e gravação (só na casca). Eventos viram 'etape:rec' no document, com detail = o JSON da casca
+// UC3a: a cadencia do Cinema ('30' | '24-48' | '24-50'). Vale para a proxima sessao de camera; um clipe em
+// andamento nao muda de cadencia no meio, que e o certo.
+export function cineCadencia(nome) { try { if (N.on && window.EtapeNative.cineCadencia) window.EtapeNative.cineCadencia(String(nome || '30')); } catch (e) { } }
+export function cineCadenciaAtual() { try { return N.on && window.EtapeNative.cineCadenciaAtual ? String(window.EtapeNative.cineCadenciaAtual()) : ''; } catch (e) { return ''; } }
 export function camCaps() { try { return N.on ? JSON.parse(window.EtapeNative.camCaps()) : null; } catch (e) { return null; } }
 export function cinemaPreview(on, top) { try { return N.on && !!window.EtapeNative.cinemaPreview(!!on, !!top); } catch (e) { return false; } }
 export function camOpen(slot, mode) { try { return N.on && !!window.EtapeNative.camOpen(slot, mode); } catch (e) { return false; } }
