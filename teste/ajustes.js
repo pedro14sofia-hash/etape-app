@@ -65,12 +65,24 @@ export function linhaNumero(el, o) {
 }
 export function linhaTexto(el, o) {
   const b = document.createElement('button'); b.className = 'aj-txt'; b.type = 'button';
-  const pinta = () => { b.textContent = o.valor ? 'Trocar' : 'Definir'; };
+  // U8: o valor mostrado embaixo do titulo era escrito UMA vez, na montagem. Colar um link de playlist deixava a
+  // linha mostrando o antigo — ou nada, se antes estava vazia, porque o <small> nem chegava a existir. O elemento
+  // passa a existir sempre e a ser repintado junto com o botao.
+  const val = document.createElement('small'); val.className = 'aj-val';
+  const pinta = () => { b.textContent = o.valor ? 'Trocar' : 'Definir'; val.textContent = o.valor || ''; val.hidden = !o.valor; };
   pinta();
   if (o.indisponivel) b.disabled = true;
-  else b.onclick = async () => { const v = await ctx.perguntar(o.titulo, o.dica || '', o.valor || ''); if (v == null) return; o.valor = v.trim(); pinta(); o.onMuda(o.valor); grava(); };
+  // U8: guarda de valor igual, como linhaOpcoes e linhaNumero ja tinham. Sem ela, abrir a caixa e tocar em Guardar
+  // sem mudar nada gravava as preferencias e disparava o onMuda — trabalho e escrita em disco por nada.
+  else b.onclick = async () => {
+    const v = await ctx.perguntar(o.titulo, o.dica || '', o.valor || '');
+    if (v == null) return;
+    const novo = v.trim();
+    if (novo === (o.valor || '')) return;
+    o.valor = novo; pinta(); o.onMuda(o.valor); grava();
+  };
   const d = linha(el, o, b);
-  if (o.valor) { const p = document.createElement('small'); p.className = 'aj-val'; p.textContent = o.valor; d.querySelector('.aj-t').appendChild(p); }
+  d.querySelector('.aj-t').appendChild(val);
   return d;
 }
 export function linhaInfo(el, o) {
@@ -147,12 +159,23 @@ export function init(estado, contexto) {
       onMuda: v => { S.prefs.vozMusica = v; } });
   });
   painel('musica', 'Música', el => {
+    // U8: esta linha dizia "Ligado" so porque a casca existia, sem olhar se a permissao foi dada. Medido no S23:
+    // `enabled_notification_listeners` NAO tinha o Etape, e a linha dizia Ligado assim mesmo — no portao de toda a
+    // musica. Agora pergunta ao aparelho, e quando esta desligada oferece o caminho de ligar.
+    const ouve = window.EtapeNative && native.ouveNotificacoes && native.ouveNotificacoes();
     linhaInfo(el, { titulo: 'Acesso a notificações', sub: 'é o que deixa ler e controlar o YouTube Music',
-      valor: window.EtapeNative ? 'Ligado' : '—', indisponivel: semCasca('a música é lida pela casca') });
+      indisponivel: semCasca('a música é lida pela casca'),
+      valor: ouve ? 'Ligado' : (window.EtapeNative ? undefined : '—'),
+      acao: (window.EtapeNative && !ouve) ? 'Ligar' : undefined,
+      onAcao: () => { fechar(); native.pedirPermissao('pedirNotificacoes'); } });
+    // U8: `stages[k]` NAO tem campo `name` — em mundo nenhum. O nome mora em `ROUTES.names[k]`, e ja vem com o
+    // prefixo ("E1 Clermont → Brioude", "SP Navegacao livre"). Lendo o lugar errado, o nome caia no proprio `k` e o
+    // titulo saia "E1 · 1", "E2 · 2" … na Viagem, e "SP · SP" no Diario: nove linhas indistinguiveis no mundo que
+    // importa. Estava anotado como defeito de copy do Diario; era o painel inteiro.
     const chaves = S.routes && S.routes.stages ? Object.keys(S.routes.stages) : [];
     for (const k of chaves) {
-      const nome = (S.routes.stages[k] && S.routes.stages[k].name) || k;
-      linhaTexto(el, { titulo: (/^\d/.test(k) ? 'E' + k : k) + ' · ' + nome, sub: 'abre sozinha ao Partir',
+      const nome = (S.routes.names && S.routes.names[k]) || k;
+      linhaTexto(el, { titulo: nome, sub: 'abre sozinha ao Partir',
         dica: 'cole o link do YouTube Music', valor: S.prefs.playlists[k],
         onMuda: v => { S.prefs.playlists[k] = v; } });
     }

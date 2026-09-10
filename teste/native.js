@@ -119,6 +119,8 @@ export function driveResumo() { try { return N.on ? { conta: String(window.Etape
 // e mostra a saida de emergencia. `guardar` devolve 'ok', 'em pedal' ou o motivo; nunca guarda com uma saida em
 // andamento, so apaga a tela e deixa o GPS gravando.
 export function cortinaPronta() { try { if (N.on && window.EtapeNative.cortinaPronta) window.EtapeNative.cortinaPronta(); } catch (e) { } }
+// U8: o acesso a notificacoes e o portao de toda a musica; a tela precisa do estado de verdade.
+export function ouveNotificacoes() { try { return !!(N.on && window.EtapeNative.ouveNotificacoes && window.EtapeNative.ouveNotificacoes()); } catch (e) { return false; } }
 export function guardar() { try { return N.on && window.EtapeNative.guardar ? String(window.EtapeNative.guardar()) : 'sem casca'; } catch (e) { return 'erro: ' + e; } }
 export function energia() { try { return N.on && window.EtapeNative.energia ? JSON.parse(window.EtapeNative.energia()) : null; } catch (e) { return null; } }
 export function kioskOwner() { try { return N.on && !!window.EtapeNative.kioskOwner(); } catch (e) { return false; } }
