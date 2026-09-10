@@ -151,7 +151,14 @@ export function init() {
     aplicarCam: v => setCam(v),
     simular: () => toggleSim(),
     zerarEtapa: () => resetStage(),
-    aparelhoNormal: () => { const pin = prompt('PIN para devolver o aparelho ao normal (sem trava e sem dono; só um reset de fábrica refaz o dono)'); if (pin == null) return; if (native.kioskReset(pin)) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
+    // U7 (10/09): era `prompt()`, e a casca nao implementa onJsPrompt — dentro do aparelho a janela nunca abria e a
+    // acao mais perigosa do app simplesmente nao fazia nada, calada. Agora usa o `ask` da casa, que e o mesmo de
+    // todo pedido de PIN daqui.
+    aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (native.kioskReset(String(pin).trim())) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
+    // U7: os seis itens que a U1 apagou voltam pelo painel Aparelho; estes tres precisam do app.js.
+    ondeEstou: () => { const f = S.fix; return f ? [f.lat, f.lon] : [0, 0]; },
+    reiniciar: async () => { const pin = await ask('Reiniciar o aparelho', 'PIN · só funciona com o aparelho no modo dedicado', 'Reiniciar', { input: true, value: '' }); if (pin == null) return; if (!native.reboot(String(pin).trim())) voice.banner('Não reiniciou', 2, 'PIN errado, ou o aparelho não está no modo dedicado'); },
+    travar: async on => { if (on) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (native.kioskUnlock(String(pin).trim())) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado', 2); return null; },
     abrirPrimeira: () => entrada.abrirPrimeira(),
     abrirUpdate: () => entrada.abrirUpdate(),
   });

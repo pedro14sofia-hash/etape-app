@@ -223,7 +223,30 @@ export function init(estado, contexto) {
     linhaInfo(el, { titulo: 'Drive', indisponivel: fora,
       sub: dr && dr.fila ? dr.fila + (dr.fila === 1 ? ' vídeo na fila' : ' vídeos na fila') : 'conta e fila de envio',
       valor: dr ? (dr.conta || 'sem conta') : '—' });
-    linhaInfo(el, { titulo: 'Travar o aparelho', sub: 'só o Étape, PIN para sair', valor: '—', indisponivel: fora });
+    // U7 (10/09): os seis itens que a U1 apagou voltam aqui — os quatro atalhos de app, "subir pelo celular" e
+    // "reiniciar" —, e a trava deixa de ser um traço. Na estrada eles ganham a gaveta (Tarefa 8 do plano da casca);
+    // os Ajustes são onde se vai parado, e é onde eles precisam existir enquanto a gaveta não vem.
+    const CELL = [0, 2, 5, 10];   // GB por dia; chip francês na viagem. Nunca durante a saída (o Drive já recusa).
+    const gb = fora ? 0 : native.driveCellGB();
+    linhaOpcoes(el, { titulo: 'Subir pelo celular', sub: 'teto por dia; o Wi-Fi continua sem limite e a saída nunca sobe', indisponivel: fora,
+      valor: gb, semGravarPrefs: true, opcoes: CELL.map(g => [g, g ? g + ' GB' : 'Não']),
+      onMuda: v => { native.driveCell(+v); voice.banner(+v ? 'Sobe pelo celular até ' + v + ' GB por dia' : 'Só pelo Wi-Fi', 3, +v ? 'fora da saída' : ''); } });
+
+    // Os quatro aparecem sempre, instalados ou nao: o que falta instalar e informacao, nao ausencia. Tres dos quatro
+    // ainda faltam no S23 e o Pedro precisa ver isso aqui, nao descobrir em Auvergne.
+    for (const a of (fora ? [] : native.apps())) {
+      linhaInfo(el, { titulo: a.name || a.id, sub: a.installed ? 'abrir no aparelho' : 'ainda não está instalado',
+        indisponivel: fora || !a.installed, acao: 'Abrir',
+        onAcao: () => { fechar(); const [la, lo] = (ctx.ondeEstou ? ctx.ondeEstou() : [0, 0]);
+          const r = native.openApp(a.id, la, lo, ''); if (r !== 'ok') voice.banner('Não abriu: ' + r, 2); } });
+    }
+
+    const travado = fora ? false : native.kioskLocked();
+    linhaInfo(el, { titulo: 'Travar o aparelho', sub: travado ? 'travado: só o Étape' : 'só o Étape, PIN para sair',
+      indisponivel: fora || (!fora && !native.kioskOwner()), acao: travado ? 'Destravar' : 'Travar',
+      onAcao: async () => { const r = await ctx.travar(!travado); if (r != null) { fechar(); } } });
+    linhaInfo(el, { titulo: 'Reiniciar', sub: 'desliga e liga o aparelho · PIN', indisponivel: fora,
+      acao: 'Reiniciar', onAcao: () => { fechar(); if (ctx.reiniciar) ctx.reiniciar(); } });
     // some da lista normal: irreversível sem reset de fábrica, então só aparece com ?debug=1 (revisão 07/09, mantida na
     // Tarefa 10). Não fica em lugar de destaque.
     if (/[?&]debug=1/.test(location.search)) {
