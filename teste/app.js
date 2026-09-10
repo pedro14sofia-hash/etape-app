@@ -157,7 +157,19 @@ export function init() {
     aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (native.kioskReset(String(pin).trim())) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
     // U7: os seis itens que a U1 apagou voltam pelo painel Aparelho; estes tres precisam do app.js.
     ondeEstou: () => { const f = S.fix; return f ? [f.lat, f.lon] : [0, 0]; },
-    reiniciar: async () => { const pin = await ask('Reiniciar o aparelho', 'PIN · só funciona com o aparelho no modo dedicado', 'Reiniciar', { input: true, value: '' }); if (pin == null) return; if (!native.reboot(String(pin).trim())) voice.banner('Não reiniciou', 2, 'PIN errado, ou o aparelho não está no modo dedicado'); },
+    // O plano da casca traz uma decisao registrada do Pedro: "energia nao pede PIN em nenhum nivel; o PIN fica so
+    // onde protege o quiosque". Reiniciar e energia — e reiniciar nao e fuga do quiosque, porque o BootReceiver o
+    // refaz no arranque. Entao aqui vai confirmacao, nao PIN: o suficiente para um toque sem querer no guidao nao
+    // reiniciar o navegador no meio da etapa.
+    reiniciar: async () => { if (!(await ask('Reiniciar o aparelho?', 'A etapa em andamento continua gravada; o Étape volta sozinho.', 'Reiniciar'))) return; if (!native.reboot('')) voice.banner('Não reiniciou', 2, 'o aparelho não está no modo dedicado'); },
+    // U7 · Tarefa 5 do plano da casca, reescrita: ela punha dois botoes no menu que a U1 apagou; agora sao duas
+    // linhas do painel Aparelho. Energia nao pede PIN em nenhum nivel (decisao do Pedro).
+    guardar: () => { const r = native.guardar();
+      if (r === 'em pedal') voice.banner('Saída em andamento', 3, 'a tela apaga e o GPS continua gravando');
+      else if (r !== 'ok') voice.banner('Não guardou', 2, r); },
+    // O Android nao deixa um app desligar o aparelho, nem sendo o dono dele. Entao o Etape nao finge que desliga:
+    // explica o gesto do sistema, no mundo dele. O cartao do plano virou o dialogo que o app ja tem.
+    desligar: () => ask('Desligar o aparelho', 'Segure o botão lateral e toque em Desligar. O Android não deixa um app desligar o aparelho, nem sendo o dono dele.', 'Entendi'),
     travar: async on => { if (on) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (native.kioskUnlock(String(pin).trim())) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado', 2); return null; },
     abrirPrimeira: () => entrada.abrirPrimeira(),
     abrirUpdate: () => entrada.abrirUpdate(),
@@ -374,6 +386,28 @@ export function init() {
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
   // ícones carregam de forma assíncrona: redesenha a prévia quando ficarem prontos
   document.addEventListener('etape:icons', () => { if (PV && $('dlgPreview').open) { PV.R2.invalidate(); PV.R2.draw(PV.S2); } });
+  // U7 · a aba amarela ganha voz. A ponte tinha `tabText` desde a casca 5 e **ninguém no app web a chamava**: fora do
+  // Étape a aba mostrava só a palavra ÉTAPE, sem a próxima instrução e sem o aviso de nível 2. O relógio só corre
+  // enquanto outro app está na frente — parado, ele não gasta nada.
+  let abaTimer = 0;
+  const abaTick = () => {
+    const d = (S.proj && S.proj.dist) || 0, n = S.next || {}, tn = n.turn, cp = n.cp;
+    const dist = m => m < 950 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1) + ' km';
+    const cue = tn ? dist(tn.dist - d) + ' · ' + (tn.road || tn.label || tn.txt || 'curva')
+              : cp ? dist(cp.dist - d) + ' · ' + cp.name : '';
+    native.tabText(cue);
+    // avisos de nível 2 vão para a aba: fora do Étape eles se perdiam por completo
+    native.tabAviso(voice.activeLevel() === 2 ? (voice.last() || 'atenção') : '');
+  };
+  document.addEventListener('etape:away', e => {
+    const fora = !!(e.detail && e.detail !== '');
+    if (fora && !abaTimer) { abaTick(); abaTimer = setInterval(abaTick, 1000); }
+    if (!fora && abaTimer) { clearInterval(abaTimer); abaTimer = 0; native.tabAviso(''); }
+  });
+  // U7: a Cortina nativa sai só quando a tela está desenhada de verdade, não quando o script terminou de rodar.
+  // Dois quadros: o primeiro agenda o desenho, o segundo acontece depois dele. Se este aviso nunca chegar, a
+  // Cortina assume em 6 s e mostra a saída de emergência — que é exatamente o que deve acontecer.
+  requestAnimationFrame(() => requestAnimationFrame(() => native.cortinaPronta()));
 }
 
 // U6 Fase 3: o registro vem do IndexedDB, que e assincrono. Enche o MESMO array em vez de trocar a referencia —

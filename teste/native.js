@@ -31,7 +31,8 @@ export function init() {
     away(id) { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); },
     // U7: resposta das tres permissoes que a casca passou a saber pedir. Uma de cada vez — a tela "Primeira vez"
     // pede em sequencia —, e quem nao estava esperando ignora.
-    perm(ok) { const cb = N.onPerm; N.onPerm = null; if (cb) cb(!!ok); }
+    perm(ok) { const cb = N.onPerm; N.onPerm = null; if (cb) cb(!!ok); },
+    energia(st) { N.energia = st; document.dispatchEvent(new CustomEvent('etape:energia', { detail: st })); }
   };
   try { if (B.hasBaro()) B.baroStart(); } catch (e) { }
   try { B.brightness(-1); B.keepOn(true); } catch (e) { }
@@ -114,6 +115,12 @@ export function bateria() { try { return N.on ? JSON.parse(window.EtapeNative.ba
 export function espaco() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }
 export function conteudo() { try { return N.on && window.EtapeNative.conteudo ? JSON.parse(window.EtapeNative.conteudo()) : null; } catch (e) { return null; } }
 export function driveResumo() { try { return N.on ? { conta: String(window.EtapeNative.driveAccount() || ''), fila: +window.EtapeNative.drivePending() || 0 } : null; } catch (e) { return null; } }
+// U7 · Cortina e Guardado. `cortinaPronta` avisa que a tela desenhou de verdade — sem ele a Cortina assume em 6 s
+// e mostra a saida de emergencia. `guardar` devolve 'ok', 'em pedal' ou o motivo; nunca guarda com uma saida em
+// andamento, so apaga a tela e deixa o GPS gravando.
+export function cortinaPronta() { try { if (N.on && window.EtapeNative.cortinaPronta) window.EtapeNative.cortinaPronta(); } catch (e) { } }
+export function guardar() { try { return N.on && window.EtapeNative.guardar ? String(window.EtapeNative.guardar()) : 'sem casca'; } catch (e) { return 'erro: ' + e; } }
+export function energia() { try { return N.on && window.EtapeNative.energia ? JSON.parse(window.EtapeNative.energia()) : null; } catch (e) { return null; } }
 export function kioskOwner() { try { return N.on && !!window.EtapeNative.kioskOwner(); } catch (e) { return false; } }
 export function kioskLocked() { try { return N.on && !!window.EtapeNative.kioskLocked(); } catch (e) { return false; } }
 export function kioskUnlock(pin) { try { return !!window.EtapeNative.kioskUnlock(String(pin)); } catch (e) { return false; } }
@@ -180,6 +187,9 @@ export function openApp(id, lat, lon, q) { try { return N.on ? String(window.Eta
 export function appReturn(id, min) { try { if (N.on) window.EtapeNative.appReturn(String(id), +min || 0); } catch (e) { } }
 export function awayApp() { try { return N.on ? String(window.EtapeNative.awayApp() || '') : ''; } catch (e) { return ''; } }
 export function tabText(t) { try { if (N.on && window.EtapeNative.tabText && N.tabLast !== t) { N.tabLast = t; window.EtapeNative.tabText(String(t || '')); } } catch (e) { } }
+// U7: o aviso de nivel 2 vai para a aba enquanto outro app esta na frente. So manda quando MUDA — a aba e
+// redesenhada a cada segundo pelo relogio da contagem, e reenviar o mesmo texto seria trabalho por nada.
+export function tabAviso(t) { try { if (N.on && window.EtapeNative.tabAviso && N.avisoLast !== t) { N.avisoLast = t; window.EtapeNative.tabAviso(String(t || '')); } } catch (e) { } }
 export function tabAllowed() { try { return N.on && !!window.EtapeNative.tabAllowed(); } catch (e) { return false; } }
 export function toFront() { try { if (N.on && window.EtapeNative.toFront) window.EtapeNative.toFront(); } catch (e) { } }
 export function reboot(pin) { try { return N.on && !!window.EtapeNative.reboot(String(pin)); } catch (e) { return false; } }

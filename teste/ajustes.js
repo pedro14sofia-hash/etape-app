@@ -245,7 +245,12 @@ export function init(estado, contexto) {
     linhaInfo(el, { titulo: 'Travar o aparelho', sub: travado ? 'travado: só o Étape' : 'só o Étape, PIN para sair',
       indisponivel: fora || (!fora && !native.kioskOwner()), acao: travado ? 'Destravar' : 'Travar',
       onAcao: async () => { const r = await ctx.travar(!travado); if (r != null) { fechar(); } } });
-    linhaInfo(el, { titulo: 'Reiniciar', sub: 'desliga e liga o aparelho · PIN', indisponivel: fora,
+    linhaInfo(el, { titulo: 'Guardar', sub: 'apaga tudo; o botão lateral acorda · na bateria derruba Wi-Fi e Bluetooth',
+      indisponivel: fora || !native.disponivel('guardar'), acao: 'Guardar',
+      onAcao: () => { fechar(); if (ctx.guardar) ctx.guardar(); } });
+    linhaInfo(el, { titulo: 'Desligar', sub: 'o aparelho apaga de vez', indisponivel: fora,
+      acao: 'Como', onAcao: () => { fechar(); if (ctx.desligar) ctx.desligar(); } });
+    linhaInfo(el, { titulo: 'Reiniciar', sub: 'desliga e liga o aparelho; o Étape volta sozinho', indisponivel: fora,
       acao: 'Reiniciar', onAcao: () => { fechar(); if (ctx.reiniciar) ctx.reiniciar(); } });
     // some da lista normal: irreversível sem reset de fábrica, então só aparece com ?debug=1 (revisão 07/09, mantida na
     // Tarefa 10). Não fica em lugar de destaque.
