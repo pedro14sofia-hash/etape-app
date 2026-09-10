@@ -108,6 +108,12 @@ export async function checklist(S) {
   return out;
 }
 // ---- N2b · modo dedicado (só com Device Owner)
+// U7: os quatro numeros que as linhas mortas dos Ajustes esperavam. Cada um devolve null sem casca — a linha
+// ja se desabilita antes disso, e o null e a segunda rede.
+export function bateria() { try { return N.on ? JSON.parse(window.EtapeNative.battery()) : null; } catch (e) { return null; } }
+export function espaco() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }
+export function conteudo() { try { return N.on && window.EtapeNative.conteudo ? JSON.parse(window.EtapeNative.conteudo()) : null; } catch (e) { return null; } }
+export function driveResumo() { try { return N.on ? { conta: String(window.EtapeNative.driveAccount() || ''), fila: +window.EtapeNative.drivePending() || 0 } : null; } catch (e) { return null; } }
 export function kioskOwner() { try { return N.on && !!window.EtapeNative.kioskOwner(); } catch (e) { return false; } }
 export function kioskLocked() { try { return N.on && !!window.EtapeNative.kioskLocked(); } catch (e) { return false; } }
 export function kioskUnlock(pin) { try { return !!window.EtapeNative.kioskUnlock(String(pin)); } catch (e) { return false; } }

@@ -6,6 +6,7 @@ import * as store from './store.js';
 import * as voice from './voice.js';
 import * as sensors from './sensors.js';
 import { tzParts } from './geo.js';
+import * as native from './native.js';   // U7: as quatro linhas de estado do aparelho leem a ponte por aqui
 
 let S = null, ctx = null, dlg = null, lista = null, telaPainel = null;
 const paineis = [];   // { id, titulo, construir }
@@ -206,12 +207,22 @@ export function init(estado, contexto) {
     linhaInfo(el, { titulo: 'Conteúdo novo', sub: 'mapas, etapas e o app, pelo Wi-Fi', acao: 'Ver',
       onAcao: () => { fechar(); if (ctx.abrirUpdate) ctx.abrirUpdate(); } });
     const fora = semCasca('só no aparelho, fora do navegador');
-    linhaInfo(el, { titulo: 'Bateria', sub: 'nível e temperatura', valor: '—', indisponivel: fora });
-    linhaInfo(el, { titulo: 'Espaço', sub: 'livre no aparelho', valor: '—', indisponivel: fora });
-    // sem casca não há ação possível, então a linha nem oferece botão: nada de handler vazio atrás de controle morto.
-    // Quando o U7 trouxer a ponte, cada uma ganha `acao` e `onAcao` de verdade.
-    linhaInfo(el, { titulo: 'Conteúdo', sub: 'versão publicada', valor: '—', indisponivel: fora });
-    linhaInfo(el, { titulo: 'Drive', sub: 'conta e fila de envio', valor: '—', indisponivel: fora });
+    // U7 (09/09): as quatro linhas abaixo mostravam um traço desde a U1, esperando a ponte. A ponte chegou.
+    // Fora da casca cada uma continua desabilitada, com o motivo escrito — o traço só sobra onde não há resposta.
+    const bat = fora ? null : native.bateria();
+    linhaInfo(el, { titulo: 'Bateria', sub: bat && bat.charging ? 'carregando' : 'nível e consumo', indisponivel: fora,
+      valor: bat ? bat.level + '%' + (bat.mA ? ' · ' + Math.abs(bat.mA) + ' mA' : '') : '—' });
+    const esp = fora ? null : native.espaco();
+    linhaInfo(el, { titulo: 'Espaço', sub: esp && esp.contentMB > 0 ? 'o conteúdo ocupa ' + esp.contentMB + ' MB' : 'livre no aparelho',
+      indisponivel: fora, valor: esp ? (esp.freeMB / 1024).toFixed(1) + ' GB livres' : '—' });
+    const cont = fora ? null : native.conteudo();
+    linhaInfo(el, { titulo: 'Conteúdo', indisponivel: fora,
+      sub: cont && cont.files ? cont.files.toLocaleString('pt-BR') + ' arquivos' : 'versão publicada',
+      valor: cont ? (cont.version || 'pelo cabo') : '—' });
+    const dr = fora ? null : native.driveResumo();
+    linhaInfo(el, { titulo: 'Drive', indisponivel: fora,
+      sub: dr && dr.fila ? dr.fila + (dr.fila === 1 ? ' vídeo na fila' : ' vídeos na fila') : 'conta e fila de envio',
+      valor: dr ? (dr.conta || 'sem conta') : '—' });
     linhaInfo(el, { titulo: 'Travar o aparelho', sub: 'só o Étape, PIN para sair', valor: '—', indisponivel: fora });
     // some da lista normal: irreversível sem reset de fábrica, então só aparece com ?debug=1 (revisão 07/09, mantida na
     // Tarefa 10). Não fica em lugar de destaque.
