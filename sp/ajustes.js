@@ -235,18 +235,20 @@ export function init(estado, contexto) {
     // Os quatro aparecem sempre, instalados ou nao: o que falta instalar e informacao, nao ausencia. Tres dos quatro
     // ainda faltam no S23 e o Pedro precisa ver isso aqui, nao descobrir em Auvergne.
     for (const a of (fora ? [] : native.apps())) {
-      linhaInfo(el, { titulo: a.name || a.id, sub: a.installed ? 'abrir no aparelho' : 'ainda não está instalado',
-        indisponivel: fora || !a.installed, acao: 'Abrir',
+      // `indisponivel` e o MOTIVO escrito, nunca um booleano: a linha imprime `o.indisponivel || o.sub`, entao um
+      // `true` apareceria na tela como a palavra "true" — foi o que aconteceu, e so o aparelho mostrou.
+      linhaInfo(el, { titulo: a.name || a.id, sub: 'abrir no aparelho',
+        indisponivel: fora || (a.installed ? '' : 'ainda não está instalado'), acao: 'Abrir',
         onAcao: () => { fechar(); const [la, lo] = (ctx.ondeEstou ? ctx.ondeEstou() : [0, 0]);
           const r = native.openApp(a.id, la, lo, ''); if (r !== 'ok') voice.banner('Não abriu: ' + r, 2); } });
     }
 
     const travado = fora ? false : native.kioskLocked();
     linhaInfo(el, { titulo: 'Travar o aparelho', sub: travado ? 'travado: só o Étape' : 'só o Étape, PIN para sair',
-      indisponivel: fora || (!fora && !native.kioskOwner()), acao: travado ? 'Destravar' : 'Travar',
+      indisponivel: fora || (native.kioskOwner() ? '' : 'a casca não é dona do aparelho'), acao: travado ? 'Destravar' : 'Travar',
       onAcao: async () => { const r = await ctx.travar(!travado); if (r != null) { fechar(); } } });
     linhaInfo(el, { titulo: 'Guardar', sub: 'apaga tudo; o botão lateral acorda · na bateria derruba Wi-Fi e Bluetooth',
-      indisponivel: fora || !native.disponivel('guardar'), acao: 'Guardar',
+      indisponivel: fora || (native.disponivel('guardar') ? '' : 'a casca ainda não sabe guardar'), acao: 'Guardar',
       onAcao: () => { fechar(); if (ctx.guardar) ctx.guardar(); } });
     linhaInfo(el, { titulo: 'Desligar', sub: 'o aparelho apaga de vez', indisponivel: fora,
       acao: 'Como', onAcao: () => { fechar(); if (ctx.desligar) ctx.desligar(); } });

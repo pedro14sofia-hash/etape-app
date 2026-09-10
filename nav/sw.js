@@ -1,5 +1,5 @@
 // Étape Navegar · service worker: cache-first dos arquivos do app e do mapa. Versão trocada pelo build.
-const C = 'etape-nav-7fcedecc';
+const C = 'etape-nav-79788b41';
 // [...new Set(...)] NAO e enfeite: cache.addAll rejeita a lista INTEIRA se houver URL repetida
 // (InvalidStateError), o install falha, o worker vira redundant e o app fica SEM OFFLINE NENHUM,
 // calado. Foi o que aconteceu: './fonts/fonts.css' esta na lista fixa e o build a repunha pelo

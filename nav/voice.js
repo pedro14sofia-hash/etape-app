@@ -8,8 +8,12 @@ export function mute() { muted = true; try { speechSynthesis.cancel(); } catch (
 export function unmute() { muted = false; }
 export function isMuted() { return muted; }
 
-let lastSaid = '', lastLevel = 3;
+let lastSaid = '', lastLevel = 3, aviso = '';
 export function last() { return lastSaid; }
+// U7, medido no S23: a aba amarela ficava ambar mas escrevia "atencao" no lugar do aviso. `last()` devolve o que a
+// VOZ falou, e a faixa de nivel 2 nem sempre e falada — quem a escreve e o banner(). O aviso chegava e perdia o
+// texto, que e justamente a parte util fora do Etape. Aqui ele fica guardado enquanto a faixa esta viva.
+export function avisoAtivo() { return curUntil > Date.now() && curLevel <= 2 ? aviso : ''; }
 // nível da faixa ativa agora (9 = nenhuma): o volume baixo dispensa um aviso vermelho
 export function activeLevel() { return curUntil > Date.now() ? curLevel : 9; }
 // repete a última instrução (volume baixo sem nada pendente); false quando não há o que repetir
@@ -34,10 +38,11 @@ export function banner(text, level = 3, sub = '', right = '', hold = 0, kind = '
   clearTimeout(bannerTimer);
   const ms = level === 1 ? (hold || 12000) : level === 2 ? 8000 : 5000;
   holdUntil = level === 1 ? now + ms : 0; curLevel = level; curUntil = now + ms;
-  bannerTimer = setTimeout(() => { el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; }, ms);
+  if (level <= 2) aviso = String(text || '');
+  bannerTimer = setTimeout(() => { el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; aviso = ''; }, ms);
   if (level === 1) flashEdge(3000);
 }
-export function clearBanner() { const el = $('cue'); if (el) el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; }
+export function clearBanner() { const el = $('cue'); if (el) el.classList.remove('show'); holdUntil = 0; curLevel = 9; curUntil = 0; aviso = ''; }
 export function flashEdge(ms) { const e = $('edge'); if (!e) return; e.classList.add('show'); clearTimeout(edgeTimer); edgeTimer = setTimeout(() => e.classList.remove('show'), ms); }
 export function vibrate(level) {
   if (!navigator.vibrate) return;

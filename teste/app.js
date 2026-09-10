@@ -397,7 +397,7 @@ export function init() {
               : cp ? dist(cp.dist - d) + ' · ' + cp.name : '';
     native.tabText(cue);
     // avisos de nível 2 vão para a aba: fora do Étape eles se perdiam por completo
-    native.tabAviso(voice.activeLevel() === 2 ? (voice.last() || 'atenção') : '');
+    native.tabAviso(voice.avisoAtivo());
   };
   document.addEventListener('etape:away', e => {
     const fora = !!(e.detail && e.detail !== '');
