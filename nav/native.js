@@ -28,7 +28,10 @@ export function init() {
     night(st) { N.night = st; document.dispatchEvent(new CustomEvent('etape:night', { detail: st })); },
     drive(st) { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); },
     rotate(deg) { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); },
-    away(id) { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); }
+    away(id) { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); },
+    // U7: resposta das tres permissoes que a casca passou a saber pedir. Uma de cada vez — a tela "Primeira vez"
+    // pede em sequencia —, e quem nao estava esperando ignora.
+    perm(ok) { const cb = N.onPerm; N.onPerm = null; if (cb) cb(!!ok); }
   };
   try { if (B.hasBaro()) B.baroStart(); } catch (e) { }
   try { B.brightness(-1); B.keepOn(true); } catch (e) { }
@@ -64,6 +67,16 @@ export function status() { return N.on ? { alt: alt(), grade: grade(), raw: N.al
 // ---- N3b · pedal com a tela apagada: o serviço nativo entrega as posições (1 Hz) mesmo com a tela apagada
 export function rideStart(onFix) { if (!N.on) return false; N.onFix = onFix; try { return !!window.EtapeNative.rideStart(); } catch (e) { return false; } }
 export function rideStop() { N.onFix = null; try { if (N.on) window.EtapeNative.rideStop(); } catch (e) { } }
+// U7: pede uma das tres permissoes da casca e devolve 'concedido' ou 'negado', como a linha da localizacao.
+// Sem a casca, ou sem o metodo, a resposta e 'negado' na hora — a tela ja bloqueia o botao antes disso.
+// A de acesso a notificacoes abre uma TELA do sistema e pode demorar: quem chama corre o proprio prazo.
+export function pedirPermissao(nome) {
+  return new Promise(res => {
+    if (!disponivel(nome)) return res('negado');
+    N.onPerm = ok => res(ok ? 'concedido' : 'negado');
+    try { window.EtapeNative[nome](); } catch (e) { N.onPerm = null; res('negado'); }
+  });
+}
 export function keepOn(on) { try { if (N.on) window.EtapeNative.keepOn(!!on); } catch (e) { } }
 export function wake(ms = 15000) { try { if (N.on) window.EtapeNative.wake(ms); } catch (e) { } }
 // voz do sistema (offline); null quando não há

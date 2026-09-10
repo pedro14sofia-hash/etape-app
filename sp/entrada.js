@@ -17,19 +17,22 @@ const PERMISSOES = [
       navigator.geolocation.getCurrentPosition(() => res('concedido'), () => res('negado'), { timeout: 10000 });
     }) },
   // item 1 da revisão final (u2-largada): o motivo destas três linhas testa dois portões — a casca (semCasca) e,
-  // com a casca presente, o método de pedido de verdade (native.disponivel). Hoje a ponte não tem nenhum dos três
-  // métodos, então o segundo teste também bloqueia — sozinho, se um dia a casca aparecer sem eles. O `pedir()' de
-  // cada uma é um substituto temporário (sempre 'negado', sem falar com o Android): habilitar a linha sem trocar
-  // este `pedir()` pela chamada de verdade é exatamente o defeito que o portão de native.disponivel evita.
+  // com a casca presente, o método de pedido de verdade (native.disponivel). O segundo portão continua valendo:
+  // se um dia a casca aparecer sem um destes métodos, a linha se desabilita sozinha em vez de mentir.
+  // U7 (09/09): os três `pedir()` deixaram de ser substitutos e falam com o Android. O de "Acesso a notificações"
+  // abre uma TELA do sistema em vez de um diálogo — ele pode demorar minutos, e quem responde é o onResume da casca.
   { id: 'avisos', titulo: 'Avisos', sub: 'a voz e as placas do pedal',
     motivo: () => semCasca('os avisos vêm da casca') || (native.disponivel('pedirAvisos') ? '' : 'a casca ainda não sabe pedir isso'),
-    pedir: () => Promise.resolve('negado') },
+    pedir: () => native.pedirPermissao('pedirAvisos') },
   { id: 'camera', titulo: 'Câmera e microfone', sub: 'o Cinema: 4K na guia, som do vento e da estrada',
     motivo: () => semCasca('o Cinema só existe no aparelho') || (native.disponivel('pedirCamera') ? '' : 'a casca ainda não sabe pedir isso'),
-    pedir: () => Promise.resolve('negado') },
+    pedir: () => native.pedirPermissao('pedirCamera') },
   { id: 'musica', titulo: 'Acesso a notificações', sub: 'a faixa que está tocando aparece na fita; é o portão de toda a música',
     motivo: () => semCasca('o acesso a notificações só existe no aparelho') || (native.disponivel('pedirNotificacoes') ? '' : 'a casca ainda não sabe pedir isso'),
-    pedir: () => Promise.resolve('negado') }
+    pedir: () => native.pedirPermissao('pedirNotificacoes'),
+    // esta nao abre um dialogo: abre uma TELA do sistema, onde o ciclista procura o Etape numa lista.
+    // Vinte segundos estourariam sempre; dois minutos e o tempo de fazer isso sem pressa.
+    prazo: 120000 }
 ];
 
 function estados() { return store.get('perm', {}); }
@@ -59,7 +62,7 @@ function montaPrimeira() {
       // fica preso em "Pedindo…" para sempre. Não tire este prazo achando que a opção da
       // API já cobre o caso — ela não cobre.
       let venceu = false;
-      const prazo = new Promise(res => setTimeout(() => { venceu = true; res(); }, 20000));
+      const prazo = new Promise(res => setTimeout(() => { venceu = true; res(); }, p.prazo || 20000));
       const v = await Promise.race([p.pedir(), prazo]);
       if (venceu) {
         // Não sabemos a resposta: não gravamos nada (gravar 'negado' seria mentira) e
