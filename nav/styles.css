@@ -129,6 +129,17 @@ body.full #speedo,body.full #grade,body.full #place,body.mapmode #speedo,body.ma
 body.diario #ctl button.on,body.free #ctl button.on{background:var(--race);color:#fff;border-color:var(--race)}
 #ctl #zin,#ctl #zout{font:700 24px/1 var(--fd)}
 #ctl button[hidden]{display:none}
+
+/* U8 · acessibilidade: o programa exige alvo de toque de 52 px para o que se toca em movimento, e os controles
+   redondos tinham 48. Medido no S23: 23 dos 27 alvos visiveis estavam abaixo de 52. A area de toque cresce por
+   pseudo-elemento, sem mexer no desenho: o circulo continua com 48 px na tela e passa a pegar 52 na luva. Mesma
+   coisa para o botao da etapa (36x44) e o de seguir (44 de altura). Nao usar padding: reflui o layout inteiro. */
+#ctl button,#stageBtn,#btnFollow,#btnKnow{position:relative}
+#ctl button::after,#stageBtn::after,#btnFollow::after,#btnKnow::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:max(100%,52px);height:max(100%,52px);border-radius:inherit}
+/* mesma regra para o rodape: os tres do fole (44 de altura), as tres abas e o SOS (47 de largura). O SOS e o que
+   mais importa: e o botao que se procura com a mao tremendo. */
+.fcard button,.fnote button,.cb button{position:relative}
+.fcard button::after,.fnote button::after,.cb button::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:max(100%,52px);height:max(100%,52px);border-radius:inherit}
 /* Recentrar: só existe quando o mapa não está mais em você (btnFollow sem .on) */
 #btnFollow{position:absolute!important;left:50%;bottom:calc(var(--foot) + var(--sab) + var(--prof) + 26px);transform:translate(-50%,0);width:auto!important;height:44px!important;padding:0 18px 0 14px;border-radius:22px!important;background:rgba(255,229,0,.94)!important;color:var(--dark)!important;border:0!important;display:flex;align-items:center;gap:8px;font:800 12px/1 var(--fb)!important;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 8px 24px rgba(0,0,0,.35)!important;z-index:6;white-space:nowrap}
 #btnFollow::after{content:"Recentrar"}
