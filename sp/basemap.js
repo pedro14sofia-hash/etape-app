@@ -27,9 +27,28 @@ export async function montar(el, { regiao, tema = 'asfalto', dpr = 2 }) {
     l.id = 'css-maplibre'; l.rel = 'stylesheet'; l.href = './vendor/maplibre-gl.css';
     document.head.appendChild(l);
   }
-  gl.addProtocol('pmtiles', new window.pmtiles.Protocol().tile);
+  // U7: dentro da casca a WebView descarta ela mesma os primeiros N bytes do corpo quando o pedido leva o cabecalho
+  // Range — medido no S23: pedir "bytes=20000000-20000999" ao arquivo inteiro devolveu tamanho menos 20.000.000.
+  // O PMTiles le pedaco por pedaco, entao por Range ele nunca funcionaria ali. A janela passa a viajar na URL
+  // (`_r=inicio-fim`), que a casca e o serve.py entendem, e o cabecalho Range fica fora da conversa. Um caminho so
+  // para o PC e para o aparelho: o chao do aparelho deixa de ser diferente do chao que se testa.
+  const alvo = new URL('./chao/' + regiao + '.pmtiles', location.href).href;
+  const fonte = {
+    getKey: () => alvo,
+    async getBytes(deslocamento, tamanho) {
+      const u = alvo + (alvo.indexOf('?') < 0 ? '?' : '&') + '_r=' + deslocamento + '-' + (deslocamento + tamanho - 1);
+      const r = await fetch(u);
+      if (!r.ok) throw new Error('janela ' + r.status + ' em ' + u.slice(-48));
+      const data = await r.arrayBuffer();
+      if (data.byteLength > tamanho) throw new Error('janela ignorada: pedi ' + tamanho + ' e vieram ' + data.byteLength);
+      return { data };
+    }
+  };
+  const proto = new window.pmtiles.Protocol();
+  proto.add(new window.pmtiles.PMTiles(fonte));
+  gl.addProtocol('pmtiles', proto.tile);
   const estilo = await (await fetch('./chao/estilo-' + tema + '.json')).json();
-  estilo.sources.protomaps.url = 'pmtiles://' + new URL('./chao/' + regiao + '.pmtiles', location.href).href;
+  estilo.sources.protomaps.url = 'pmtiles://' + alvo;
   // new URL() codificaria {fontstack}/{range} (chaves viram %7B%7D): a base é resolvida sem o molde,
   // e o molde entra depois, literal, como no proto/chao/index.html.
   estilo.glyphs = new URL('./chao/glyphs/', location.href).href + '{fontstack}/{range}.pbf';
@@ -38,7 +57,13 @@ export async function montar(el, { regiao, tema = 'asfalto', dpr = 2 }) {
     // o dedo não manda: quem manda é o modelo de movimento. Os gestos entram pelo ui.js (Task 8).
     interactive: false, attributionControl: true, fadeDuration: 150, pixelRatio: dpr
   });
-  map.on('error', e => { if (window.__errs) window.__errs.push('chao: ' + (e.error?.message || e)); });
+  // U7: "chao: Failed to fetch" sozinho nao diz o que falhou. O erro do MapLibre carrega url e status quando e de rede
+  // (AJAXError); sem eles, um chao quebrado no aparelho e indistinguivel de um chao quebrado por outro motivo.
+  map.on('error', e => {
+    if (!window.__errs) return;
+    const x = e.error || e, onde = x.url ? ' <- ' + String(x.url).slice(-64) : '', st = x.status ? ' [' + x.status + ']' : '';
+    window.__errs.push('chao: ' + (x.message || x) + st + onde);
+  });
   map.on('render', () => { for (const f of aoDesenharFns) f(); });
   await new Promise(r => map.once('load', r));
   pronto = true;
