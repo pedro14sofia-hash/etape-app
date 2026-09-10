@@ -33,6 +33,7 @@ import * as etapas from './etapas.js';   // U2 · a folha Escolher etapa, no lug
 import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
 import * as ajustes from './ajustes.js';   // U1: os nove painéis, no lugar do menu plano
 import * as entrada from './entrada.js';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
+import * as gaveta from './gaveta.js';     // U7 · os quatro apps de fora a um gesto da borda de cima
 
 // U2 · o mundo certo sozinho. Viagem e Diário são duas construções (/nav/ e /sp/); existe ainda /teste/, que não
 // decide nada. Escolher é redirecionar uma vez, na carga. Regra: hoje dentro da janela da viagem OU fuso europeu
@@ -129,6 +130,8 @@ function selectStageManual(k) {
 }
 const S = { map: null, routes: null, stage: null, paradas: [], proj: { idx: 0, dist: 0, off: 0 }, fix: null, prev: null, off: false, offSince: 0, session: null, log: [], fuel: null, fuelPlan: null, live: null, eta: null, next: {}, follow: true, mode: 'full', tab: 'tele', theme: 'day', prefs: store.prefs(), scaleBottom: 380, mask: [], quiet: false, hist: [], planArrival: null };
 let R, panelTimer = null;
+// U7: o ajustes.init acontece antes de a funcao existir; a referencia tardia resolve a ordem sem mover o bloco.
+let abrirAppRef = () => 'sem contexto';
 
 export function init() {
   if (decidirMundo()) return;   // achado 8: location.replace é assíncrono; sem este retorno o resto de init() rodava na página condenada
@@ -156,7 +159,8 @@ export function init() {
     // todo pedido de PIN daqui.
     aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (native.kioskReset(String(pin).trim())) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
     // U7: os seis itens que a U1 apagou voltam pelo painel Aparelho; estes tres precisam do app.js.
-    ondeEstou: () => { const f = S.fix; return f ? [f.lat, f.lon] : [0, 0]; },
+    ondeEstou: () => { const p = S.pos || S.fix; return p ? [p.lat, p.lon] : [0, 0]; },
+    abrirApp: id => abrirAppRef(id),   // U7: os Ajustes e a gaveta usam o MESMO caminho (destino e playlist juntos)
     // O plano da casca traz uma decisao registrada do Pedro: "energia nao pede PIN em nenhum nivel; o PIN fica so
     // onde protege o quiosque". Reiniciar e energia — e reiniciar nao e fuga do quiosque, porque o BootReceiver o
     // refaz no arranque. Entao aqui vai confirmacao, nao PIN: o suficiente para um toque sem querer no guidao nao
@@ -386,6 +390,21 @@ export function init() {
   if (q.get('preview')) setTimeout(() => showPreview(q.get('preview')), 300);
   // ícones carregam de forma assíncrona: redesenha a prévia quando ficarem prontos
   document.addEventListener('etape:icons', () => { if (PV && $('dlgPreview').open) { PV.R2.invalidate(); PV.R2.draw(PV.S2); } });
+
+  // U7 · Tarefa 8: a gaveta. `here` e `end` sao os mesmos do menu que a U1 apagou — a posicao de agora e o fim da
+  // etapa do dia, que e para onde o Google Maps navega. A musica abre na playlist da etapa quando ha uma.
+  const here = () => { const p = S.pos || S.fix; return p ? [p.lat, p.lon] : [0, 0]; };
+  const end = () => { const st = S.stage; if (!st || S.free || !st.pts || !st.pts.length) return ''; const e = st.pts[st.pts.length - 1]; return e[0].toFixed(5) + ',' + e[1].toFixed(5); };
+  abrirAppRef = id => {
+    const q = id === 'music' ? ((S.stage && S.prefs.playlists && S.prefs.playlists[S.stage.key]) || '')
+            : id === 'maps' ? end() : '';
+    const [la, lo] = here();
+    const r = native.openApp(id, la, lo, q);
+    if (r !== 'ok') voice.banner('Não abriu: ' + r, 2);
+    return r;
+  };
+  gaveta.init(S, { abrirApp: id => abrirAppRef(id), abrirAparelho: () => ajustes.abrirEm('aparelho') });
+  document.addEventListener('etape:nivel1', () => gaveta.fechar());   // nenhuma folha entre o ciclista e uma curva
   // U7 · a aba amarela ganha voz. A ponte tinha `tabText` desde a casca 5 e **ninguém no app web a chamava**: fora do
   // Étape a aba mostrava só a palavra ÉTAPE, sem a próxima instrução e sem o aviso de nível 2. O relógio só corre
   // enquanto outro app está na frente — parado, ele não gasta nada.

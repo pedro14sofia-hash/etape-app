@@ -106,6 +106,14 @@ function montarLista() {
 }
 
 export function abrir() { montarLista(); mostrarLista(); if (!dlg.open) dlg.showModal(); }
+// U7: abrir direto num painel. A gaveta oferece "Aparelho · rede, bateria e energia" e precisa cair NO painel, nao
+// na lista — prometer um lugar e entregar outro e o tipo de coisa que se paga no guidao. Id desconhecido cai na lista.
+export function abrirEm(id) {
+  montarLista();
+  const p = paineis.find(x => x.id === id);
+  if (p) abrirPainel(p); else mostrarLista();
+  if (!dlg.open) dlg.showModal();
+}
 export function fechar() { if (dlg.open) dlg.close(); }
 
 export function init(estado, contexto) {
@@ -239,8 +247,9 @@ export function init(estado, contexto) {
       // `true` apareceria na tela como a palavra "true" — foi o que aconteceu, e so o aparelho mostrou.
       linhaInfo(el, { titulo: a.name || a.id, sub: 'abrir no aparelho',
         indisponivel: fora || (a.installed ? '' : 'ainda não está instalado'), acao: 'Abrir',
-        onAcao: () => { fechar(); const [la, lo] = (ctx.ondeEstou ? ctx.ondeEstou() : [0, 0]);
-          const r = native.openApp(a.id, la, lo, ''); if (r !== 'ok') voice.banner('Não abriu: ' + r, 2); } });
+        // mesmo caminho da gaveta: o Google Maps vai para o fim da etapa e a Música abre na playlist do dia. Duas
+        // portas para o mesmo app nao podem levar a lugares diferentes.
+        onAcao: () => { fechar(); if (ctx.abrirApp) ctx.abrirApp(a.id); } });
     }
 
     const travado = fora ? false : native.kioskLocked();

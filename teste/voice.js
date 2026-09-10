@@ -53,6 +53,8 @@ export function announce(ev) {
   banner(ev.text, ev.level, ev.sub || '', ev.right || '', ev.hold || 0, ev.kind || '');
   vibrate(ev.level);
   if (ev.level === 1) native.toFront();   // a casca por fora: um aviso vermelho traz o Étape à frente de qualquer app
+  // U7: e nenhuma folha nossa fica entre o ciclista e uma curva. Quem estiver aberto se fecha (hoje, a gaveta).
+  if (ev.level === 1) document.dispatchEvent(new CustomEvent('etape:nivel1'));
   if (ev.voice !== false) say(ev.speak || ev.text, ev.level);
 }
 function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
