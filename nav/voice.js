@@ -1,6 +1,6 @@
 // Étape Navegar · voice.js
 // Voz em pt-BR, faixa de aviso (três níveis), borda vermelha e vibração.
-import * as native from './native.js';
+import * as native from './native.js?v=c8177a80';
 let muted = false, bannerTimer = null, edgeTimer = null, holdUntil = 0, curLevel = 9, curUntil = 0;
 const $ = id => document.getElementById(id);
 

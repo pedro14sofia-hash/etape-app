@@ -2,11 +2,11 @@
 // Os nove painéis do mapa de telas, no lugar do diálogo plano de 21 itens que misturava ação com preferência.
 // O módulo é dono de tudo: a lista, a navegação e as primitivas de linha que os painéis reusam. O app.js só chama
 // init(). Fora da casca (Chrome), toda linha que dependa da ponte aparece desabilitada com o motivo escrito.
-import * as store from './store.js';
-import * as voice from './voice.js';
-import * as sensors from './sensors.js';
-import { tzParts } from './geo.js';
-import * as native from './native.js';   // U7: as quatro linhas de estado do aparelho leem a ponte por aqui
+import * as store from './store.js?v=c8177a80';
+import * as voice from './voice.js?v=c8177a80';
+import * as sensors from './sensors.js?v=c8177a80';
+import { tzParts } from './geo.js?v=c8177a80';
+import * as native from './native.js?v=c8177a80';   // U7: as quatro linhas de estado do aparelho leem a ponte por aqui
 
 let S = null, ctx = null, dlg = null, lista = null, telaPainel = null;
 const paineis = [];   // { id, titulo, construir }
@@ -201,7 +201,7 @@ export function init(estado, contexto) {
       opcoes: [['30', '30 · 1/60'], ['24-48', '24 · 1/48'], ['24-50', '24 · 1/50']],
       onMuda: v => { S.prefs.cineCadencia = v; native.cineCadencia(v); } });
     linhaOpcoes(el, { titulo: 'Look', sub: 'na prévia e nos filmes da noite', valor: String(S.prefs.cineLook),
-      opcoes: [['0', 'Clássico'], ['1', 'Cinema'], ['2', 'Forte']], indisponivel: semCasca('a câmera é da casca'),
+      opcoes: [['0', 'Clássico'], ['1', 'Cinema'], ['2', 'Forte'], ['3', 'Arte · Nolan'], ['4', 'Arte · Tarantino']], indisponivel: semCasca('a câmera é da casca'),
       onMuda: v => { S.prefs.cineLook = +v; } });
     linhaToggle(el, { titulo: 'Prévia com o look', sub: 'mostra na tela o que vai para o arquivo', valor: S.prefs.previewLook,
       indisponivel: semCasca('a câmera é da casca'), onMuda: v => { S.prefs.previewLook = v; } });

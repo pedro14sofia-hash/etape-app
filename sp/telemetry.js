@@ -1,12 +1,18 @@
 // Étape Navegar · telemetry.js
 // Telemetria: amostras a 5 s, números da tela, VAM, gradiente, registro do dia, GPX.
-import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js';
-import * as store from './store.js';
-import * as logdb from './logdb.js';   // U6 Fase 3: o registro do dia vive no IndexedDB
+import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js?v=1a47c3a9';
+import * as store from './store.js?v=1a47c3a9';
+import * as logdb from './logdb.js?v=1a47c3a9';   // U6 Fase 3: o registro do dia vive no IndexedDB
 
 export function sample(fix, stage, proj, prev) {
   const ele = Math.round(elevationAt(stage, proj.dist));
   const s = { t: fix.t, lat: +fix.lat.toFixed(5), lon: +fix.lon.toFixed(5), ele, dist: Math.round(proj.dist), v: +(fix.v || 0).toFixed(2), off: Math.round(proj.off) };
+  // U8 (10/09): a precisao do fix era recebida pelo onFix e jogada fora. Sem ela nao da para separar, depois, um
+  // ponto bom de um ruim — e a auditoria de um dia de sinal ruim fica no escuro. Medido no primeiro passeio real:
+  // um unico salto de 4,6 km entrou no registro (o GPS reencontrando sinal), e so o teto de 400 m o segurou; com o
+  // `acc` gravado da para ver o salto chegando, em vez de descobri-lo pela distancia. Inteiro, um numero por
+  // amostra: metros, sem casa decimal. Ausente quando o aparelho nao informa — nunca zero, que seria mentira.
+  if (fix.acc > 0) s.acc = Math.round(fix.acc);
   s.grade = +gradeAt(stage, proj.dist, 100).toFixed(1);
   return s;
 }

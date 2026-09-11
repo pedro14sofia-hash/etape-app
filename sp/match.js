@@ -3,8 +3,8 @@
 // (com a mão da via) e pela continuidade com a via anterior, devolve a posição encaixada, a rua (nome, classe, superfície,
 // ciclovia) e o próximo cruzamento à frente no sentido do movimento. Trabalha sobre o índice espacial de window.MAP
 // (data.js), sem grafo: cruzamentos são vias com outro nome que passam a menos de 12 m da via atual.
-import { query } from './data-mod.js';
-import { bearing } from './geo.js';
+import { query } from './data-mod.js?v=1a47c3a9';
+import { bearing } from './geo.js?v=1a47c3a9';
 
 const CLASS_TXT = { 1: 'rodovia', 2: 'avenida', 3: 'avenida', 4: 'via coletora', 5: 'rua', 6: 'via de serviço', 7: 'estrada de terra', 8: 'ciclovia', 9: 'caminho' };
 const SURF_TXT = { asphalt: 'asfalto', paved: 'pavimento', concrete: 'concreto', paving_stones: 'paralelepípedo', sett: 'paralelepípedo', cobblestone: 'pedra', unpaved: 'terra', gravel: 'cascalho', fine_gravel: 'saibro', dirt: 'terra', ground: 'terra', compacted: 'saibro', sand: 'areia', wood: 'madeira' };

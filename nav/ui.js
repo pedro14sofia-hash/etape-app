@@ -1,10 +1,10 @@
-import { tzHM, tzHour } from './geo.js';
+import { tzHM, tzHour } from './geo.js?v=c8177a80';
 // Étape Navegar · ui.js
 // Painel, controles, gestos, tema, orientação, modo resumo.
-import { drawProfile, catCol } from './render.js';
-import { GRADE } from './tokens.js';
-import { surfaceAt, nextSurfaceChange } from './track.js';
-import * as session from './session.js';
+import { drawProfile, catCol } from './render.js?v=c8177a80';
+import { GRADE } from './tokens.js?v=c8177a80';
+import { surfaceAt, nextSurfaceChange } from './track.js?v=c8177a80';
+import * as session from './session.js?v=c8177a80';
 
 const $ = id => document.getElementById(id);
 const fmtKm1 = m => (Math.max(0, m) / 1000).toFixed(1).replace('.', ',');
@@ -94,7 +94,14 @@ export function panel(S) {
   const vp = (S.vsPlan != null && Math.abs(S.vsPlan) <= 120) ? S.vsPlan : null; $('vsplan').textContent = vp == null ? '' : (vp > 0 ? '+' : '−') + fmtMin(vp); $('vsplan').className = vp == null ? '' : vp > 10 ? 'late' : 'ok';
   $('rem').textContent = fmtKm1(rem); { const dl = $('dayLine'); if (dl) dl.style.setProperty('--dayw', Math.round(Math.max(0, Math.min(1, d / st.total)) * 100) + '%'); }
   const idleLbl = sess.state === 'idle' && (st.diario || S.free) ? 'Partir' : session.label(sess.state);
-  $('btnSession').innerHTML = idleLbl + '<small>' + (sess.state === 'idle' ? (st.diario ? (S.destEta ? 'chegada ' + S.destEta : 'Diário') : S.free ? 'livre' : 'etapa') : 'mov. ' + fmtT(moving)) + '</small>';
+  // Encerrar e SEGURAR este botao por 1 s (decisao de 06/09: "encerrar e segurar Pausar"). Isso nunca esteve escrito
+  // em lugar nenhum, e o Pedro terminou a primeira navegacao de verdade sem achar como fechar a atividade — ela ficou
+  // aberta. Em PAUSA, que e onde se quer encerrar, a linha de baixo passa a dizer. Em movimento ela segue mostrando o
+  // tempo, que e o numero que importa pedalando.
+  const sub = sess.state === 'idle' ? (st.diario ? (S.destEta ? 'chegada ' + S.destEta : 'Diário') : S.free ? 'livre' : 'etapa')
+            : sess.state === 'paused' ? 'segure para encerrar'
+            : 'mov. ' + fmtT(moving);
+  $('btnSession').innerHTML = idleLbl + '<small>' + sub + '</small>';
   $('btnSession').className = 'sbtn ' + sess.state;
   // linha da borne + curva
   const cp = S.next.cp, tn = S.next.turn, sf = surfaceAt(st, d), ch = nextSurfaceChange(st, d);

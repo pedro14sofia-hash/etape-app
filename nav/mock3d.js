@@ -1,13 +1,13 @@
 // Étape Navegar · mock3d.js — F0: cena parada em three.js (terreno + satélite + fita cravada + avatar + ícones + bandeira).
 // Só para aprovação visual. Parâmetros: ?stage=4&km=17.2&theme=day|night&sat=1&dist=70&h=34&fov=50&z14=1
-import * as THREE from './vendor/three.module.min.js';
-import { GLTFLoader } from './vendor/GLTFLoader.js';
-import { loadRoutes } from './data-mod.js';
-import { loadStage, pointAt, bearingAt } from './track.js';
-import { mercX, mercY } from './geo.js';
-import * as dem from './dem.js';
-import * as sat from './sat.js';
-import { flagAt } from './render.js';
+import * as THREE from './vendor/three.module.min.js?v=c8177a80';
+import { GLTFLoader } from './vendor/GLTFLoader.js?v=c8177a80';
+import { loadRoutes } from './data-mod.js?v=c8177a80';
+import { loadStage, pointAt, bearingAt } from './track.js?v=c8177a80';
+import { mercX, mercY } from './geo.js?v=c8177a80';
+import * as dem from './dem.js?v=c8177a80';
+import * as sat from './sat.js?v=c8177a80';
+import { flagAt } from './render.js?v=c8177a80';
 
 const q = new URLSearchParams(location.search);
 const KEY = q.get('stage') || '4', KM = parseFloat(q.get('km') || '17.2'), NIGHT = q.get('theme') === 'night', SAT = q.get('sat') !== '0';

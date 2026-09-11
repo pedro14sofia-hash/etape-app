@@ -1,39 +1,39 @@
 // Étape Navegar · app.js
 // Composição: liga os módulos e controla o ciclo de vida.
-import { mercX, mercY, haversine } from './geo.js';
-import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js';
-import { createRenderer, drawFita } from './render.js';
-import * as track from './track.js';
-import * as gps from './gps.js';
-import * as guide from './guide.js';
-import * as voice from './voice.js';
-import * as ui from './ui.js';
-import * as store from './store.js';
-import * as logdb from './logdb.js';   // U6 Fase 3: o registro do dia vive no IndexedDB
-import * as session from './session.js';
-import * as telemetry from './telemetry.js';
-import * as fuel from './fuel.js';
-import * as report from './report.js';
-import * as sat from './sat.js';
-import * as dem from './dem.js';
-import * as shade from './shade.js';
-import * as compass from './compass.js';
-import * as weather from './weather.js';
-import * as sensors from './sensors.js';
-import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
-import * as outing from './outing.js';   // tela 02 · antes de sair
-import * as plan from './plan.js';   // Diário: rotas A→B e etapa refeita fora da rota
-import * as native from './native.js';   // casca nativa (N3a): barômetro, brilho, térmico
-import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
-import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
-import * as cinema from './cinema.js';
-import * as auto from './auto.js';   // Cinema v2: gatilhos automáticos
-import * as passeio from './passeio.js';   // diário do passeio (bateria, gatilhos, alertas) guardado com os sidecars
-import * as etapas from './etapas.js';   // U2 · a folha Escolher etapa, no lugar do <select> da fita
-import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
-import * as ajustes from './ajustes.js';   // U1: os nove painéis, no lugar do menu plano
-import * as entrada from './entrada.js';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
-import * as gaveta from './gaveta.js';     // U7 · os quatro apps de fora a um gesto da borda de cima
+import { mercX, mercY, haversine } from './geo.js?v=1a47c3a9';
+import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js?v=1a47c3a9';
+import { createRenderer, drawFita } from './render.js?v=1a47c3a9';
+import * as track from './track.js?v=1a47c3a9';
+import * as gps from './gps.js?v=1a47c3a9';
+import * as guide from './guide.js?v=1a47c3a9';
+import * as voice from './voice.js?v=1a47c3a9';
+import * as ui from './ui.js?v=1a47c3a9';
+import * as store from './store.js?v=1a47c3a9';
+import * as logdb from './logdb.js?v=1a47c3a9';   // U6 Fase 3: o registro do dia vive no IndexedDB
+import * as session from './session.js?v=1a47c3a9';
+import * as telemetry from './telemetry.js?v=1a47c3a9';
+import * as fuel from './fuel.js?v=1a47c3a9';
+import * as report from './report.js?v=1a47c3a9';
+import * as sat from './sat.js?v=1a47c3a9';
+import * as dem from './dem.js?v=1a47c3a9';
+import * as shade from './shade.js?v=1a47c3a9';
+import * as compass from './compass.js?v=1a47c3a9';
+import * as weather from './weather.js?v=1a47c3a9';
+import * as sensors from './sensors.js?v=1a47c3a9';
+import * as free from './free.js?v=1a47c3a9';   // navegação livre (build de São Paulo, window.FREE)
+import * as outing from './outing.js?v=1a47c3a9';   // tela 02 · antes de sair
+import * as plan from './plan.js?v=1a47c3a9';   // Diário: rotas A→B e etapa refeita fora da rota
+import * as native from './native.js?v=1a47c3a9';   // casca nativa (N3a): barômetro, brilho, térmico
+import * as sidecar from './sidecar.js?v=1a47c3a9';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
+import * as music from './music.js?v=1a47c3a9';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
+import * as cinema from './cinema.js?v=1a47c3a9';
+import * as auto from './auto.js?v=1a47c3a9';   // Cinema v2: gatilhos automáticos
+import * as passeio from './passeio.js?v=1a47c3a9';   // diário do passeio (bateria, gatilhos, alertas) guardado com os sidecars
+import * as etapas from './etapas.js?v=1a47c3a9';   // U2 · a folha Escolher etapa, no lugar do <select> da fita
+import * as cinemaUi from './cinema-ui.js?v=1a47c3a9';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
+import * as ajustes from './ajustes.js?v=1a47c3a9';   // U1: os nove painéis, no lugar do menu plano
+import * as entrada from './entrada.js?v=1a47c3a9';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
+import * as gaveta from './gaveta.js?v=1a47c3a9';     // U7 · os quatro apps de fora a um gesto da borda de cima
 
 // U2 · o mundo certo sozinho. Viagem e Diário são duas construções (/nav/ e /sp/); existe ainda /teste/, que não
 // decide nada. Escolher é redirecionar uma vez, na carga. Regra: hoje dentro da janela da viagem OU fuso europeu
@@ -104,7 +104,7 @@ function decidirMundo() {
   return true;
 }
 
-import * as basemap from './basemap.js';
+import * as basemap from './basemap.js?v=1a47c3a9';
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
@@ -237,7 +237,7 @@ export function init() {
   if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, cinema, sidecar, music, mundoAuto }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
-  if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
+  if (r3dq !== '0') import('./rider3d.js?v=1a47c3a9').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
     if (!m.init($('rider3d'))) return;
     const okModel = r3dq === '1' ? false : await m.loadModel('./models/avatar.glb');
     if (okModel || r3dq === '1') { rider3d = m; R.setRiderExternal(true); size3d(); R.invalidate(); }
@@ -291,7 +291,7 @@ export function init() {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sb.addEventListener(ev, () => { if (lp) { clearTimeout(lp); lp = 0; } }));
     sb.onclick = () => { if (fired) { fired = false; return; } toggleSession(); }; }   // crítica 06/09: encerrar é segurar Pausar
   if (/[?&]debug=/.test(location.search)) document.body.classList.add('dev');
-  setTimeout(() => { import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
+  setTimeout(() => { import('./router.js?v=1a47c3a9').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
   // a casca por fora (07/09): a engrenagem nos controles do mapa é a porta única de Ajustes (o rodapé do Pedal não é exibido)
   $('btnCfg').onclick = () => ajustes.abrir();
   $('btnMenu').onclick = () => ajustes.abrir();
@@ -350,9 +350,9 @@ export function init() {
   if (window.FREE) { document.body.classList.add('free'); S.free = true; free.init(S); S.freeStage = S.stage; S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageBtn').disabled = true; $('stageBtn').setAttribute('aria-label', 'Sem etapas para escolher no Diário'); R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0);
     // Diário: o grafo de rotas carrega já; a folha Destino abre sozinha quando não há saída em andamento
     $('btnDest').hidden = false; $('btnDest').onclick = () => { $('dlgMenu').close(); if (diario) diario.open(); };
-    import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
+    import('./router.js?v=1a47c3a9').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
     const q0 = new URLSearchParams(location.search);
-    import('./diario.js').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
+    import('./diario.js?v=1a47c3a9').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
   ui.setTab(S, S.prefs.tab || 'tele'); setMode('resumo');
   largadaInit();   /* crítica 06/09: abre sempre na fita do stem, a folha é sob demanda */   // F2: em repouso, sem folha aberta
   requestAnimationFrame(loop);
@@ -532,7 +532,7 @@ function setCam(c) {
     S.follow = true; $('btnFollow').classList.add('on');
     const show = () => { $('gl').hidden = false; $('rider').hidden = true; $('rider3d').hidden = true; t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); S.cam3d = true; };
     if (t3d) { show(); return; }
-    import('./terrain3d.js').then(m => {
+    import('./terrain3d.js?v=1a47c3a9').then(m => {
       if (!m.init($('gl'))) { voice.banner('3D indisponível neste aparelho', 2, 'seguindo em 2D'); setCam('2d'); return; }
       t3d = m; t3d.setStage(S.stage); t3d.setTheme(S.theme === 'night'); t3d.setSat(!!S.prefs.sat); t3d.loadAvatar('./models/avatar.glb'); show();
     }).catch(e => { voice.banner('3D indisponível neste aparelho', 2, (e && e.message || '').slice(0, 60) || 'seguindo em 2D'); setCam('2d'); });
@@ -1058,9 +1058,9 @@ function showPreview(key) {
     const showView = v => { ctl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); $('pvDio').hidden = v === 'map'; $('pvMap').hidden = v !== 'map'; if (v === 'map') { R2.resize(); R2.invalidate(); R2.draw(S2); if (diorama) diorama.stop(); } else if (diorama) { diorama.setSat(v === 'sat'); } };
     ctl.querySelectorAll('button').forEach(b => b.onclick = () => showView(b.dataset.v));
     const hint = dioBox.querySelector('.dio-hint');
-    if (dem.available()) import('./diorama.js').then(m => { diorama = m; return m.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } }); });
+    if (dem.available()) import('./diorama.js?v=1a47c3a9').then(m => { diorama = m; return m.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } }); });
     else { showView('map'); ctl.hidden = true; }
-    import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
+    import('./render.js?v=1a47c3a9').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
   }
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;

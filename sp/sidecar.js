@@ -3,8 +3,9 @@
 // há), coração/cadência/potência, cena (situação do navegador), lugar, próximo evento e distância na etapa. A casca carimba
 // com o relógio do sensor e grava <clipe>.tele.jsonl ao lado do vídeo e do giroscópio. Ao começar cada REC, manda o contexto
 // da sessão (etapa, modo, lugar) que vai para o manifesto do clipe.
-import * as native from './native.js';
-import * as sensors from './sensors.js';
+import * as native from './native.js?v=1a47c3a9';
+import * as sensors from './sensors.js?v=1a47c3a9';
+import * as track from './track.js?v=1a47c3a9';
 
 let S = null, timer = 0; const active = new Set();
 
@@ -22,7 +23,17 @@ export function recording() { return active.size > 0; }
 
 function context() {
   const st = S.stage || {};
-  return { stage: st.key || '', name: st.name || '', diario: !!S.diario, free: !!S.free, mode: S.diario ? 'diario' : S.free ? 'livre' : 'viagem', dest: S.diario && st.dest ? st.dest : '', started: S.session && S.session.startedAt || 0, place: S.place || '', scene: S.situation || '' };
+  // 8 do desenho do Cinema: o painel nas faixas pretas desenha o PERFIL DA ETAPA na coluna, com um ponto subindo
+  // enquanto se sobe. O perfil vai no contexto: 64 alturas ao longo da etapa e o comprimento total. A amostra de
+  // telemetria ja leva `dist`, que e a posicao do ponto.
+  let total = 0, perfil = null;
+  try {
+    if (st.cum && st.cum.length > 1) {
+      total = Math.round(st.cum[st.cum.length - 1]); perfil = [];
+      for (let i = 0; i < 64; i++) perfil.push(Math.round(track.elevationAt(st, total * i / 63)));
+    }
+  } catch (e) { perfil = null; }
+  return { stage: st.key || '', name: st.name || '', diario: !!S.diario, free: !!S.free, mode: S.diario ? 'diario' : S.free ? 'livre' : 'viagem', dest: S.diario && st.dest ? st.dest : '', started: S.session && S.session.startedAt || 0, place: S.place || '', scene: S.situation || '', total, perfil };
 }
 function tick() {
   if (!S) return;

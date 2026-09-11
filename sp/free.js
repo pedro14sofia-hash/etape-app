@@ -4,10 +4,10 @@
 // a telemetria da viagem (velocidade, média, VAM, rampa, subida, sensores, abastecimento, relatório, GPX) continua igual.
 // O painel mostra a rua atual, o tipo de via, a superfície, a ciclovia e o próximo cruzamento; a voz só fala quando a
 // rua muda. Subidas são detectadas ao vivo e categorizadas ao terminar, como as bandeirinhas do Tour.
-import * as match from './match.js';
-import * as dem from './dem.js';
-import * as voice from './voice.js';
-import { haversine } from './geo.js';
+import * as match from './match.js?v=1a47c3a9';
+import * as dem from './dem.js?v=1a47c3a9';
+import * as voice from './voice.js?v=1a47c3a9';
+import { haversine } from './geo.js?v=1a47c3a9';
 
 let S = null, cur = null, cross = null, crossAt = 0, lastPt = null, lastEle = null, eleSm = null, eleOut = null, climb = null, streetAt = 0, spoken = '';
 const fmtKm1 = m => (m / 1000).toFixed(1).replace('.', ',');

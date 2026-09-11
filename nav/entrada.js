@@ -2,9 +2,9 @@
 // As duas telas de entrada: Primeira vez (as quatro permissões, em sequência) e Conteúdo novo pelo Wi-Fi.
 // Fora da casca só a localização é de verdade; as outras três dependem da ponte e aparecem desabilitadas com
 // o motivo escrito, como em ajustes.js. O módulo não alcança o app.js: tudo pelo contexto.
-import * as store from './store.js';
-import { semCasca } from './ajustes.js';
-import * as native from './native.js';
+import * as store from './store.js?v=c8177a80';
+import { semCasca } from './ajustes.js?v=c8177a80';
+import * as native from './native.js?v=c8177a80';
 
 let ctx = null;
 const $ = id => document.getElementById(id);

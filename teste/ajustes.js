@@ -201,7 +201,7 @@ export function init(estado, contexto) {
       opcoes: [['30', '30 · 1/60'], ['24-48', '24 · 1/48'], ['24-50', '24 · 1/50']],
       onMuda: v => { S.prefs.cineCadencia = v; native.cineCadencia(v); } });
     linhaOpcoes(el, { titulo: 'Look', sub: 'na prévia e nos filmes da noite', valor: String(S.prefs.cineLook),
-      opcoes: [['0', 'Clássico'], ['1', 'Cinema'], ['2', 'Forte']], indisponivel: semCasca('a câmera é da casca'),
+      opcoes: [['0', 'Clássico'], ['1', 'Cinema'], ['2', 'Forte'], ['3', 'Arte · Nolan'], ['4', 'Arte · Tarantino']], indisponivel: semCasca('a câmera é da casca'),
       onMuda: v => { S.prefs.cineLook = +v; } });
     linhaToggle(el, { titulo: 'Prévia com o look', sub: 'mostra na tela o que vai para o arquivo', valor: S.prefs.previewLook,
       indisponivel: semCasca('a câmera é da casca'), onMuda: v => { S.prefs.previewLook = v; } });

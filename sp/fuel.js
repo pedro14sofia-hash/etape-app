@@ -1,6 +1,6 @@
 // Étape Navegar · fuel.js
 // Abastecimento: avisos de beber e comer pelo tempo em movimento e pelo plano da etapa.
-import * as store from './store.js';
+import * as store from './store.js?v=1a47c3a9';
 
 export function plan(stage) {
   const mtn = stage.type === 'pois', long = stage.type === 'jaune';

@@ -3,9 +3,9 @@
 // a voz pede foco de áudio por severidade (na casca), a música PAUSA em cada REC e volta depois, pausa ao encerrar a saída,
 // opcionalmente pausa na descida categorizada (viagem: ligado; SP: desligado) e continua parado. Playlist do dia na largada
 // (S.prefs.playlists[etapa] = link do YouTube Music). Estado em S.music; evento 'etape:music' no document para a faixa da Anna.
-import * as native from './native.js';
-import * as voice from './voice.js';
-import * as store from './store.js';
+import * as native from './native.js?v=1a47c3a9';
+import * as voice from './voice.js?v=1a47c3a9';
+import * as store from './store.js?v=1a47c3a9';
 
 let S = null, pausedByDescent = false, wasPlaying = false; const recSlots = new Set();
 

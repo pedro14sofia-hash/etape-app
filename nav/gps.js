@@ -1,7 +1,7 @@
 // Étape Navegar · gps.js
 // Posição, rumo, velocidade, qualidade do sinal, simulação, tela acesa.
-import { haversine, bearing } from './geo.js';
-import * as native from './native.js';
+import { haversine, bearing } from './geo.js?v=c8177a80';
+import * as native from './native.js?v=c8177a80';
 
 let watchId = null, wake = null, simTimer = null, nativeRide = false;
 

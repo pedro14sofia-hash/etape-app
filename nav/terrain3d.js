@@ -3,15 +3,15 @@
 // textura do satélite montada dos tiles já no aparelho (z15 → z18), estrada "cravada" no relevo, fita amarela com
 // trecho feito, caminho azul do recálculo, câmera de perseguição, névoa e céu por tema. Sem WebGL, init() devolve false.
 // Unidades: metros num plano local (x leste, z sul, y altitude absoluta), origem no centro da etapa.
-import * as THREE from './vendor/three.module.min.js';
-import * as dem from './dem.js';
-import * as sat from './sat.js';
-import { mercX, mercY } from './geo.js';
-import { pointAt } from './track.js';
-import { GLTFLoader } from './vendor/GLTFLoader.js';
-import * as icons from './icons3d.js';
-import { poisNear } from './data-mod.js';
-import { stageFlags } from './render.js';
+import * as THREE from './vendor/three.module.min.js?v=c8177a80';
+import * as dem from './dem.js?v=c8177a80';
+import * as sat from './sat.js?v=c8177a80';
+import { mercX, mercY } from './geo.js?v=c8177a80';
+import { pointAt } from './track.js?v=c8177a80';
+import { GLTFLoader } from './vendor/GLTFLoader.js?v=c8177a80';
+import * as icons from './icons3d.js?v=c8177a80';
+import { poisNear } from './data-mod.js?v=c8177a80';
+import { stageFlags } from './render.js?v=c8177a80';
 
 // anéis: meio-lado (m), passo da malha (m), textura (px) e níveis do satélite (de baixo para cima), rebuild ao andar `move` m
 const RINGS = [
@@ -123,7 +123,7 @@ export function setSat(on) { if (!ok) return; satOn = !!on; for (const r of ring
 let avatarTick = null;
 export function loadAvatar(url) {
   if (!ok || avatar) return;
-  import('./rider3d.js').then(m => m.createAvatar(url)).then(a => {
+  import('./rider3d.js?v=c8177a80').then(m => m.createAvatar(url)).then(a => {
     if (a) { avatarTick = a.tick; setAvatar(a.group); return; }
     new GLTFLoader().load(url, gltf => {
       const g = gltf.scene; g.traverse(o => { if (o.isMesh) { o.castShadow = true; const mm = o.material; if (mm && mm.map) { mm.map.colorSpace = THREE.SRGBColorSpace; mm.emissive = new THREE.Color(0xffffff); mm.emissiveMap = mm.map; mm.emissiveIntensity = 0.45; mm.needsUpdate = true; } } });

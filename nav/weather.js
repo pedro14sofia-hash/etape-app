@@ -1,8 +1,8 @@
 // Étape Navegar · weather.js
 // Previsão do tempo pela Open-Meteo (gratuita, sem chave) para 3 pontos da etapa (largada, meio, chegada), horária,
 // guardada em localStorage para ler offline. Vento relativo ao rumo médio da etapa.
-import * as store from './store.js';
-import { TZ } from './geo.js';
+import * as store from './store.js?v=c8177a80';
+import { TZ } from './geo.js?v=c8177a80';
 const DATES = { '1': '2026-10-22', '2': '2026-10-23', '3': '2026-10-24', '4': '2026-10-25', '4b': '2026-10-25', '5': '2026-10-26', '6': '2026-10-27', '7': '2026-10-28', '8': '2026-10-29' };
 const CODES = { 0: 'céu limpo', 1: 'quase limpo', 2: 'parcialmente nublado', 3: 'nublado', 45: 'nevoeiro', 48: 'nevoeiro', 51: 'garoa', 53: 'garoa', 55: 'garoa forte', 61: 'chuva fraca', 63: 'chuva', 65: 'chuva forte', 71: 'neve', 73: 'neve', 75: 'neve', 80: 'pancadas', 81: 'pancadas', 82: 'pancadas fortes', 95: 'trovoada' };
 export function dateOf(key) { return DATES[key] || null; }

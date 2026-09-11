@@ -1,10 +1,10 @@
-import { tzHM, tzAt } from './geo.js';
+import { tzHM, tzAt } from './geo.js?v=c8177a80';
 // Étape Navegar · report.js
 // Relatório do dia: números, subidas, paradas, ingestão vs plano, exportação.
-import { elevationAt } from './track.js';
-import { toGpx } from './telemetry.js';
-import * as session from './session.js';
-import * as store from './store.js';
+import { elevationAt } from './track.js?v=c8177a80';
+import { toGpx } from './telemetry.js?v=c8177a80';
+import * as session from './session.js?v=c8177a80';
+import * as store from './store.js?v=c8177a80';
 
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
 const fmtH = d => d ? tzHM(d) : '–';
@@ -30,8 +30,13 @@ export function build(stage, sess, log, fuelState, fuelPlan, paradas, planArriva
   let vsPlan = null;
   if (planArrival && sess.finishedAt) { const [h, m] = planArrival.split(/[h:]/).map(Number); const p = tzAt(sess.finishedAt, h, m || 0); vsPlan = Math.round((sess.finishedAt - p) / 60000); }
   const first = log[0] || { dist: 0 }, ridden = Math.max(0, last.dist - first.dist);
+  // U8: a qualidade do sinal do dia, agora que a amostra guarda `acc`. Um dia de garganta ou de chuva fecha o GPS,
+  // e a quilometragem sofre — medido em 10/09: no primeiro terço de um passeio real o desvio foi de +10%, contra
+  // −0,4% no meio. Sem este número, um dia ruim é indistinguível de um dia bom no relatório.
+  const accs = log.map(s => s.acc).filter(a => a > 0).sort((a, b) => a - b);
+  const gps = accs.length ? { n: accs.length, mediana: accs[accs.length >> 1], p90: accs[Math.floor(accs.length * 0.9)] } : null;
   const marks = (sess.marks || []).filter(m => m.kind === 'lugar').map(m => ({ lat: m.lat, lon: m.lon, km: m.dist != null ? m.dist / 1000 : null, at: m.at, note: m.note || '' }));
-  return { marks, stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, samples: log.length };
+  return { marks, stageKey: stage.key, name: stage.name, type: stage.type, date: sess.startedAt, startedAt: sess.startedAt, finishedAt: sess.finishedAt, km: last.dist / 1000, ridden: ridden / 1000, planKm: stage.km, moving, elapsed, stopped: elapsed - moving, avg: moving > 60 ? ridden / moving * 3.6 : 0, vmax: vmax * 3.6, up, down, planUp: stage.up, maxEle, climbs, stops, cps, sights, fuel, vsPlan, gps, samples: log.length };
 }
 
 // maillots por tipo de etapa (mesmo desenho do guia)
@@ -74,6 +79,7 @@ export function render(r, all) {
   ${r.marks && r.marks.length ? `<h4>Lugares marcados</h4><table>${r.marks.map(m => `<tr><td class="k">${m.km != null ? 'km ' + n1(m.km) : '–'}</td><td>${esc(m.note || 'lugar marcado')}</td><td class="r">${fmtH(m.at)} · ${m.lat.toFixed(5)}, ${m.lon.toFixed(5)}</td></tr>`).join('')}</table>` : ''}
   ${r.fuel ? `<h4>Abastecimento</h4>${bar('Água', r.fuel.water / 1000, r.fuel.waterPlan / 1000, ' L', n1)}${bar('Carbo', r.fuel.carbs, r.fuel.carbsPlan, ' g', Math.round)}${bar('Sódio', r.fuel.sodium / 1000, r.fuel.sodiumPlan / 1000, ' g', n1)}` : ''}
   ${geral}
+  ${r.gps ? `<h4>Sinal</h4><table><tr><td>Precisão do GPS</td><td class="r">${r.gps.mediana} m · pior 10% acima de ${r.gps.p90} m</td></tr>${r.gps.p90 > 25 ? '<tr><td colspan="2" class="aviso">sinal fraco neste dia: a quilometragem tende a inflar</td></tr>' : ''}</table>` : ''}
   <h4>Plano</h4><table><tr><td>Distância</td><td class="r">${n1(r.km)} de ${n1(r.planKm)} km</td></tr><tr><td>Subida</td><td class="r">${Math.round(r.up)} de ${r.planUp} m</td></tr><tr><td>Bornes</td><td class="r">${r.cps.length}</td></tr><tr><td>Paradas de foto feitas</td><td class="r">${r.sights.filter(s => s.done).length} de ${r.sights.length}</td></tr></table>
   </div>`;
 }
