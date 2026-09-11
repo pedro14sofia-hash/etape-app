@@ -1,7 +1,7 @@
 // Étape Navegar · track.js
 // Modelo da etapa: projeção no traçado, checkpoints (bornes), curvas, perfil, subidas.
-import { haversine, fastDist, bearing, turnAngle } from './geo.js?v=c8177a80';
-import { nearestWay } from './data-mod.js?v=c8177a80';
+import { haversine, fastDist, bearing, turnAngle } from './geo.js?v=eb8d99fd';
+import { nearestWay } from './data-mod.js?v=eb8d99fd';
 
 export function loadStage(routes, key) {
   const s = routes.stages[key], pts = s.track, cum = [0];

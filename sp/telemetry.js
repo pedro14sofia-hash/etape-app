@@ -1,8 +1,8 @@
 // Étape Navegar · telemetry.js
 // Telemetria: amostras a 5 s, números da tela, VAM, gradiente, registro do dia, GPX.
-import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js?v=1a47c3a9';
-import * as store from './store.js?v=1a47c3a9';
-import * as logdb from './logdb.js?v=1a47c3a9';   // U6 Fase 3: o registro do dia vive no IndexedDB
+import { elevationAt, climbRemaining, gradeAt, gradeAhead, climbAt } from './track.js?v=a4f89d61';
+import * as store from './store.js?v=a4f89d61';
+import * as logdb from './logdb.js?v=a4f89d61';   // U6 Fase 3: o registro do dia vive no IndexedDB
 
 export function sample(fix, stage, proj, prev) {
   const ele = Math.round(elevationAt(stage, proj.dist));

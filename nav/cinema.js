@@ -4,11 +4,11 @@
 // Nitidez ou Aberto) e Rosto (frontal). Início e fim do clipe são manuais (um toque começa, outro termina; decisão do Pedro em 07/09). Comandos físicos: controle BLE de dois botões
 // (teclas configuráveis em S.prefs.keys), volume como reserva dentro do Cinema. Voz "gravando" no início, bipe no fim.
 // A tela do Cinema é da Anna: aqui só o estado (S.cinema, S.rec, S.sun) e o evento 'etape:cinema' no document.
-import * as native from './native.js?v=c8177a80';
-import * as voice from './voice.js?v=c8177a80';
-import * as session from './session.js?v=c8177a80';
-import * as store from './store.js?v=c8177a80';
-import { light, minutesUntil } from './solar.js?v=c8177a80';
+import * as native from './native.js';
+import * as voice from './voice.js';
+import * as session from './session.js';
+import * as store from './store.js';
+import { light, minutesUntil } from './solar.js';
 
 let S = null, lastKeyName = '';
 const DEFAULT_KEYS = { rec1: 'enter', rec2: 'dpad', mode: '' };   // controle BLE em modo Android manda ENTER/DPAD_CENTER; modo iOS manda volume

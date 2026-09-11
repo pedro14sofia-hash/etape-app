@@ -19,8 +19,8 @@ function carregar(src) {
 }
 
 export async function montar(el, { regiao, tema = 'asfalto', dpr = 2 }) {
-  if (!window.maplibregl) await carregar('./vendor/maplibre-gl.js?v=c8177a80');
-  if (!window.pmtiles) await carregar('./vendor/pmtiles.js?v=c8177a80');
+  if (!window.maplibregl) await carregar('./vendor/maplibre-gl.js');
+  if (!window.pmtiles) await carregar('./vendor/pmtiles.js');
   const gl = window.maplibregl;
   if (!document.getElementById('css-maplibre')) {
     const l = document.createElement('link');

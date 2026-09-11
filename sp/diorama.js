@@ -3,11 +3,11 @@
 // hipsométricas na paleta Étape (ou ortofoto IGN por cima), fita amarela da etapa em relevo, bandeirinhas do Tour
 // (largada, cols, paradas, musette, flamme rouge, chegada), nomes das cidades e cols, e a posição atual do ciclista.
 // Gira devagar sozinho; arrastar orbita, pinça/roda aproxima. WebGL via three.js.
-import * as THREE from './vendor/three.module.min.js?v=1a47c3a9';
-import * as dem from './dem.js?v=1a47c3a9';
-import * as sat from './sat.js?v=1a47c3a9';
-import { mercX, mercY } from './geo.js?v=1a47c3a9';
-import { flagAt, stageFlags } from './render.js?v=1a47c3a9';
+import * as THREE from './vendor/three.module.min.js?v=a4f89d61';
+import * as dem from './dem.js?v=a4f89d61';
+import * as sat from './sat.js?v=a4f89d61';
+import { mercX, mercY } from './geo.js?v=a4f89d61';
+import { flagAt, stageFlags } from './render.js?v=a4f89d61';
 
 const EXAG = 1.7;            // exagero vertical
 const PAPER = '#FFFFFF', INK = '#000000';

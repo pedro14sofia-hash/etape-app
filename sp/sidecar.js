@@ -3,9 +3,9 @@
 // há), coração/cadência/potência, cena (situação do navegador), lugar, próximo evento e distância na etapa. A casca carimba
 // com o relógio do sensor e grava <clipe>.tele.jsonl ao lado do vídeo e do giroscópio. Ao começar cada REC, manda o contexto
 // da sessão (etapa, modo, lugar) que vai para o manifesto do clipe.
-import * as native from './native.js?v=1a47c3a9';
-import * as sensors from './sensors.js?v=1a47c3a9';
-import * as track from './track.js?v=1a47c3a9';
+import * as native from './native.js?v=a4f89d61';
+import * as sensors from './sensors.js?v=a4f89d61';
+import * as track from './track.js?v=a4f89d61';
 
 let S = null, timer = 0; const active = new Set();
 

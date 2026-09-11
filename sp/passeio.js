@@ -2,8 +2,8 @@
 // O relatório do passeio + o diário do dia, guardados com os sidecars (cinema/<dia>/diario-HHmm.json) e levados ao Drive
 // pela casca como qualquer sidecar. Serve para dois fins: ajustar o Cinema depois do teste de campo (bateria por hora,
 // gatilhos, alertas de calor, espaço) e ter o registro do dia fora do aparelho (traçado resumido, marcas, clipes).
-import * as native from './native.js?v=1a47c3a9';
-import * as voice from './voice.js?v=1a47c3a9';
+import * as native from './native.js?v=a4f89d61';
+import * as voice from './voice.js?v=a4f89d61';
 
 let S = null; const D = { battery: [], events: [], triggers: [] };
 

@@ -1,39 +1,40 @@
 // Étape Navegar · app.js
 // Composição: liga os módulos e controla o ciclo de vida.
-import { mercX, mercY, haversine } from './geo.js?v=c8177a80';
-import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js?v=c8177a80';
-import { createRenderer, drawFita } from './render.js?v=c8177a80';
-import * as track from './track.js?v=c8177a80';
-import * as gps from './gps.js?v=c8177a80';
-import * as guide from './guide.js?v=c8177a80';
-import * as voice from './voice.js?v=c8177a80';
-import * as ui from './ui.js?v=c8177a80';
-import * as store from './store.js?v=c8177a80';
-import * as logdb from './logdb.js?v=c8177a80';   // U6 Fase 3: o registro do dia vive no IndexedDB
-import * as session from './session.js?v=c8177a80';
-import * as telemetry from './telemetry.js?v=c8177a80';
-import * as fuel from './fuel.js?v=c8177a80';
-import * as report from './report.js?v=c8177a80';
-import * as sat from './sat.js?v=c8177a80';
-import * as dem from './dem.js?v=c8177a80';
-import * as shade from './shade.js?v=c8177a80';
-import * as compass from './compass.js?v=c8177a80';
-import * as weather from './weather.js?v=c8177a80';
-import * as sensors from './sensors.js?v=c8177a80';
-import * as free from './free.js?v=c8177a80';   // navegação livre (build de São Paulo, window.FREE)
-import * as outing from './outing.js?v=c8177a80';   // tela 02 · antes de sair
-import * as plan from './plan.js?v=c8177a80';   // Diário: rotas A→B e etapa refeita fora da rota
-import * as native from './native.js?v=c8177a80';   // casca nativa (N3a): barômetro, brilho, térmico
-import * as sidecar from './sidecar.js?v=c8177a80';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
-import * as music from './music.js?v=c8177a80';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
-import * as cinema from './cinema.js?v=c8177a80';
-import * as auto from './auto.js?v=c8177a80';   // Cinema v2: gatilhos automáticos
-import * as passeio from './passeio.js?v=c8177a80';   // diário do passeio (bateria, gatilhos, alertas) guardado com os sidecars
-import * as etapas from './etapas.js?v=c8177a80';   // U2 · a folha Escolher etapa, no lugar do <select> da fita
-import * as cinemaUi from './cinema-ui.js?v=c8177a80';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
-import * as ajustes from './ajustes.js?v=c8177a80';   // U1: os nove painéis, no lugar do menu plano
-import * as entrada from './entrada.js?v=c8177a80';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
-import * as gaveta from './gaveta.js?v=c8177a80';     // U7 · os quatro apps de fora a um gesto da borda de cima
+import { mercX, mercY, haversine } from './geo.js';
+import { loadMap, loadRoutes, loadParadas, poisNear, loadContours } from './data-mod.js';
+import { createRenderer, drawFita } from './render.js';
+import * as track from './track.js';
+import * as gps from './gps.js';
+import * as guide from './guide.js';
+import * as voice from './voice.js';
+import * as ui from './ui.js';
+import * as store from './store.js';
+import * as logdb from './logdb.js';   // U6 Fase 3: o registro do dia vive no IndexedDB
+import * as session from './session.js';
+import * as telemetry from './telemetry.js';
+import * as fuel from './fuel.js';
+import * as report from './report.js';
+import * as sat from './sat.js';
+import * as dem from './dem.js';
+import * as shade from './shade.js';
+import * as compass from './compass.js';
+import * as weather from './weather.js';
+import * as sensors from './sensors.js';
+import * as free from './free.js';   // navegação livre (build de São Paulo, window.FREE)
+import * as outing from './outing.js';   // tela 02 · antes de sair
+import * as plan from './plan.js';   // Diário: rotas A→B e etapa refeita fora da rota
+import * as native from './native.js';   // casca nativa (N3a): barômetro, brilho, térmico
+import * as sidecar from './sidecar.js';   // Cinema pacote 2: telemetria a 10 Hz ao lado de cada clipe
+import * as music from './music.js';   // pacote 5: YouTube Music comandado pela casca, regras de pausa
+import * as cinema from './cinema.js';
+import * as auto from './auto.js';   // Cinema v2: gatilhos automáticos
+import * as passeio from './passeio.js';   // diário do passeio (bateria, gatilhos, alertas) guardado com os sidecars
+import * as etapas from './etapas.js';   // U2 · a folha Escolher etapa, no lugar do <select> da fita
+import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da música   // Cinema pacotes 3 e 4: estado, botões físicos, bússola de luz (a tela é da Anna)
+import * as ajustes from './ajustes.js';   // U1: os nove painéis, no lugar do menu plano
+import * as entrada from './entrada.js';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
+import * as gaveta from './gaveta.js';     // U7 · os quatro apps de fora a um gesto da borda de cima
+import * as casca from './casca/index.js'; // ADR-0006 · as Capacidades da casca, um adapter cada
 
 // U2 · o mundo certo sozinho. Viagem e Diário são duas construções (/nav/ e /sp/); existe ainda /teste/, que não
 // decide nada. Escolher é redirecionar uma vez, na carga. Regra: hoje dentro da janela da viagem OU fuso europeu
@@ -104,7 +105,7 @@ function decidirMundo() {
   return true;
 }
 
-import * as basemap from './basemap.js?v=c8177a80';
+import * as basemap from './basemap.js';
 let diario = null;   // tela 01 · destino e três rotas (diario.js), carregado no build de SP
 let rider3d = null, diorama = null, router = null, t3d = null;   // t3d: vista 3ª pessoa em WebGL (terrain3d.js), carregada ao ligar o 3D   // router: recálculo offline (graph.json), carregado 4 s depois de abrir   // módulos WebGL (three.js) carregados sob demanda
 
@@ -157,7 +158,7 @@ export function init() {
     // U7 (10/09): era `prompt()`, e a casca nao implementa onJsPrompt — dentro do aparelho a janela nunca abria e a
     // acao mais perigosa do app simplesmente nao fazia nada, calada. Agora usa o `ask` da casa, que e o mesmo de
     // todo pedido de PIN daqui.
-    aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (native.kioskReset(String(pin).trim())) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
+    aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (casca.quiosque.resetar(pin)) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
     // U7: os seis itens que a U1 apagou voltam pelo painel Aparelho; estes tres precisam do app.js.
     ondeEstou: () => { const p = S.pos || S.fix; return p ? [p.lat, p.lon] : [0, 0]; },
     abrirApp: id => abrirAppRef(id),   // U7: os Ajustes e a gaveta usam o MESMO caminho (destino e playlist juntos)
@@ -165,7 +166,7 @@ export function init() {
     // onde protege o quiosque". Reiniciar e energia — e reiniciar nao e fuga do quiosque, porque o BootReceiver o
     // refaz no arranque. Entao aqui vai confirmacao, nao PIN: o suficiente para um toque sem querer no guidao nao
     // reiniciar o navegador no meio da etapa.
-    reiniciar: async () => { if (!(await ask('Reiniciar o aparelho?', 'A etapa em andamento continua gravada; o Étape volta sozinho.', 'Reiniciar'))) return; if (!native.reboot('')) voice.banner('Não reiniciou', 2, 'o aparelho não está no modo dedicado'); },
+    reiniciar: async () => { if (!(await ask('Reiniciar o aparelho?', 'A etapa em andamento continua gravada; o Étape volta sozinho.', 'Reiniciar'))) return; if (!casca.quiosque.reiniciar()) voice.banner('Não reiniciou', 2, 'o aparelho não está no modo dedicado'); },
     // U7 · Tarefa 5 do plano da casca, reescrita: ela punha dois botoes no menu que a U1 apagou; agora sao duas
     // linhas do painel Aparelho. Energia nao pede PIN em nenhum nivel (decisao do Pedro).
     guardar: () => { const r = native.guardar();
@@ -174,7 +175,7 @@ export function init() {
     // O Android nao deixa um app desligar o aparelho, nem sendo o dono dele. Entao o Etape nao finge que desliga:
     // explica o gesto do sistema, no mundo dele. O cartao do plano virou o dialogo que o app ja tem.
     desligar: () => ask('Desligar o aparelho', 'Segure o botão lateral e toque em Desligar. O Android não deixa um app desligar o aparelho, nem sendo o dono dele.', 'Entendi'),
-    travar: async on => { if (on) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (native.kioskUnlock(String(pin).trim())) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado', 2); return null; },
+    travar: async on => { if (on) { if (!casca.quiosque.travar()) return null; voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (casca.quiosque.destravar(pin)) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado' + casca.quiosque.textoEspera(), 2); return null; },
     abrirPrimeira: () => entrada.abrirPrimeira(),
     abrirUpdate: () => entrada.abrirUpdate(),
   });
@@ -224,20 +225,20 @@ export function init() {
       $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 3, 'conferindo o Drive; abrindo a galeria'); else voice.banner('Nada novo do Drive', 3, 'sem conta ligada, ou a conferência já está rodando; abrindo a galeria'); native.openFolder('', 'pronto'); };
       document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 3, 'Movies/Etape · pronto'); });
     }
-    // N2b · modo dedicado (só com Device Owner): toque longo de 5 s no relógio trava ou libera com PIN. O menu Ajustes
-    // → Travar o aparelho (painel Aparelho) ainda não chama isto: é só leitura até o U7 trazer a ponte de volta.
-    if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
-        if (locked) { if (native.kioskUnlock(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado', 2); }
-        else { if (native.kioskCheck(pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'segure o relógio por 5 s, ou o volume baixo por 10 s, para liberar'); } else voice.banner('PIN errado' + (native.kioskWait() > 0 ? ' · espere ' + Math.ceil(native.kioskWait() / 1000) + ' s' : ''), 2); } };
+    // N2b · modo dedicado (só com Device Owner): toque longo de 5 s no relógio trava ou libera com PIN. ADR-0006: a
+    // Capacidade Quiosque (casca/quiosque.js) e quem fala com a casca; aqui so o gesto e as faixas.
+    if (casca.quiosque.estado().dona) { const pedirPin = async () => { const q = casca.quiosque, e = q.estado(); const pin = await ask(e.travado ? 'Liberar o aparelho' : 'Travar o aparelho', 'PIN', e.travado ? 'Liberar' : 'Travar', { input: true, value: '' }); if (pin == null) return;
+        if (e.travado) { if (q.destravar(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado' + q.textoEspera(), 2); }
+        else { if (q.pinOk(pin)) { q.travar(); voice.banner('Aparelho travado', 3, 'segure o relógio por 5 s, ou o volume baixo por 10 s, para liberar'); } else voice.banner('PIN errado' + q.textoEspera(), 2); } };
       let hold = 0; const clk = $('clock').parentElement; clk.addEventListener('contextmenu', e => e.preventDefault());
-      clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(ask, 5000); });
+      clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(pedirPin, 5000); });
       ['pointerup', 'pointercancel'].forEach(ev => clk.addEventListener(ev, () => clearTimeout(hold))); } }
   if (document.fonts) Promise.all([document.fonts.load('700 16px "Sofia Sans Semi Condensed"'), document.fonts.load('600 13px "Sofia Sans"')]).then(() => { R.setTheme(S.theme); R.invalidate(); }).catch(() => { });   // rótulos do mapa na fonte do sistema
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, cinema, sidecar, music, mundoAuto }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, casca, cinema, sidecar, music, mundoAuto, ve }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
-  if (r3dq !== '0') import('./rider3d.js?v=c8177a80').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
+  if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
     if (!m.init($('rider3d'))) return;
     const okModel = r3dq === '1' ? false : await m.loadModel('./models/avatar.glb');
     if (okModel || r3dq === '1') { rider3d = m; R.setRiderExternal(true); size3d(); R.invalidate(); }
@@ -291,7 +292,7 @@ export function init() {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sb.addEventListener(ev, () => { if (lp) { clearTimeout(lp); lp = 0; } }));
     sb.onclick = () => { if (fired) { fired = false; return; } toggleSession(); }; }   // crítica 06/09: encerrar é segurar Pausar
   if (/[?&]debug=/.test(location.search)) document.body.classList.add('dev');
-  setTimeout(() => { import('./router.js?v=c8177a80').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
+  setTimeout(() => { import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { }); }, 4000);
   // a casca por fora (07/09): a engrenagem nos controles do mapa é a porta única de Ajustes (o rodapé do Pedal não é exibido)
   $('btnCfg').onclick = () => ajustes.abrir();
   $('btnMenu').onclick = () => ajustes.abrir();
@@ -350,9 +351,9 @@ export function init() {
   if (window.FREE) { document.body.classList.add('free'); S.free = true; free.init(S); S.freeStage = S.stage; S.prefs.cam = '2d'; S.prefs.sat = false; if ($('btnCam')) $('btnCam').hidden = true; $('stageName').textContent = 'Navegação livre'; $('stageSub').textContent = 'São Paulo · sem traçado'; $('stageBtn').disabled = true; $('stageBtn').setAttribute('aria-label', 'Sem etapas para escolher no Diário'); R.centerOn(S.stage.pts[0][0], S.stage.pts[0][1]); R.setView(null, null, 16, 0);
     // Diário: o grafo de rotas carrega já; a folha Destino abre sozinha quando não há saída em andamento
     $('btnDest').hidden = false; $('btnDest').onclick = () => { $('dlgMenu').close(); if (diario) diario.open(); };
-    import('./router.js?v=c8177a80').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
+    import('./router.js').then(async m => { if (await m.load('graph.json')) router = m; }).catch(() => { });
     const q0 = new URLSearchParams(location.search);
-    import('./diario.js?v=c8177a80').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
+    import('./diario.js').then(m => { diario = m; m.init(diarioCtx()); if (S.session.state === 'idle' && !q0.get('vias') && !q0.get('to')) m.open(); }).catch(e => console.error(e)); }
   ui.setTab(S, S.prefs.tab || 'tele'); setMode('resumo');
   largadaInit();   /* crítica 06/09: abre sempre na fita do stem, a folha é sob demanda */   // F2: em repouso, sem folha aberta
   requestAnimationFrame(loop);
@@ -508,6 +509,13 @@ function takePhoto() {
   const p = S.pos || S.fix; const name = 'etape-' + (S.stage.key || 'SP') + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   if (!native.photo(name, file => { if (!file) { voice.banner('Foto cancelada', 3); return; } session.mark(S.session, 'foto', { lat: p ? p.lat : null, lon: p ? p.lon : null, dist: S.proj.dist, file }); voice.banner('Foto guardada', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · Pictures/Etape'); R.invalidate(); })) voice.banner('Câmera indisponível', 2, 'a foto com posição só existe no app do celular');
 }
+// issue #3 · a sonda do que o ciclista ve. E o unico ponto que os testes da UX da U8 leem (casca_test.py Cena):
+// nada de internos — a pagina em que se esta, as abas que a Largada mostra. Nenhuma tela chama isto.
+function ve() {
+  const L = $('largada'), largada = !!(L && !L.hidden);
+  const abas = largada ? [...L.querySelectorAll('.ft a, .ft button')].filter(b => !b.hidden).map(b => b.textContent.trim()) : [];
+  return { pagina: S.cinema ? 'cinema' : largada ? 'largada' : 'pedal', abas };
+}
 function devTag(txt) { const t = $('devTag'); if (!t) return; t.textContent = txt; t.hidden = !txt; }   // regra 04: estado de simulação é uma placa cinza na fita, só quando ativo
 function updateAttr() { const e = $('attr'), sat = S.prefs.sat && S.satAttr; e.textContent = '© OpenStreetMap' + (sat ? ' · ' + S.satAttr.replace(/^©\s*/, '').split(',')[0] : ''); e.title = '© OpenStreetMap contributors' + (sat ? ' · ' + S.satAttr : ''); }   // regra 05: uma linha curta; o texto completo fica no title
 function measurePanel() { const rd = $('panel').querySelector('.rodape'); S.scaleBottom = (rd ? rd.offsetHeight : $('panel').offsetHeight) + 8; $('attr').style.bottom = (S.scaleBottom - 2) + 'px'; /* regra 05: na mesma linha da escala, à direita */ R.view.hv = Math.max(0, $('map').clientHeight - (S.scaleBottom - 8)); if (t3d && S.cam3d) t3d.setVisible(R.view.hv); measureMask(); R.invalidate(); }
@@ -532,7 +540,7 @@ function setCam(c) {
     S.follow = true; $('btnFollow').classList.add('on');
     const show = () => { $('gl').hidden = false; $('rider').hidden = true; $('rider3d').hidden = true; t3d.resize($('gl').clientWidth, $('gl').clientHeight, window.devicePixelRatio || 1, R.view.hv); S.cam3d = true; };
     if (t3d) { show(); return; }
-    import('./terrain3d.js?v=c8177a80').then(m => {
+    import('./terrain3d.js').then(m => {
       if (!m.init($('gl'))) { voice.banner('3D indisponível neste aparelho', 2, 'seguindo em 2D'); setCam('2d'); return; }
       t3d = m; t3d.setStage(S.stage); t3d.setTheme(S.theme === 'night'); t3d.setSat(!!S.prefs.sat); t3d.loadAvatar('./models/avatar.glb'); show();
     }).catch(e => { voice.banner('3D indisponível neste aparelho', 2, (e && e.message || '').slice(0, 60) || 'seguindo em 2D'); setCam('2d'); });
@@ -1058,9 +1066,9 @@ function showPreview(key) {
     const showView = v => { ctl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); $('pvDio').hidden = v === 'map'; $('pvMap').hidden = v !== 'map'; if (v === 'map') { R2.resize(); R2.invalidate(); R2.draw(S2); if (diorama) diorama.stop(); } else if (diorama) { diorama.setSat(v === 'sat'); } };
     ctl.querySelectorAll('button').forEach(b => b.onclick = () => showView(b.dataset.v));
     const hint = dioBox.querySelector('.dio-hint');
-    if (dem.available()) import('./diorama.js?v=c8177a80').then(m => { diorama = m; return m.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } }); });
+    if (dem.available()) import('./diorama.js').then(m => { diorama = m; return m.build($('pvDio'), st, paradas, key).then(okd => { if (!okd) { showView('map'); ctl.hidden = true; } else { hint.textContent = 'arraste para girar · toque duplo liga o giro'; if (key === S.stage.key && S.proj && S.proj.dist > 0) diorama.setProgress(S.proj.dist); } }); });
     else { showView('map'); ctl.hidden = true; }
-    import('./render.js?v=c8177a80').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
+    import('./render.js').then(m => m.drawProfile($('pvProf'), st, 0, S.theme, { labels: true, paradas }));
   }
   if (!dlg.open) dlg.showModal();
   dlg.scrollTop = 0;
@@ -1093,5 +1101,12 @@ function showReport(r) {
 window.addEventListener('DOMContentLoaded', async () => {
   try { await logdb.pronto(); const n = await logdb.migrar(store); if (n) console.log('registro migrado para o IndexedDB:', n, 'amostras'); }
   catch (e) { if (window.__errs) window.__errs.push('logdb: ' + (e && e.message)); }
+  // ?casca=fake&roteiro=<nome>: o segundo adapter da casca (casca/fake.js), instalado ANTES de native.init() para o app
+  // nao saber a diferenca. So no PC; no aparelho a casca de verdade ja esta em window.EtapeNative. Fica aqui, e nao
+  // num await de topo do modulo: o await atrasava a avaliacao para depois do DOMContentLoaded e init() nunca rodava.
+  if (/[?&]casca=fake\b/.test(location.search) && !window.EtapeNative) {
+    try { const f = await import('./casca/fake.js'); await f.instalar(new URLSearchParams(location.search).get('roteiro')); }
+    catch (e) { console.error('casca fake:', e); }
+  }
   init();
 });

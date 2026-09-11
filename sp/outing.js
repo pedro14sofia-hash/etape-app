@@ -3,7 +3,7 @@
 // dose e passo. Água e carboidrato continuam no motor de abastecimento (fuel.js); sódio, cafeína e as métricas que o Pedro
 // criar entram como "extras": contam, lembram (se forem por hora) e aparecem na folha Abastecer. A escolha fica guardada
 // por modo: o Diário lembra a última; a viagem parte do plano do guia para o tipo da etapa.
-import * as store from './store.js?v=1a47c3a9';
+import * as store from './store.js?v=a4f89d61';
 
 const BASE = [
   { id: 'water', name: 'Água', unit: 'ml', perHour: true, target: 500, dose: 150, step: 50, on: true, hint: 'gole de {dose} {unit} a cada {every} min' },

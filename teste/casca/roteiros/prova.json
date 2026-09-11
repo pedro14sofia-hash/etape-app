@@ -1,0 +1,4 @@
+[
+  { "t": 0, "set": { "bateria": { "level": 80, "charging": false } } },
+  { "t": 5, "set": { "bateria": { "level": 30, "charging": false } } }
+]

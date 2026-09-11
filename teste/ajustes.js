@@ -6,6 +6,8 @@ import * as store from './store.js';
 import * as voice from './voice.js';
 import * as sensors from './sensors.js';
 import { tzParts } from './geo.js';
+import * as quiosque from './casca/quiosque.js';
+import * as atualizacao from './casca/atualizacao.js';
 import * as native from './native.js';   // U7: as quatro linhas de estado do aparelho leem a ponte por aqui
 
 let S = null, ctx = null, dlg = null, lista = null, telaPainel = null;
@@ -253,7 +255,7 @@ export function init(estado, contexto) {
     const esp = fora ? null : native.espaco();
     linhaInfo(el, { titulo: 'Espaço', sub: esp && esp.contentMB > 0 ? 'o conteúdo ocupa ' + esp.contentMB + ' MB' : 'livre no aparelho',
       indisponivel: fora, valor: esp ? (esp.freeMB / 1024).toFixed(1) + ' GB livres' : '—' });
-    const cont = fora ? null : native.conteudo();
+    const cont = fora ? null : atualizacao.estado().conteudo;   // ADR-0006: pela Capacidade Atualizacao
     linhaInfo(el, { titulo: 'Conteúdo', indisponivel: fora,
       sub: cont && cont.files ? cont.files.toLocaleString('pt-BR') + ' arquivos' : 'versão publicada',
       valor: cont ? (cont.version || 'pelo cabo') : '—' });
@@ -282,9 +284,9 @@ export function init(estado, contexto) {
         onAcao: () => { fechar(); if (ctx.abrirApp) ctx.abrirApp(a.id); } });
     }
 
-    const travado = fora ? false : native.kioskLocked();
-    linhaInfo(el, { titulo: 'Travar o aparelho', sub: travado ? 'travado: só o Étape' : 'só o Étape, PIN para sair',
-      indisponivel: fora || (native.kioskOwner() ? '' : 'a casca não é dona do aparelho'), acao: travado ? 'Destravar' : 'Travar',
+    // ADR-0006: a linha e a prosa vem da Capacidade Quiosque; o painel so desenha.
+    const lq = quiosque.linha(), travado = quiosque.estado().travado;
+    linhaInfo(el, { titulo: lq.titulo, sub: lq.detalhe, indisponivel: fora || (lq.ok ? '' : lq.detalhe), acao: travado ? 'Destravar' : 'Travar',
       onAcao: async () => { const r = await ctx.travar(!travado); if (r != null) { fechar(); } } });
     linhaInfo(el, { titulo: 'Guardar', sub: 'apaga tudo; o botão lateral acorda · na bateria derruba Wi-Fi e Bluetooth',
       indisponivel: fora || (native.disponivel('guardar') ? '' : 'a casca ainda não sabe guardar'), acao: 'Guardar',

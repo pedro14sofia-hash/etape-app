@@ -2,9 +2,10 @@
 // As duas telas de entrada: Primeira vez (as quatro permissões, em sequência) e Conteúdo novo pelo Wi-Fi.
 // Fora da casca só a localização é de verdade; as outras três dependem da ponte e aparecem desabilitadas com
 // o motivo escrito, como em ajustes.js. O módulo não alcança o app.js: tudo pelo contexto.
-import * as store from './store.js?v=c8177a80';
-import { semCasca } from './ajustes.js?v=c8177a80';
-import * as native from './native.js?v=c8177a80';
+import * as store from './store.js';
+import { semCasca } from './ajustes.js';
+import * as native from './native.js';
+import * as atualizacao from './casca/atualizacao.js';
 
 let ctx = null;
 const $ = id => document.getElementById(id);
@@ -87,29 +88,16 @@ export function abrirPrimeira() {
   dlg.scrollTop = 0;
 }
 
-// ---- Conteúdo novo pelo Wi-Fi. As fases são as que Update.kt escreve; o progresso só existe em 'downloading'.
-const FASES = {
-  idle: 'Em dia até onde se sabe', hashing: 'Conferindo o conteúdo daqui', checking: 'Lendo o que foi publicado',
-  current: 'Já está na versão mais nova', downloading: 'Baixando', applying: 'Trocando os arquivos',
-  apk: 'Baixando o app', installing: 'Instalando; a casca reabre sozinha', done: 'Pronto', error: 'Não deu'
-};
-// item 7 da revisão final: 'Em dia até onde se sabe' é uma afirmação sobre um estado que a tela só pode conhecer
-// através da ponte que confere o conteúdo publicado — sem casca essa ponte não existe. O motivo pequeno em
-// abrirUpdate() já corrige a letra pequena, mas a frase grande é a que se lê primeiro; ela precisa ser honesta
-// sozinha, sem a casca. Não mexer neste texto quando a casca existir.
-const FASE_IDLE_SEM_CASCA = 'Sem como conferir por aqui';
-let upTimer = 0;
+// ---- Conteúdo novo pelo Wi-Fi. A prosa das fases vive em casca/atualizacao.js (ADR-0006); aqui só se pinta.
+let desligar = null;
 
-function pintaUpdate() {
-  const st = native.updateState() || { phase: 'idle', detail: '' };
-  const pct = st.phase === 'downloading' && st.files ? Math.round(100 * (st.done || 0) / st.files) : null;
-  $('upFase').textContent = (st.phase === 'idle' && !native.available()) ? FASE_IDLE_SEM_CASCA : (FASES[st.phase] || st.phase);
-  $('upDet').textContent = st.detail || '';
+function pintaUpdate(l = atualizacao.linha()) {
+  $('upFase').textContent = l.fase;
+  $('upDet').textContent = l.detalhe;
   const barra = $('upBarra');
-  barra.hidden = pct == null;
-  if (pct != null) { barra.firstElementChild.style.width = pct + '%'; barra.setAttribute('aria-valuenow', String(pct)); }
-  const v = native.version();
-  $('upVer').textContent = v ? [v.name, v.code].filter(Boolean).join(' · ') : '—';
+  barra.hidden = l.pct == null;
+  if (l.pct != null) { barra.firstElementChild.style.width = l.pct + '%'; barra.setAttribute('aria-valuenow', String(l.pct)); }
+  $('upVer').textContent = l.versao;
 }
 
 export function abrirUpdate() {
@@ -120,16 +108,16 @@ export function abrirUpdate() {
   $('upAgora').disabled = !!motivo;
   pintaUpdate();
   if (!dlg.open) dlg.showModal();
-  clearInterval(upTimer);
-  upTimer = setInterval(pintaUpdate, 1000);
+  if (desligar) desligar();
+  desligar = atualizacao.ao(e => pintaUpdate(atualizacao.linha(e)));   // cada set(phase) do Updater.kt chega como evento; sem setInterval
 }
 
 export function init(contexto) {
   ctx = contexto || {};
   const dlg = $('dlgPrimeira');
   if (dlg) $('pvPermPronto').onclick = () => { store.set('primeira', true); dlg.close(); if (ctx.aoTerminar) ctx.aoTerminar(); };
-  if ($('dlgUpdate')) $('upAgora').onclick = () => { native.updateCheck(true); pintaUpdate(); };
+  if ($('dlgUpdate')) $('upAgora').onclick = () => { atualizacao.conferir(true); pintaUpdate(); };
   // achado (revisão): o listener de 'close' vive aqui, registrado uma vez só; abrirUpdate() pode ser chamada
   // de novo com o diálogo já aberto sem acumular um segundo listener pendente.
-  if ($('dlgUpdate')) $('dlgUpdate').addEventListener('close', () => { clearInterval(upTimer); upTimer = 0; });
+  if ($('dlgUpdate')) $('dlgUpdate').addEventListener('close', () => { if (desligar) { desligar(); desligar = null; } });
 }

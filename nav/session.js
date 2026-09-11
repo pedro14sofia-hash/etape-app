@@ -1,6 +1,6 @@
 // Étape Navegar · session.js
 // Estado da etapa: idle → running ⇄ paused → finished. Tempo em movimento, paradas, passagens.
-import * as store from './store.js?v=c8177a80';
+import * as store from './store.js';
 
 export function create(stageKey) {
   return { stageKey, state: 'idle', startedAt: null, finishedAt: null, pauses: [], stops: [], marks: [], stoppedAuto: 0, _stillSince: null, _stillCounted: 0 };

@@ -34,6 +34,7 @@ import * as cinemaUi from './cinema-ui.js';   // Anna: tela do Cinema e faixa da
 import * as ajustes from './ajustes.js';   // U1: os nove painéis, no lugar do menu plano
 import * as entrada from './entrada.js';   // U2 · Primeira vez e Conteúdo novo pelo Wi-Fi
 import * as gaveta from './gaveta.js';     // U7 · os quatro apps de fora a um gesto da borda de cima
+import * as casca from './casca/index.js'; // ADR-0006 · as Capacidades da casca, um adapter cada
 
 // U2 · o mundo certo sozinho. Viagem e Diário são duas construções (/nav/ e /sp/); existe ainda /teste/, que não
 // decide nada. Escolher é redirecionar uma vez, na carga. Regra: hoje dentro da janela da viagem OU fuso europeu
@@ -157,7 +158,7 @@ export function init() {
     // U7 (10/09): era `prompt()`, e a casca nao implementa onJsPrompt — dentro do aparelho a janela nunca abria e a
     // acao mais perigosa do app simplesmente nao fazia nada, calada. Agora usa o `ask` da casa, que e o mesmo de
     // todo pedido de PIN daqui.
-    aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (native.kioskReset(String(pin).trim())) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
+    aparelhoNormal: async () => { const pin = await ask('Aparelho de volta ao normal', 'PIN · tira a trava E o dono do aparelho; só um reset de fábrica refaz o dono', 'Fazer', { input: true, value: '' }); if (pin == null) return; if (casca.quiosque.resetar(pin)) voice.banner('Aparelho de volta ao normal', 3, 'sem trava e sem dono; barra e bloqueio voltam'); else voice.banner('PIN errado', 2); },
     // U7: os seis itens que a U1 apagou voltam pelo painel Aparelho; estes tres precisam do app.js.
     ondeEstou: () => { const p = S.pos || S.fix; return p ? [p.lat, p.lon] : [0, 0]; },
     abrirApp: id => abrirAppRef(id),   // U7: os Ajustes e a gaveta usam o MESMO caminho (destino e playlist juntos)
@@ -165,7 +166,7 @@ export function init() {
     // onde protege o quiosque". Reiniciar e energia — e reiniciar nao e fuga do quiosque, porque o BootReceiver o
     // refaz no arranque. Entao aqui vai confirmacao, nao PIN: o suficiente para um toque sem querer no guidao nao
     // reiniciar o navegador no meio da etapa.
-    reiniciar: async () => { if (!(await ask('Reiniciar o aparelho?', 'A etapa em andamento continua gravada; o Étape volta sozinho.', 'Reiniciar'))) return; if (!native.reboot('')) voice.banner('Não reiniciou', 2, 'o aparelho não está no modo dedicado'); },
+    reiniciar: async () => { if (!(await ask('Reiniciar o aparelho?', 'A etapa em andamento continua gravada; o Étape volta sozinho.', 'Reiniciar'))) return; if (!casca.quiosque.reiniciar()) voice.banner('Não reiniciou', 2, 'o aparelho não está no modo dedicado'); },
     // U7 · Tarefa 5 do plano da casca, reescrita: ela punha dois botoes no menu que a U1 apagou; agora sao duas
     // linhas do painel Aparelho. Energia nao pede PIN em nenhum nivel (decisao do Pedro).
     guardar: () => { const r = native.guardar();
@@ -174,7 +175,7 @@ export function init() {
     // O Android nao deixa um app desligar o aparelho, nem sendo o dono dele. Entao o Etape nao finge que desliga:
     // explica o gesto do sistema, no mundo dele. O cartao do plano virou o dialogo que o app ja tem.
     desligar: () => ask('Desligar o aparelho', 'Segure o botão lateral e toque em Desligar. O Android não deixa um app desligar o aparelho, nem sendo o dono dele.', 'Entendi'),
-    travar: async on => { if (on) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (native.kioskUnlock(String(pin).trim())) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado', 2); return null; },
+    travar: async on => { if (on) { if (!casca.quiosque.travar()) return null; voice.banner('Aparelho travado', 3, 'só o Étape; PIN para sair'); return true; } const pin = await ask('Destravar o aparelho', 'PIN', 'Destravar', { input: true, value: '' }); if (pin == null) return null; if (casca.quiosque.destravar(pin)) { voice.banner('Aparelho destravado', 3); return false; } voice.banner('PIN errado' + casca.quiosque.textoEspera(), 2); return null; },
     abrirPrimeira: () => entrada.abrirPrimeira(),
     abrirUpdate: () => entrada.abrirUpdate(),
   });
@@ -224,17 +225,17 @@ export function init() {
       $('btnPronto').hidden = false; $('btnPronto').onclick = () => { $('dlgMenu').close(); const n = native.driveDelivered(); if (native.driveFetch()) voice.banner('Filmes prontos: ' + n, 3, 'conferindo o Drive; abrindo a galeria'); else voice.banner('Nada novo do Drive', 3, 'sem conta ligada, ou a conferência já está rodando; abrindo a galeria'); native.openFolder('', 'pronto'); };
       document.addEventListener('etape:drive', e => { const d = e.detail || {}; if (d.phase === 'delivered') voice.banner(d.detail || 'Filmes prontos', 3, 'Movies/Etape · pronto'); });
     }
-    // N2b · modo dedicado (só com Device Owner): toque longo de 5 s no relógio trava ou libera com PIN. O menu Ajustes
-    // → Travar o aparelho (painel Aparelho) ainda não chama isto: é só leitura até o U7 trazer a ponte de volta.
-    if (native.kioskOwner()) { const ask = () => { const locked = native.kioskLocked(); const pin = prompt(locked ? 'PIN para liberar o aparelho' : 'PIN para travar o aparelho'); if (pin == null) return;
-        if (locked) { if (native.kioskUnlock(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado', 2); }
-        else { if (native.kioskCheck(pin)) { native.kioskLock(); voice.banner('Aparelho travado', 3, 'segure o relógio por 5 s, ou o volume baixo por 10 s, para liberar'); } else voice.banner('PIN errado' + (native.kioskWait() > 0 ? ' · espere ' + Math.ceil(native.kioskWait() / 1000) + ' s' : ''), 2); } };
+    // N2b · modo dedicado (só com Device Owner): toque longo de 5 s no relógio trava ou libera com PIN. ADR-0006: a
+    // Capacidade Quiosque (casca/quiosque.js) e quem fala com a casca; aqui so o gesto e as faixas.
+    if (casca.quiosque.estado().dona) { const pedirPin = async () => { const q = casca.quiosque, e = q.estado(); const pin = await ask(e.travado ? 'Liberar o aparelho' : 'Travar o aparelho', 'PIN', e.travado ? 'Liberar' : 'Travar', { input: true, value: '' }); if (pin == null) return;
+        if (e.travado) { if (q.destravar(pin)) voice.banner('Aparelho liberado', 3, 'barra e bloqueio de volta'); else voice.banner('PIN errado' + q.textoEspera(), 2); }
+        else { if (q.pinOk(pin)) { q.travar(); voice.banner('Aparelho travado', 3, 'segure o relógio por 5 s, ou o volume baixo por 10 s, para liberar'); } else voice.banner('PIN errado' + q.textoEspera(), 2); } };
       let hold = 0; const clk = $('clock').parentElement; clk.addEventListener('contextmenu', e => e.preventDefault());
-      clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(ask, 5000); });
+      clk.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(pedirPin, 5000); });
       ['pointerup', 'pointercancel'].forEach(ev => clk.addEventListener(ev, () => clearTimeout(hold))); } }
   if (document.fonts) Promise.all([document.fonts.load('700 16px "Sofia Sans Semi Condensed"'), document.fonts.load('600 13px "Sofia Sans"')]).then(() => { R.setTheme(S.theme); R.invalidate(); }).catch(() => { });   // rótulos do mapa na fonte do sistema
   // ciclista 3D em WebGL na camada própria; sem WebGL, fica o desenho 2D
-  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, cinema, sidecar, music, mundoAuto }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
+  if (/[?&]debug=1/.test(location.search)) { window.__etape = { R, S, gps, track, guide, onFix, t3d: () => t3d, setParado, preOuting, showArrival, finishStage, diario: () => diario, native, casca, cinema, sidecar, music, mundoAuto, ve }; window.__errs = []; window.addEventListener('error', e => window.__errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__errs.push('promise: ' + String(e.reason))); }
   // avatar 3D (models/avatar.glb com rig procedural) ligado por padrão; ?r3d=0 desliga (bike 2D), ?r3d=1 força o procedural de tubos
   const r3dq = (location.search.match(/[?&]r3d=(\d)/) || [])[1];
   if (r3dq !== '0') import('./rider3d.js').then(async m => {   // avatar 3D ligado por padrão (pedido do Pedro em 06/09, no tamanho do ícone 2D); ?r3d=0 desliga, ?r3d=1 procedural
@@ -507,6 +508,13 @@ function applyScreen() { const eco = S.prefs.screen === 'economia'; native.keepO
 function takePhoto() {
   const p = S.pos || S.fix; const name = 'etape-' + (S.stage.key || 'SP') + '-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   if (!native.photo(name, file => { if (!file) { voice.banner('Foto cancelada', 3); return; } session.mark(S.session, 'foto', { lat: p ? p.lat : null, lon: p ? p.lon : null, dist: S.proj.dist, file }); voice.banner('Foto guardada', 3, 'km ' + (S.proj.dist / 1000).toFixed(1).replace('.', ',') + ' · Pictures/Etape'); R.invalidate(); })) voice.banner('Câmera indisponível', 2, 'a foto com posição só existe no app do celular');
+}
+// issue #3 · a sonda do que o ciclista ve. E o unico ponto que os testes da UX da U8 leem (casca_test.py Cena):
+// nada de internos — a pagina em que se esta, as abas que a Largada mostra. Nenhuma tela chama isto.
+function ve() {
+  const L = $('largada'), largada = !!(L && !L.hidden);
+  const abas = largada ? [...L.querySelectorAll('.ft a, .ft button')].filter(b => !b.hidden).map(b => b.textContent.trim()) : [];
+  return { pagina: S.cinema ? 'cinema' : largada ? 'largada' : 'pedal', abas };
 }
 function devTag(txt) { const t = $('devTag'); if (!t) return; t.textContent = txt; t.hidden = !txt; }   // regra 04: estado de simulação é uma placa cinza na fita, só quando ativo
 function updateAttr() { const e = $('attr'), sat = S.prefs.sat && S.satAttr; e.textContent = '© OpenStreetMap' + (sat ? ' · ' + S.satAttr.replace(/^©\s*/, '').split(',')[0] : ''); e.title = '© OpenStreetMap contributors' + (sat ? ' · ' + S.satAttr : ''); }   // regra 05: uma linha curta; o texto completo fica no title
@@ -1093,5 +1101,12 @@ function showReport(r) {
 window.addEventListener('DOMContentLoaded', async () => {
   try { await logdb.pronto(); const n = await logdb.migrar(store); if (n) console.log('registro migrado para o IndexedDB:', n, 'amostras'); }
   catch (e) { if (window.__errs) window.__errs.push('logdb: ' + (e && e.message)); }
+  // ?casca=fake&roteiro=<nome>: o segundo adapter da casca (casca/fake.js), instalado ANTES de native.init() para o app
+  // nao saber a diferenca. So no PC; no aparelho a casca de verdade ja esta em window.EtapeNative. Fica aqui, e nao
+  // num await de topo do modulo: o await atrasava a avaliacao para depois do DOMContentLoaded e init() nunca rodava.
+  if (/[?&]casca=fake\b/.test(location.search) && !window.EtapeNative) {
+    try { const f = await import('./casca/fake.js'); await f.instalar(new URLSearchParams(location.search).get('roteiro')); }
+    catch (e) { console.error('casca fake:', e); }
+  }
   init();
 });

@@ -3,9 +3,9 @@
 // arestas (como os ícones 2D), texturas desenhadas em canvas (pedra, telha, madeira, água, quadriculado), disco amarelo
 // com borda preta e placa de texto virada para a câmera. Cada tipo é construído uma vez (protótipo) e clonado.
 // Escala: objetos de 5–8 m; terrain3d aumenta a escala com a distância para o ícone nunca sumir na tela.
-import * as THREE from './vendor/three.module.min.js?v=1a47c3a9';
-import { flagAt } from './render.js?v=1a47c3a9';
-import { mergeGeometries } from './vendor/BufferGeometryUtils.js?v=1a47c3a9';
+import * as THREE from './vendor/three.module.min.js?v=a4f89d61';
+import { flagAt } from './render.js?v=a4f89d61';
+import { mergeGeometries } from './vendor/BufferGeometryUtils.js?v=a4f89d61';
 
 export const INK = 0x0A0A0A, JAUNE = 0xFFFF00, BLANC = 0xF4F4F4, ROUGE = 0xE10D0D, VERT = 0x1DAE50, BLEU = 0x3969B7, BRUN = 0xB8720A, GRIS = 0x8A8F96, PEDRA = 0xC9C2B4, MADEIRA = 0x9C6B3C, TELHA = 0xB5533C, CREME = 0xF3E9D2;
 const mats = new Map(), lineMat = new THREE.LineBasicMaterial({ color: INK });

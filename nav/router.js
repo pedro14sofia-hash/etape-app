@@ -2,7 +2,7 @@
 // Recálculo de rota offline: A* sobre o grafo de bike (graph.json, corredor de 3 km das etapas). Custo = comprimento ×
 // fator da via (ciclovias e vicinais preferidas, nacionais penalizadas, autoestradas fora, gravel aceito). Ponto de
 // partida e chegada são encaixados na aresta mais próxima. Devolve a polilinha e o comprimento.
-import { haversine } from './geo.js?v=c8177a80';
+import { haversine } from './geo.js';
 let G = null, adj = null, gridE = null; const CELL = 0.01;
 const FACTOR = { 2: 1.6, 3: 1.25, 4: 1.0, 5: 0.95, 6: 1.1, 7: 1.15, 8: 0.85, 9: 1.6, 10: 5 };
 export function available() { return !!G; }

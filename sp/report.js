@@ -1,10 +1,10 @@
-import { tzHM, tzAt } from './geo.js?v=1a47c3a9';
+import { tzHM, tzAt } from './geo.js?v=a4f89d61';
 // Étape Navegar · report.js
 // Relatório do dia: números, subidas, paradas, ingestão vs plano, exportação.
-import { elevationAt } from './track.js?v=1a47c3a9';
-import { toGpx } from './telemetry.js?v=1a47c3a9';
-import * as session from './session.js?v=1a47c3a9';
-import * as store from './store.js?v=1a47c3a9';
+import { elevationAt } from './track.js?v=a4f89d61';
+import { toGpx } from './telemetry.js?v=a4f89d61';
+import * as session from './session.js?v=a4f89d61';
+import * as store from './store.js?v=a4f89d61';
 
 const fmtT = s => { if (!isFinite(s) || s < 0) return '–'; const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return h + ':' + String(m).padStart(2, '0'); };
 const fmtH = d => d ? tzHM(d) : '–';

@@ -3,12 +3,12 @@
 // rotas inteiras (a escolhida em amarelo, as outras em cinza tracejado); a única ação é o botão da sessão, que já diz a
 // hora de chegada. A rota escolhida vira a etapa do dia (plan.stageFromRoute) e a orientação segue igual à da viagem.
 // A terceira rota alterna entre "menos subida" e "mais subida" (decisão do Pedro, 06/09/2026).
-import * as plan from './plan.js?v=c8177a80';
-import * as router from './router.js?v=c8177a80';
-import * as dem from './dem.js?v=c8177a80';
-import * as store from './store.js?v=c8177a80';
-import * as voice from './voice.js?v=c8177a80';
-import { haversine } from './geo.js?v=c8177a80';
+import * as plan from './plan.js';
+import * as router from './router.js';
+import * as dem from './dem.js';
+import * as store from './store.js';
+import * as voice from './voice.js';
+import { haversine } from './geo.js';
 
 let C = null;   // contexto do app: { S, $, refresh, setMode, setTab, activate(stage), restoreFree(), fitTo(pts), pos(), precisaPrimeira() }
 const D = { dest: null, from: null, alts: null, sel: 'shortest', third: null, q: '', busy: false, online: [], onlineQ: '', posPendente: false };

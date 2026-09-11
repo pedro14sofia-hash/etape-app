@@ -1,10 +1,10 @@
-import { tzHM, tzHour } from './geo.js?v=1a47c3a9';
+import { tzHM, tzHour } from './geo.js?v=a4f89d61';
 // Étape Navegar · ui.js
 // Painel, controles, gestos, tema, orientação, modo resumo.
-import { drawProfile, catCol } from './render.js?v=1a47c3a9';
-import { GRADE } from './tokens.js?v=1a47c3a9';
-import { surfaceAt, nextSurfaceChange } from './track.js?v=1a47c3a9';
-import * as session from './session.js?v=1a47c3a9';
+import { drawProfile, catCol } from './render.js?v=a4f89d61';
+import { GRADE } from './tokens.js?v=a4f89d61';
+import { surfaceAt, nextSurfaceChange } from './track.js?v=a4f89d61';
+import * as session from './session.js?v=a4f89d61';
 
 const $ = id => document.getElementById(id);
 const fmtKm1 = m => (Math.max(0, m) / 1000).toFixed(1).replace('.', ',');

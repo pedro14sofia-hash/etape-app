@@ -5,6 +5,7 @@
 // - brilho automático pelo sensor de luz com piso de 40 % ao sol; tema noite limita a 50 %;
 // - tela sempre ligada pela casca (além do Wake Lock da web);
 // - estado térmico: acima de "moderado" o app baixa o 3D para 30 qps e desliga o satélite no 3D.
+import * as ponte from './casca/ponte.js?v=a4f89d61';
 const N = { on: false, p0: 1013.25, offset: null, alt: null, altT: 0, samples: [], grade: null, ok: false, thermal: 0, lux: null, ref: null, refT: 0 };
 const H = p => 44330 * (1 - Math.pow(p / N.p0, 1 / 5.255));   // altura barométrica (m) para a pressão p (hPa)
 export function available() { return N.on; }
@@ -15,25 +16,26 @@ export function disponivel(nome) { try { return !!(window.EtapeNative && typeof 
 export function init() {
   const B = window.EtapeNative; if (!B) return false;
   N.on = true;
-  window.EtapeEvents = {
-    fix(lat, lon, acc, v, head, alt, t) { if (N.onFix) N.onFix({ t: +t || Date.now(), lat: +lat, lon: +lon, acc: +acc || 0, ele: +alt > -9000 ? +alt : null, speed: +v >= 0 ? +v : null, head: +head >= 0 ? +head : null, src: 'gps' }); },
-    key(k, dev) { N.lastKeyDev = String(dev || ''); if (N.onKey) N.onKey(String(k)); },
-    photo(name) { const cb = N.onPhoto; N.onPhoto = null; if (cb) cb(String(name || '')); },
-    baro(p, t) { onBaro(+p, +t); },
-    light(lux) { N.lux = +lux; },
-    thermal(st) { N.thermal = +st; },
-    rec(ev) { document.dispatchEvent(new CustomEvent('etape:rec', { detail: ev })); },
-    update(st) { N.update = st; document.dispatchEvent(new CustomEvent('etape:update', { detail: st })); },
-    music(st) { document.dispatchEvent(new CustomEvent('etape:music', { detail: st })); },
-    night(st) { N.night = st; document.dispatchEvent(new CustomEvent('etape:night', { detail: st })); },
-    drive(st) { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); },
-    rotate(deg) { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); },
-    away(id) { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); },
-    // U7: resposta das tres permissoes que a casca passou a saber pedir. Uma de cada vez — a tela "Primeira vez"
-    // pede em sequencia —, e quem nao estava esperando ignora.
-    perm(ok) { const cb = N.onPerm; N.onPerm = null; if (cb) cb(!!ok); },
-    energia(st) { N.energia = st; document.dispatchEvent(new CustomEvent('etape:energia', { detail: st })); }
-  };
+  // 11/09 (ADR-0006): a tabela window.EtapeEvents passou para casca/ponte.js; aqui ficam so os ouvintes do que ainda
+  // nao virou Capacidade. Cada bloco some quando a sua capacidade nascer (plano 2). Os CustomEvent no document sao
+  // a forma antiga dos mesmos eventos e somem junto. 'update' ja nao vira CustomEvent: ninguem o ouvia.
+  ponte.ligar();
+  ponte.ao('fix', (lat, lon, acc, v, head, alt, t) => { if (N.onFix) N.onFix({ t: +t || Date.now(), lat: +lat, lon: +lon, acc: +acc || 0, ele: +alt > -9000 ? +alt : null, speed: +v >= 0 ? +v : null, head: +head >= 0 ? +head : null, src: 'gps' }); });
+  ponte.ao('key', (k, dev) => { N.lastKeyDev = String(dev || ''); if (N.onKey) N.onKey(String(k)); });
+  ponte.ao('photo', name => { const cb = N.onPhoto; N.onPhoto = null; if (cb) cb(String(name || '')); });
+  ponte.ao('baro', (p, t) => onBaro(+p, +t));
+  ponte.ao('light', lux => { N.lux = +lux; });
+  ponte.ao('thermal', st => { N.thermal = +st; });
+  ponte.ao('rec', ev => document.dispatchEvent(new CustomEvent('etape:rec', { detail: ev })));
+  ponte.ao('music', st => document.dispatchEvent(new CustomEvent('etape:music', { detail: st })));
+  ponte.ao('night', st => { N.night = st; document.dispatchEvent(new CustomEvent('etape:night', { detail: st })); });
+  ponte.ao('drive', st => { N.drive = st; document.dispatchEvent(new CustomEvent('etape:drive', { detail: st })); });
+  ponte.ao('rotate', deg => { N.rot = +deg || 0; document.dispatchEvent(new CustomEvent('etape:rotate', { detail: N.rot })); });
+  ponte.ao('away', id => { N.away = String(id || ''); document.dispatchEvent(new CustomEvent('etape:away', { detail: N.away })); });
+  // U7: resposta das tres permissoes que a casca passou a saber pedir. Uma de cada vez — a tela "Primeira vez"
+  // pede em sequencia —, e quem nao estava esperando ignora.
+  ponte.ao('perm', ok => { const cb = N.onPerm; N.onPerm = null; if (cb) cb(!!ok); });
+  ponte.ao('energia', st => { N.energia = st; document.dispatchEvent(new CustomEvent('etape:energia', { detail: st })); });
   try { if (B.hasBaro()) B.baroStart(); } catch (e) { }
   try { B.brightness(-1); B.keepOn(true); } catch (e) { }
   try { N.thermal = +B.thermal() || 0; } catch (e) { }
@@ -113,7 +115,6 @@ export async function checklist(S) {
 // ja se desabilita antes disso, e o null e a segunda rede.
 export function bateria() { try { return N.on ? JSON.parse(window.EtapeNative.battery()) : null; } catch (e) { return null; } }
 export function espaco() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }
-export function conteudo() { try { return N.on && window.EtapeNative.conteudo ? JSON.parse(window.EtapeNative.conteudo()) : null; } catch (e) { return null; } }
 export function driveResumo() { try { return N.on ? { conta: String(window.EtapeNative.driveAccount() || ''), fila: +window.EtapeNative.drivePending() || 0 } : null; } catch (e) { return null; } }
 // U7 · Cortina e Guardado. `cortinaPronta` avisa que a tela desenhou de verdade — sem ele a Cortina assume em 6 s
 // e mostra a saida de emergencia. `guardar` devolve 'ok', 'em pedal' ou o motivo; nunca guarda com uma saida em
@@ -123,11 +124,6 @@ export function cortinaPronta() { try { if (N.on && window.EtapeNative.cortinaPr
 export function ouveNotificacoes() { try { return !!(N.on && window.EtapeNative.ouveNotificacoes && window.EtapeNative.ouveNotificacoes()); } catch (e) { return false; } }
 export function guardar() { try { return N.on && window.EtapeNative.guardar ? String(window.EtapeNative.guardar()) : 'sem casca'; } catch (e) { return 'erro: ' + e; } }
 export function energia() { try { return N.on && window.EtapeNative.energia ? JSON.parse(window.EtapeNative.energia()) : null; } catch (e) { return null; } }
-export function kioskOwner() { try { return N.on && !!window.EtapeNative.kioskOwner(); } catch (e) { return false; } }
-export function kioskLocked() { try { return N.on && !!window.EtapeNative.kioskLocked(); } catch (e) { return false; } }
-export function kioskUnlock(pin) { try { return !!window.EtapeNative.kioskUnlock(String(pin)); } catch (e) { return false; } }
-export function kioskLock() { try { window.EtapeNative.kioskLock(); } catch (e) { } }
-export function kioskPin(cur, nw) { try { return !!window.EtapeNative.kioskPin(String(cur), String(nw)); } catch (e) { return false; } }
 // ---- Cinema pacote 1 · câmera e gravação (só na casca). Eventos viram 'etape:rec' no document, com detail = o JSON da casca
 // UC3a: a cadencia do Cinema ('30' | '24-48' | '24-50'). Vale para a proxima sessao de camera; um clipe em
 // andamento nao muda de cadencia no meio, que e o certo.
@@ -143,11 +139,6 @@ export function telemetry(json) { try { if (N.on) window.EtapeNative.telemetry(j
 export function recContext(json) { try { if (N.on) window.EtapeNative.recContext(json); } catch (e) { } }
 export function beep(kind) { try { if (N.on) window.EtapeNative.beep(String(kind || '')); } catch (e) { } }
 export function lastKeyDevice() { return N.lastKeyDev || ''; }
-// ---- pacote 6 · atualização sem PC
-export function updateCheck(force) { try { return N.on && !!window.EtapeNative.updateCheck(!!force); } catch (e) { return false; } }
-export function updateState() { try { return N.on ? JSON.parse(window.EtapeNative.updateState()) : null; } catch (e) { return null; } }
-export function updateAllowed() { try { return N.on && !!window.EtapeNative.updateAllowed(); } catch (e) { return false; } }
-export function version() { try { return N.on ? JSON.parse(window.EtapeNative.version()) : null; } catch (e) { return null; } }
 // ---- pacote 5 · música
 export function musicState() { try { return N.on ? JSON.parse(window.EtapeNative.musicState()) : null; } catch (e) { return null; } }
 export function musicPlay() { try { if (N.on) window.EtapeNative.musicPlay(); } catch (e) { } }
@@ -169,7 +160,6 @@ export function driveState() { try { return N.on ? JSON.parse(window.EtapeNative
 export function drivePending() { try { return N.on ? +window.EtapeNative.drivePending() : 0; } catch (e) { return 0; } }
 export function rotation() { try { return N.on ? (+window.EtapeNative.rotation() || 0) : 0; } catch (e) { return 0; } }
 export function storage() { try { return N.on ? JSON.parse(window.EtapeNative.storage()) : null; } catch (e) { return null; } }
-export function kioskReset(pin) { try { return N.on && !!window.EtapeNative.kioskReset(String(pin)); } catch (e) { return false; } }
 // ---- Cinema v1/v2 · prévia com look, enquadramento do dia, look da noite, entrega dos filmes prontos
 export function previewLook(on, look) { try { if (N.on) window.EtapeNative.previewLook(!!on, +look || 1); } catch (e) { } }
 export function cinemaFrame(on) { try { if (N.on) window.EtapeNative.cinemaFrame(!!on); } catch (e) { } }
@@ -198,7 +188,6 @@ export function tabText(t) { try { if (N.on && window.EtapeNative.tabText && N.t
 export function tabAviso(t) { try { if (N.on && window.EtapeNative.tabAviso && N.avisoLast !== t) { N.avisoLast = t; window.EtapeNative.tabAviso(String(t || '')); } } catch (e) { } }
 export function tabAllowed() { try { return N.on && !!window.EtapeNative.tabAllowed(); } catch (e) { return false; } }
 export function toFront() { try { if (N.on && window.EtapeNative.toFront) window.EtapeNative.toFront(); } catch (e) { } }
-export function reboot(pin) { try { return N.on && !!window.EtapeNative.reboot(String(pin)); } catch (e) { return false; } }
 // ---- item 3 da revisão (08/09): zebra e a medida do quadro na prévia
 export function previewZebra(level) { try { if (N.on) window.EtapeNative.previewZebra(+level || 0); } catch (e) { } }
 export function previewStats() { try { return N.on ? JSON.parse(window.EtapeNative.previewStats() || 'null') : null; } catch (e) { return null; } }

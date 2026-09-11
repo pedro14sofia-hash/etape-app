@@ -1,8 +1,8 @@
 // Étape Navegar · guide.js
 // Orientação: transforma posição em eventos (curva, borne, fora de rota, chegada, parada, compra, subida, luz).
-import { haversine, sunTimes, bearing, tzAt, tzMinutes } from './geo.js?v=1a47c3a9';
-import { project, nextCheckpoint, climbAt, surfaceAt, pointAt } from './track.js?v=1a47c3a9';
-import { poisNear, nearestWay } from './data-mod.js?v=1a47c3a9';
+import { haversine, sunTimes, bearing, tzAt, tzMinutes } from './geo.js?v=a4f89d61';
+import { project, nextCheckpoint, climbAt, surfaceAt, pointAt } from './track.js?v=a4f89d61';
+import { poisNear, nearestWay } from './data-mod.js?v=a4f89d61';
 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 

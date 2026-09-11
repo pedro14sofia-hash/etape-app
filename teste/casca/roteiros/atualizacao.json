@@ -1,0 +1,8 @@
+[
+  { "t": 0.5, "ev": "update", "st": { "phase": "hashing", "detail": "" } },
+  { "t": 1.0, "ev": "update", "st": { "phase": "checking", "detail": "" } },
+  { "t": 1.5, "ev": "update", "st": { "phase": "downloading", "detail": "nav/app.js", "files": 40, "done": 10 } },
+  { "t": 2.0, "ev": "update", "st": { "phase": "downloading", "detail": "nav/render.js", "files": 40, "done": 30 } },
+  { "t": 2.5, "ev": "update", "st": { "phase": "applying", "detail": "" } },
+  { "t": 3.0, "ev": "update", "st": { "phase": "done", "detail": "" } }
+]

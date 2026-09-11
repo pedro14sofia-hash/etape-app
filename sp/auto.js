@@ -3,10 +3,10 @@
 // (Rosto 30 s), topo (Rosto 20 s), "grava agora" da descida (Estrada até a rampa aplainar, teto 6 min), flamme rouge /
 // chegada (Estrada 90 s), coração alto (Rosto 20 s, no máximo a cada 10 min). Liga por S.prefs.autoRec (viagem: ligado;
 // Diário/livre: desligado) no menu Mais. Só com a saída em andamento; nunca interrompe um REC manual.
-import * as native from './native.js?v=1a47c3a9';
-import * as cinema from './cinema.js?v=1a47c3a9';
-import * as voice from './voice.js?v=1a47c3a9';
-import * as store from './store.js?v=1a47c3a9';
+import * as native from './native.js?v=a4f89d61';
+import * as cinema from './cinema.js?v=a4f89d61';
+import * as voice from './voice.js?v=a4f89d61';
+import * as store from './store.js?v=a4f89d61';
 
 let S = null; const timers = {}; let lastHr = 0; let flat = 0; const auto = { estrada: false, rosto: false }; let enteredByAuto = false;
 

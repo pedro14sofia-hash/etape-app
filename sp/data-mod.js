@@ -1,6 +1,6 @@
 // Étape Navegar · data.js
 // Carga e índice espacial do mapa (window.MAP) e dos traçados (window.ROUTES), gerados pelo build em data.js.
-import { bbox, fastDist } from './geo.js?v=1a47c3a9';
+import { bbox, fastDist } from './geo.js?v=a4f89d61';
 
 export function loadMap() {
   const M = window.MAP || { ways: [], polys: [], waters: [], rails: [], pois: [] };

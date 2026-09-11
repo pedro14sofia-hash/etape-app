@@ -2,8 +2,8 @@
 // Os quatro apps de fora a um gesto: puxar da borda de cima, onde a bandeja da Samsung abriria e na tarefa fixa nada
 // acontece. A gaveta é o atalho em movimento; o painel Aparelho continua sendo a consulta (rede, bateria, energia),
 // e é para lá que o rodapé leva. Fora da casca ela não tem o que oferecer: native.apps() devolve vazio e ela some.
-import * as native from './native.js?v=1a47c3a9';
-import * as voice from './voice.js?v=1a47c3a9';
+import * as native from './native.js?v=a4f89d61';
+import * as voice from './voice.js?v=a4f89d61';
 
 let S = null, el = null, borda = null, aberta = false, ctx = null;
 const $ = id => document.getElementById(id);

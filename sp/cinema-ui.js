@@ -4,11 +4,11 @@
 // dois botões de REC do lado da mão direita (um toque começa, outro termina), e embaixo velocidade, rampa, bpm e o lugar. Um toque na imagem esconde tudo
 // menos os botões. Em pé ou deitada pelo acelerômetro da casca (a atividade é travada em pé: a sobreposição gira por CSS).
 // Fora do Cinema: a faixa da música na Fita, abaixo do cabeçalho, só quando há uma sessão de mídia.
-import * as native from './native.js?v=1a47c3a9';
-import * as cinema from './cinema.js?v=1a47c3a9';
-import * as music from './music.js?v=1a47c3a9';
-import * as sensors from './sensors.js?v=1a47c3a9';
-import { svgArrow } from './ui.js?v=1a47c3a9';
+import * as native from './native.js?v=a4f89d61';
+import * as cinema from './cinema.js?v=a4f89d61';
+import * as music from './music.js?v=a4f89d61';
+import * as sensors from './sensors.js?v=a4f89d61';
+import { svgArrow } from './ui.js?v=a4f89d61';
 
 let S = null, timer = 0, rot = 0, bare = false, toggleBareFn = null;
 export function toggleBare() { if (toggleBareFn) toggleBareFn(); }   // volume baixo segurado no Cinema: mostra ou esconde o placar

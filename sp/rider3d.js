@@ -5,8 +5,8 @@
 // pedivela e coroa giram no movimento central, pés seguem os pedais e as pernas dobram com IK de dois ossos; os pesos
 // por vértice são calculados por região da malha. Sem modelo (ou sem WebGL), fica o desenho 2D do render.js.
 // Modo secundário (página rider3d.html): ciclista procedural em tubos, mantido para testes.
-import * as THREE from './vendor/three.module.min.js?v=1a47c3a9';
-import { GLTFLoader } from './vendor/GLTFLoader.js?v=1a47c3a9';
+import * as THREE from './vendor/three.module.min.js?v=a4f89d61';
+import { GLTFLoader } from './vendor/GLTFLoader.js?v=a4f89d61';
 
 const C = { ink: 0x17191c, paper: 0xf7f5ee, green: 0x2f8f46, yellow: 0xffd100, skin: 0xe0b08a, helmet: 0xffffff, silver: 0xc9c9c9, tire: 0x1a1b1e, rim: 0x9a9fa6, dark: 0x3c4045 };
 let renderer = null, scene, camera, dpr = 1, W = 0, H = 0, ok = false;

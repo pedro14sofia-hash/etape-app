@@ -5,11 +5,11 @@
 // uma etapa igual às da viagem (pontos, perfil, subidas, superfícies = ciclovia/faixa/rua, bornes de partida e chegada,
 // curvas), para a orientação, a fita e o relatório funcionarem sem mudar nada. Lugares guardados e busca por nome de via
 // ou de ponto do mapa, tudo offline.
-import * as router from './router.js?v=c8177a80';
-import * as dem from './dem.js?v=c8177a80';
-import * as store from './store.js?v=c8177a80';
-import * as track from './track.js?v=c8177a80';
-import { haversine } from './geo.js?v=c8177a80';
+import * as router from './router.js';
+import * as dem from './dem.js';
+import * as store from './store.js';
+import * as track from './track.js';
+import { haversine } from './geo.js';
 
 export const PROFILES = { shortest: 'Mais curta', bike: 'Pela ciclovia', climbLess: 'Menos subida', climbMore: 'Mais subida' };
 

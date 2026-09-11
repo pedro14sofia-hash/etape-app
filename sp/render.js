@@ -2,15 +2,15 @@
 // Desenho do mapa (estilo Carte Michelin, dia e noite; satélite IGN opcional) e do perfil no Canvas.
 // Três câmeras: 2D (norte fixo ou rumo para cima), 3ª pessoa e 1ª pessoa (perspectiva a partir do ciclista).
 // Só desenha quando invalidado. O ciclista tem camada própria (animação sem redesenhar o mapa).
-import { mercX, mercY, metersPerPixel } from './geo.js?v=1a47c3a9';
-import { query } from './data-mod.js?v=1a47c3a9';
-import { elevationAt, pointAt, bearingAt, gradeAt } from './track.js?v=1a47c3a9';
-import { icon, ready } from './icons.js?v=1a47c3a9';
-import * as sat from './sat.js?v=1a47c3a9';
-import * as dem from './dem.js?v=1a47c3a9';
-import * as shade from './shade.js?v=1a47c3a9';
-import * as basemap from './basemap.js?v=1a47c3a9';
-import { T as TOKENS, FLAG as TFLAG, CAT as TCAT, CHAO as TCHAO } from './tokens.js?v=1a47c3a9';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
+import { mercX, mercY, metersPerPixel } from './geo.js?v=a4f89d61';
+import { query } from './data-mod.js?v=a4f89d61';
+import { elevationAt, pointAt, bearingAt, gradeAt } from './track.js?v=a4f89d61';
+import { icon, ready } from './icons.js?v=a4f89d61';
+import * as sat from './sat.js?v=a4f89d61';
+import * as dem from './dem.js?v=a4f89d61';
+import * as shade from './shade.js?v=a4f89d61';
+import * as basemap from './basemap.js?v=a4f89d61';
+import { T as TOKENS, FLAG as TFLAG, CAT as TCAT, CHAO as TCHAO } from './tokens.js?v=a4f89d61';   // gerado pelo build a partir de tokens.json (uma fonte para CSS, canvas e WebGL)
 
 // estilo A "relevo em papel" (estudo do mapa, 06/09/2026): chão branco (preto à noite), sombra do relevo, curvas de nível
 export const THEMES = { day: TOKENS.day, night: TOKENS.night };
